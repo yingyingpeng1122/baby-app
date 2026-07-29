@@ -1,0 +1,60 @@
+# macOS / Windows
+.DS_Store
+Thumbs.db
+Desktop.ini
+nul
+
+# 编辑器与本地工作区
+.idea/
+.vscode/
+*.swp
+*.swo
+*.sublime-workspace
+.codebuddy/
+.workbuddy/
+
+# 环境变量与私密配置
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+.venv/
+venv/
+env/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+.coverage.*
+htmlcov/
+build/
+*.egg-info/
+
+# Node.js / Vite
+node_modules/
+dist/
+dist-ssr/
+.vite/
+coverage/
+*.local
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# 部署工具
+.vercel/
+
+# 运行时缓存
+baby-app-backend/video_cache.json
+debug.log
+
+# 历史临时源码副本
+baby-app-frontend/前端.txt
+baby-app-frontend/后端.txt
