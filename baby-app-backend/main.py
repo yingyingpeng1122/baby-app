@@ -417,7 +417,7 @@ async def set_activity_video(id: int, payload: dict):
     return {"id": id, "videoUrl": url}
 
 # ---------------- API 路由 ----------------
-@app.get("/")
+@app.get("/health")
 async def health():
     return {"status": "ok"}
 
