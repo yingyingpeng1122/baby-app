@@ -1,0 +1,29 @@
+# Docker
+node_modules/
+.git/
+.workbuddy/
+__pycache__/
+*.pyc
+*.pyo
+.env
+.env.local
+
+# 前端
+baby-app-frontend/dist/
+baby-app-frontend/node_modules/
+
+# 后端
+baby-app-backend/__pycache__/
+baby-app-backend/*.pyc
+baby-app-backend/video_cache.json
+
+# 系统
+.DS_Store
+Thumbs.db
+*.log
+*.md
+!.env.example
+
+# IDE
+.vscode/
+.idea/

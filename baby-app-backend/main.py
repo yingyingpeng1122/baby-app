@@ -918,8 +918,19 @@ async def get_dashboard(request: Request):
     )
 
 # ---------------- 静态文件托管（生产环境） ----------------
-DIST_DIR = os.path.join(os.path.dirname(os.path.dirname(__file__)), "baby-app-frontend", "dist")
-if os.path.isdir(DIST_DIR):
+# 兼容本地开发和 Docker 容器两种目录结构
+_here = os.path.dirname(os.path.abspath(__file__))
+DIST_DIR_CANDIDATES = [
+    os.path.join(os.path.dirname(_here), "baby-app-frontend", "dist"),   # 本地开发
+    os.path.join(_here, "baby-app-frontend", "dist"),                    # Docker 容器
+]
+DIST_DIR = None
+for d in DIST_DIR_CANDIDATES:
+    if os.path.isdir(d):
+        DIST_DIR = d
+        break
+
+if DIST_DIR:
     app.mount("/assets", StaticFiles(directory=os.path.join(DIST_DIR, "assets")), name="assets")
 
     @app.get("/{full_path:path}")
