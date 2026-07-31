@@ -245,6 +245,30 @@ def _get_profile(uid: str) -> Optional[BabyProfile]:
     r = rs[0]
     return BabyProfile(name=r[0], gender=r[1], birthday=r[2], height=r[3], weight=r[4])
 
+# ---------------- 家庭系统辅助函数 ----------------
+def get_baby_id(request: Request) -> str:
+    """从 X-Baby-Id header 获取当前操作的宝宝 ID"""
+    bid = request.headers.get("X-Baby-Id", "").strip()
+    if not bid:
+        raise HTTPException(status_code=400, detail="X-Baby-Id header required")
+    return bid
+
+def get_family_id(request: Request) -> str:
+    """从 X-User-Id 查找用户所属家庭 ID"""
+    uid = get_uid(request)
+    rs = db.execute("SELECT family_id FROM family_members WHERE user_id = ?", [uid]).fetchall()
+    if not rs:
+        raise HTTPException(status_code=403, detail="Not in any family. Please create or join one first.")
+    return rs[0][0]
+
+def _get_baby_profile(baby_id: str) -> Optional[dict]:
+    """按 baby_id 获取宝宝档案（返回 dict，兼容旧代码）"""
+    rs = db.execute("SELECT name, gender, birthday, height, weight FROM babies WHERE baby_id = ?", [baby_id]).fetchall()
+    if not rs:
+        return None
+    r = rs[0]
+    return {"name": r[0], "gender": r[1], "birthday": r[2], "height": r[3], "weight": r[4]}
+
 # ---------------- B 站视频自动检索 ----------------
 UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
 CACHE_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "video_cache.json")
@@ -405,74 +429,220 @@ async def init_user():
     db.sync()
     return {"userId": uid}
 
+# ---------------- 家庭系统 API ----------------
+class FamilyCreateRequest(BaseModel):
+    family_name: str
+
+class FamilyJoinRequest(BaseModel):
+    family_id: str
+
+class BabyCreateRequest(BaseModel):
+    name: str
+    gender: str
+    birthday: str
+    height: float
+    weight: float
+
+class BabyUpdateRequest(BaseModel):
+    name: str = None
+    gender: str = None
+    birthday: str = None
+    height: float = None
+    weight: float = None
+
+@app.post("/family")
+async def create_family(req: FamilyCreateRequest, request: Request):
+    """创建家庭：生成唯一 ID，创建者自动成为家庭成员"""
+    uid = get_uid(request)
+    # 检查是否已在家庭中
+    existing = db.execute("SELECT family_id FROM family_members WHERE user_id = ?", [uid]).fetchall()
+    if existing:
+        raise HTTPException(status_code=400, detail="Already in a family. Leave current family first.")
+    # 生成唯一 ID，重试避免冲突
+    for _ in range(10):
+        fid = generate_family_id()
+        dup = db.execute("SELECT 1 FROM families WHERE family_id = ?", [fid]).fetchall()
+        if not dup:
+            break
+    else:
+        raise HTTPException(status_code=500, detail="Failed to generate unique family ID")
+    db.execute("INSERT INTO families (family_id, family_name) VALUES (?, ?)", [fid, req.family_name])
+    db.execute("INSERT INTO family_members (family_id, user_id, role) VALUES (?, ?, 'creator')", [fid, uid])
+    db.sync()
+    return {"family_id": fid, "family_name": req.family_name, "role": "creator"}
+
+@app.post("/family/join")
+async def join_family(req: FamilyJoinRequest, request: Request):
+    """加入家庭：通过家庭 ID 加入"""
+    uid = get_uid(request)
+    # 检查是否已在家庭中
+    existing = db.execute("SELECT family_id FROM family_members WHERE user_id = ?", [uid]).fetchall()
+    if existing:
+        if existing[0][0] == req.family_id:
+            return {"family_id": req.family_id, "message": "Already in this family"}
+        raise HTTPException(status_code=400, detail="Already in another family. Leave current family first.")
+    # 检查家庭是否存在
+    fam = db.execute("SELECT family_id, family_name FROM families WHERE family_id = ?", [req.family_id]).fetchall()
+    if not fam:
+        raise HTTPException(status_code=404, detail="Family not found. Check the family ID.")
+    db.execute("INSERT INTO family_members (family_id, user_id, role) VALUES (?, ?, 'member')", [req.family_id, uid])
+    db.sync()
+    return {"family_id": fam[0][0], "family_name": fam[0][1], "role": "member"}
+
+@app.get("/family")
+async def get_family(request: Request):
+    """获取当前用户的家庭信息（含成员列表和宝宝列表）"""
+    uid = get_uid(request)
+    member = db.execute("SELECT family_id, role FROM family_members WHERE user_id = ?", [uid]).fetchall()
+    if not member:
+        raise HTTPException(status_code=404, detail="Not in any family")
+    fid = member[0][0]
+    fam = db.execute("SELECT family_name FROM families WHERE family_id = ?", [fid]).fetchall()
+    members = db.execute("SELECT user_id, role FROM family_members WHERE family_id = ?", [fid]).fetchall()
+    babies = db.execute("SELECT baby_id, name, gender, birthday, height, weight FROM babies WHERE family_id = ?", [fid]).fetchall()
+    return {
+        "family_id": fid,
+        "family_name": fam[0][0] if fam else "",
+        "role": member[0][1],
+        "members": [{"user_id": m[0], "role": m[1]} for m in members],
+        "babies": [{"baby_id": b[0], "name": b[1], "gender": b[2], "birthday": b[3], "height": b[4], "weight": b[5]} for b in babies],
+    }
+
+@app.get("/family/babies")
+async def list_babies(request: Request):
+    """获取当前家庭的所有宝宝"""
+    fid = get_family_id(request)
+    babies = db.execute("SELECT baby_id, name, gender, birthday, height, weight FROM babies WHERE family_id = ?", [fid]).fetchall()
+    return [{"baby_id": b[0], "name": b[1], "gender": b[2], "birthday": b[3], "height": b[4], "weight": b[5]} for b in babies]
+
+@app.post("/family/babies")
+async def add_baby(req: BabyCreateRequest, request: Request):
+    """添加宝宝到家庭"""
+    fid = get_family_id(request)
+    bid = str(uuid.uuid4())[:8]
+    db.execute("INSERT INTO babies (baby_id, family_id, name, gender, birthday, height, weight) VALUES (?, ?, ?, ?, ?, ?, ?)",
+               [bid, fid, req.name, req.gender, req.birthday, req.height, req.weight])
+    db.sync()
+    return {"baby_id": bid, "name": req.name, "gender": req.gender, "birthday": req.birthday, "height": req.height, "weight": req.weight}
+
+@app.put("/family/babies/{baby_id}")
+async def update_baby(baby_id: str, req: BabyUpdateRequest, request: Request):
+    """更新宝宝信息"""
+    fid = get_family_id(request)
+    # 确认宝宝属于该家庭
+    baby = db.execute("SELECT baby_id FROM babies WHERE baby_id = ? AND family_id = ?", [baby_id, fid]).fetchall()
+    if not baby:
+        raise HTTPException(status_code=404, detail="Baby not found")
+    # 只更新提供的字段
+    updates = {}
+    if req.name is not None: updates["name"] = req.name
+    if req.gender is not None: updates["gender"] = req.gender
+    if req.birthday is not None: updates["birthday"] = req.birthday
+    if req.height is not None: updates["height"] = req.height
+    if req.weight is not None: updates["weight"] = req.weight
+    if updates:
+        cols = ", ".join(f"{k}=?" for k in updates)
+        vals = list(updates.values()) + [baby_id, fid]
+        db.execute(f"UPDATE babies SET {cols} WHERE baby_id = ? AND family_id = ?", vals)
+        db.sync()
+    return await list_babies(request)
+
+@app.delete("/family/babies/{baby_id}")
+async def delete_baby(baby_id: str, request: Request):
+    """删除宝宝（同时删除相关记录）"""
+    fid = get_family_id(request)
+    db.execute("DELETE FROM babies WHERE baby_id = ? AND family_id = ?", [baby_id, fid])
+    db.execute("DELETE FROM feeding_records_v2 WHERE baby_id = ?", [baby_id])
+    db.execute("DELETE FROM checklist_items_v2 WHERE baby_id = ?", [baby_id])
+    db.sync()
+    return {"ok": True}
+
 @app.post("/profile", response_model=BabyProfile)
 async def save_profile(profile: BabyProfile, request: Request):
+    """兼容旧版：直接创建 profile 并自动创建家庭+宝宝"""
     uid = get_uid(request)
-    db.execute(
-        "INSERT OR REPLACE INTO profiles (user_id, name, gender, birthday, height, weight) VALUES (?, ?, ?, ?, ?, ?)",
-        [uid, profile.name, profile.gender, profile.birthday, profile.height, profile.weight])
+    # 检查是否已在家庭中
+    member = db.execute("SELECT family_id FROM family_members WHERE user_id = ?", [uid]).fetchall()
+    if member:
+        # 已有家庭，更新第一个宝宝
+        babies = db.execute("SELECT baby_id FROM babies WHERE family_id = ?", [member[0][0]]).fetchall()
+        if babies:
+            db.execute("UPDATE babies SET name=?, gender=?, birthday=?, height=?, weight=? WHERE baby_id=?",
+                       [profile.name, profile.gender, profile.birthday, profile.height, profile.weight, babies[0][0]])
+            db.sync()
+            return profile
+    # 创建新家庭+宝宝
+    fid = generate_family_id()
+    db.execute("INSERT INTO families (family_id, family_name) VALUES (?, ?)", [fid, f"{profile.name}的家庭"])
+    db.execute("INSERT INTO family_members (family_id, user_id, role) VALUES (?, ?, 'creator')", [fid, uid])
+    bid = str(uuid.uuid4())[:8]
+    db.execute("INSERT INTO babies (baby_id, family_id, name, gender, birthday, height, weight) VALUES (?, ?, ?, ?, ?, ?, ?)",
+               [bid, fid, profile.name, profile.gender, profile.birthday, profile.height, profile.weight])
+    # 同时写入旧表做兼容
+    db.execute("INSERT OR REPLACE INTO profiles (user_id, name, gender, birthday, height, weight) VALUES (?, ?, ?, ?, ?, ?)",
+               [uid, profile.name, profile.gender, profile.birthday, profile.height, profile.weight])
     db.sync()
     return profile
 
 # ---- 喂养记录 ----
 @app.post("/feeding-records", response_model=FeedingRecord)
 async def add_feeding_record(record: FeedingRecord, request: Request):
-    uid = get_uid(request)
+    bid = get_baby_id(request)
     today = date.today().isoformat()
     record.id = str(uuid.uuid4())[:8]
     db.execute(
-        "INSERT INTO feeding_records (id, user_id, date, time, amount, type, note) VALUES (?, ?, ?, ?, ?, ?, ?)",
-        [record.id, uid, today, record.time, record.amount, record.type, record.note])
+        "INSERT INTO feeding_records_v2 (id, baby_id, date, time, amount, type, note) VALUES (?, ?, ?, ?, ?, ?, ?)",
+        [record.id, bid, today, record.time, record.amount, record.type, record.note])
     db.sync()
     return record
 
 @app.get("/feeding-records", response_model=List[FeedingRecord])
 async def get_feeding_records(request: Request, date_str: str = Query(default=None, alias="date")):
-    uid = get_uid(request)
+    bid = get_baby_id(request)
     d = date_str or date.today().isoformat()
     rs = db.execute(
-        "SELECT id, time, amount, type, note FROM feeding_records WHERE user_id = ? AND date = ?",
-        [uid, d]).fetchall()
+        "SELECT id, time, amount, type, note FROM feeding_records_v2 WHERE baby_id = ? AND date = ?",
+        [bid, d]).fetchall()
     return [FeedingRecord(id=r[0], time=r[1], amount=r[2], type=r[3], note=r[4]) for r in rs]
 
 @app.put("/feeding-records/{record_id}", response_model=FeedingRecord)
 async def update_feeding_record(record_id: str, record: FeedingRecord, request: Request):
-    uid = get_uid(request)
+    bid = get_baby_id(request)
     today = date.today().isoformat()
     rs = db.execute(
-        "SELECT id FROM feeding_records WHERE id = ? AND user_id = ? AND date = ?",
-        [record_id, uid, today]).fetchall()
+        "SELECT id FROM feeding_records_v2 WHERE id = ? AND baby_id = ? AND date = ?",
+        [record_id, bid, today]).fetchall()
     if not rs:
         raise HTTPException(status_code=404, detail="Record not found")
     db.execute(
-        "UPDATE feeding_records SET time=?, amount=?, type=?, note=? WHERE id=? AND user_id=? AND date=?",
-        [record.time, record.amount, record.type, record.note, record_id, uid, today])
+        "UPDATE feeding_records_v2 SET time=?, amount=?, type=?, note=? WHERE id=? AND baby_id=? AND date=?",
+        [record.time, record.amount, record.type, record.note, record_id, bid, today])
     db.sync()
     record.id = record_id
     return record
 
 @app.delete("/feeding-records/{record_id}")
 async def delete_feeding_record(record_id: str, request: Request):
-    uid = get_uid(request)
+    bid = get_baby_id(request)
     today = date.today().isoformat()
     rs = db.execute(
-        "SELECT id FROM feeding_records WHERE id = ? AND user_id = ? AND date = ?",
-        [record_id, uid, today]).fetchall()
+        "SELECT id FROM feeding_records_v2 WHERE id = ? AND baby_id = ? AND date = ?",
+        [record_id, bid, today]).fetchall()
     if not rs:
         raise HTTPException(status_code=404, detail="Record not found")
-    db.execute("DELETE FROM feeding_records WHERE id = ? AND user_id = ? AND date = ?",
-               [record_id, uid, today])
+    db.execute("DELETE FROM feeding_records_v2 WHERE id = ? AND baby_id = ? AND date = ?",
+               [record_id, bid, today])
     db.sync()
     return {"status": "deleted", "id": record_id}
 
 @app.get("/feeding-evaluation", response_model=FeedingEvaluation)
 async def get_feeding_evaluation(request: Request, date_str: str = Query(default=None, alias="date")):
-    uid = get_uid(request)
+    bid = get_baby_id(request)
     d = date_str or date.today().isoformat()
 
     rs = db.execute(
-        "SELECT id, time, amount, type, note FROM feeding_records WHERE user_id = ? AND date = ?",
-        [uid, d]).fetchall()
+        "SELECT id, time, amount, type, note FROM feeding_records_v2 WHERE baby_id = ? AND date = ?",
+        [bid, d]).fetchall()
     records = [FeedingRecord(id=r[0], time=r[1], amount=r[2], type=r[3], note=r[4]) for r in rs]
 
     milk_records = [r for r in records if r.type == 'milk']
@@ -480,10 +650,11 @@ async def get_feeding_evaluation(request: Request, date_str: str = Query(default
     total_milk = sum(r.amount for r in milk_records)
     total_solids = sum(r.amount for r in solids_records)
 
-    profile = _get_profile(uid)
+    profile = _get_baby_profile(bid)
     if not profile:
-        raise HTTPException(status_code=404, detail="Profile not found")
-    months = calculate_months(profile.birthday)
+        raise HTTPException(status_code=404, detail="Baby profile not found")
+    months = calculate_months(profile["birthday"])
+    fa = get_feeding_advice(months)
     fa = get_feeding_advice(months)
     target_milk = parse_target_milk(fa.milk)
 
@@ -633,17 +804,16 @@ def get_checklist_template(months: int) -> list:
 
 @app.get("/daily-checklist", response_model=List[ChecklistItem])
 async def get_daily_checklist(request: Request, date_str: str = Query(default=None, alias="date")):
-    uid = get_uid(request)
+    bid = get_baby_id(request)
     d = date_str or date.today().isoformat()
-    profile = _get_profile(uid)
+    profile = _get_baby_profile(bid)
     if not profile:
-        raise HTTPException(status_code=404, detail="Profile not found")
-    months = calculate_months(profile.birthday)
+        raise HTTPException(status_code=404, detail="Baby profile not found")
+    months = calculate_months(profile["birthday"])
     template = get_checklist_template(months)
-    # 从数据库读取勾选状态
     rs = db.execute(
-        "SELECT item_id, checked FROM checklist_items WHERE user_id = ? AND date = ?",
-        [uid, d]).fetchall()
+        "SELECT item_id, checked FROM checklist_items_v2 WHERE baby_id = ? AND date = ?",
+        [bid, d]).fetchall()
     checked_map = {r[0]: bool(r[1]) for r in rs}
     return [
         ChecklistItem(id=item["id"], label=item["label"], desc=item.get("desc", ""),
@@ -653,16 +823,16 @@ async def get_daily_checklist(request: Request, date_str: str = Query(default=No
 
 @app.post("/daily-checklist/toggle", response_model=ChecklistItem)
 async def toggle_checklist_item(req: ChecklistToggleRequest, request: Request):
-    uid = get_uid(request)
+    bid = get_baby_id(request)
     today = date.today().isoformat()
     db.execute(
-        "INSERT OR REPLACE INTO checklist_items (user_id, date, item_id, checked) VALUES (?, ?, ?, ?)",
-        [uid, today, req.itemId, 1 if req.checked else 0])
+        "INSERT OR REPLACE INTO checklist_items_v2 (baby_id, date, item_id, checked) VALUES (?, ?, ?, ?)",
+        [bid, today, req.itemId, 1 if req.checked else 0])
     db.sync()
-    profile = _get_profile(uid)
+    profile = _get_baby_profile(bid)
     if not profile:
-        raise HTTPException(status_code=404, detail="Profile not found")
-    months = calculate_months(profile.birthday)
+        raise HTTPException(status_code=404, detail="Baby profile not found")
+    months = calculate_months(profile["birthday"])
     template = get_checklist_template(months)
     for item in template:
         if item["id"] == req.itemId:
@@ -672,18 +842,18 @@ async def toggle_checklist_item(req: ChecklistToggleRequest, request: Request):
 
 @app.get("/checklist/history")
 async def get_checklist_history(request: Request, year: int = Query(...), month: int = Query(...)):
-    uid = get_uid(request)
-    profile = _get_profile(uid)
+    bid = get_baby_id(request)
+    profile = _get_baby_profile(bid)
     if not profile:
-        raise HTTPException(status_code=404, detail="Profile not found")
-    months = calculate_months(profile.birthday)
+        raise HTTPException(status_code=404, detail="Baby profile not found")
+    months = calculate_months(profile["birthday"])
     template = get_checklist_template(months)
     total = len(template)
     _, num_days = _calendar.monthrange(year, month)
     # 批量读取该月所有勾选记录
     rs = db.execute(
-        "SELECT date, item_id, checked FROM checklist_items WHERE user_id = ? AND date LIKE ?",
-        [uid, f"{year:04d}-{month:02d}-%"]).fetchall()
+        "SELECT date, item_id, checked FROM checklist_items_v2 WHERE baby_id = ? AND date LIKE ?",
+        [bid, f"{year:04d}-{month:02d}-%"]).fetchall()
     day_map = {}
     for r in rs:
         d = r[0]
@@ -708,15 +878,15 @@ async def get_checklist_history(request: Request, year: int = Query(...), month:
 
 @app.get("/daily-checklist/by-date", response_model=List[ChecklistItem])
 async def get_checklist_by_date(request: Request, date_str: str = Query(..., alias="date")):
-    uid = get_uid(request)
-    profile = _get_profile(uid)
+    bid = get_baby_id(request)
+    profile = _get_baby_profile(bid)
     if not profile:
-        raise HTTPException(status_code=404, detail="Profile not found")
-    months = calculate_months(profile.birthday)
+        raise HTTPException(status_code=404, detail="Baby profile not found")
+    months = calculate_months(profile["birthday"])
     template = get_checklist_template(months)
     rs = db.execute(
-        "SELECT item_id, checked FROM checklist_items WHERE user_id = ? AND date = ?",
-        [uid, date_str]).fetchall()
+        "SELECT item_id, checked FROM checklist_items_v2 WHERE baby_id = ? AND date = ?",
+        [bid, date_str]).fetchall()
     checked_map = {r[0]: bool(r[1]) for r in rs}
     return [
         ChecklistItem(id=item["id"], label=item["label"], desc=item.get("desc", ""),
@@ -726,10 +896,11 @@ async def get_checklist_by_date(request: Request, date_str: str = Query(..., ali
 
 @app.get("/dashboard", response_model=DashboardResponse)
 async def get_dashboard(request: Request):
-    uid = get_uid(request)
-    profile = _get_profile(uid)
-    if not profile:
-        raise HTTPException(status_code=404, detail="Profile not found. Please create one first.")
+    bid = get_baby_id(request)
+    p = _get_baby_profile(bid)
+    if not p:
+        raise HTTPException(status_code=404, detail="Baby profile not found. Please create one first.")
+    profile = BabyProfile(name=p["name"], gender=p["gender"], birthday=p["birthday"], height=p["height"], weight=p["weight"])
 
     months = calculate_months(profile.birthday)
     std = get_growth_standard(profile.gender, months)

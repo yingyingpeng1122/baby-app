@@ -19,9 +19,13 @@ function getUserId() {
 }
 const USER_ID = getUserId();
 
-/* 统一 fetch 包装：自动注入 X-User-Id header */
+/* 当前选中的宝宝 ID（模块级，组件内通过 useEffect 同步） */
+let _currentBabyId = null;
+
+/* 统一 fetch 包装：自动注入 X-User-Id 和 X-Baby-Id header */
 async function apiFetch(url, options = {}) {
   const headers = { ...(options.headers || {}), 'X-User-Id': USER_ID };
+  if (_currentBabyId) headers['X-Baby-Id'] = _currentBabyId;
   return fetch(url, { ...options, headers });
 }
 
@@ -288,6 +292,13 @@ export default function BabyAppFullStack() {
   const [data, setData] = useState(null);
   const [modal, setModal] = useState({ open: false, title: '' });
   const [form, setForm] = useState({ name: '', gender: 'boy', birthday: '', height: '', weight: '' });
+  // 家庭系统
+  const [family, setFamily] = useState(null);          // { family_id, family_name, role, members, babies }
+  const [babies, setBabies] = useState([]);            // 家庭所有宝宝列表
+  const [currentBabyId, setCurrentBabyId] = useState(null); // 当前选中宝宝
+  const [familySetupMode, setFamilySetupMode] = useState(null); // 'create' | 'join' | null
+  const [familyName, setFamilyName] = useState('');
+  const [joinFamilyId, setJoinFamilyId] = useState('');
   // 喂养记录
   const [feedRecords, setFeedRecords] = useState([]);
   const [feedEval, setFeedEval] = useState(null);
@@ -302,17 +313,107 @@ export default function BabyAppFullStack() {
   const [calendarDate, setCalendarDate] = useState({ year: new Date().getFullYear(), month: new Date().getMonth() + 1 });
   const [calendarDetail, setCalendarDetail] = useState(null); // { date, items }
 
-  useEffect(() => { fetchDashboard(); }, []);
+  // 同步 currentBabyId 到模块级变量
+  useEffect(() => { _currentBabyId = currentBabyId; }, [currentBabyId]);
+
+  // 初始化：检查家庭状态
+  useEffect(() => { initFamily(); }, []);
+
+  const initFamily = async () => {
+    try {
+      setError(null);
+      const res = await apiFetch(`${API_BASE}/family`);
+      if (res.status === 404) {
+        // 不在任何家庭中，显示家庭设置页
+        return setView('family-setup');
+      }
+      if (!res.ok) throw new Error('fetch family failed');
+      const fam = await res.json();
+      setFamily(fam);
+      setBabies(fam.babies || []);
+      if (fam.babies && fam.babies.length > 0) {
+        setCurrentBabyId(fam.babies[0].baby_id);
+        setView('dashboard');
+        // 延迟加载 dashboard 数据
+        setTimeout(() => fetchDashboard(), 0);
+      } else {
+        setView('baby-edit');
+      }
+    } catch (e) {
+      console.error('init family failed', e);
+      setView('family-setup');
+    }
+  };
+
+  // ---- 家庭操作 ----
+  const createFamily = async () => {
+    if (!familyName.trim()) return alert('请输入家庭名称');
+    try {
+      const res = await apiFetch(`${API_BASE}/family`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ family_name: familyName.trim() }),
+      });
+      if (!res.ok) { const e = await res.json(); throw new Error(e.detail || '创建失败'); }
+      const fam = await res.json();
+      setFamily(fam);
+      setBabies([]);
+      setView('baby-edit');
+    } catch (e) { alert('创建家庭失败：' + e.message); }
+  };
+
+  const joinFamily = async () => {
+    if (!joinFamilyId.trim()) return alert('请输入家庭 ID');
+    try {
+      const res = await apiFetch(`${API_BASE}/family/join`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ family_id: joinFamilyId.trim().toUpperCase() }),
+      });
+      if (!res.ok) { const e = await res.json(); throw new Error(e.detail || '加入失败'); }
+      await initFamily();
+    } catch (e) { alert('加入家庭失败：' + e.message); }
+  };
+
+  // ---- 宝宝操作 ----
+  const addBaby = async () => {
+    if (!form.name || !form.birthday) return alert('请填写昵称和出生日期');
+    try {
+      setError(null);
+      const res = await apiFetch(`${API_BASE}/family/babies`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ...form, height: parseFloat(form.height) || 0, weight: parseFloat(form.weight) || 0 }),
+      });
+      if (!res.ok) throw new Error(`添加失败 (${res.status})`);
+      const newBaby = await res.json();
+      setBabies(prev => [...prev, newBaby]);
+      setCurrentBabyId(newBaby.baby_id);
+      setForm({ name: '', gender: 'boy', birthday: '', height: '', weight: '' });
+      fetchDashboard();
+    } catch (e) { setError('添加失败：' + (e.message || '请确认后端已启动')); }
+  };
+
+  const switchBaby = (babyId) => {
+    if (babyId === currentBabyId) return;
+    setCurrentBabyId(babyId);
+    setData(null);
+    setFeedRecords([]);
+    setFeedEval(null);
+    setChecklist([]);
+    // 延迟确保 babyId 同步到模块级变量
+    setTimeout(() => fetchDashboard(), 0);
+  };
 
   const fetchDashboard = async () => {
     try {
       setError(null);
       const res = await apiFetch(`${API_BASE}/dashboard`);
-      if (res.status === 404) return setView('edit');
+      if (res.status === 404) return setView('baby-edit');
       if (!res.ok) throw new Error('fetch failed');
       setData(await res.json());
       setView('dashboard');
-    } catch (e) { console.error(e); setView('edit'); }
+    } catch (e) { console.error(e); setView('baby-edit'); }
   };
 
   // 拉取今日喂养记录 + 评估
@@ -445,20 +546,6 @@ export default function BabyAppFullStack() {
     } catch (e) { console.error(e); }
   };
 
-  const handleSave = async () => {
-    if (!form.name || !form.birthday) return alert('请填写昵称和出生日期');
-    try {
-      setError(null);
-      const res = await apiFetch(`${API_BASE}/profile`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ...form, height: parseFloat(form.height) || 0, weight: parseFloat(form.weight) || 0 })
-      });
-      if (!res.ok) throw new Error(`保存失败 (${res.status})`);
-      await fetchDashboard();
-    } catch (e) { setError('保存失败：' + (e.message || '请确认后端已启动')); }
-  };
-
   const set = (k) => (e) => setForm({ ...form, [k]: e.target.value });
 
   /* ---------- 加载 ---------- */
@@ -466,21 +553,70 @@ export default function BabyAppFullStack() {
     return (
       <div className="app app--center">
         <span className="blob blob--1" aria-hidden /><span className="blob blob--2" aria-hidden />
-        <div className="loading"><div className="spinner" /><p className="loading__txt">正在加载宝宝数据…</p></div>
+        <div className="loading"><div className="spinner" /><p className="loading__txt">正在加载…</p></div>
       </div>
     );
   }
 
-  /* ---------- 表单 ---------- */
-  if (view === 'edit') {
+  /* ---------- 家庭设置页 ---------- */
+  if (view === 'family-setup') {
+    return (
+      <div className="app app--center">
+        <span className="blob blob--1" aria-hidden /><span className="blob blob--2" aria-hidden />
+        <div className="form family-form">
+          <div className="form__head">
+            <div className="form__logo"><Baby className="icon icon--lg" /></div>
+            <h2 className="form__title">欢迎来到宝宝成长记录</h2>
+            <p className="form__sub">创建或加入一个家庭，与家人一起记录宝宝的成长</p>
+          </div>
+
+          {familySetupMode === null ? (
+            <div className="family-actions">
+              <button className="btn btn--primary btn--block btn--family" onClick={() => setFamilySetupMode('create')}>
+                <span className="family-action-icon">🏠</span>
+                <span className="family-action-text">创建家庭</span>
+                <span className="family-action-hint">创建一个新家庭，自动生成唯一家庭 ID</span>
+              </button>
+              <button className="btn btn--outline btn--block btn--family" onClick={() => setFamilySetupMode('join')}>
+                <span className="family-action-icon">🔗</span>
+                <span className="family-action-text">加入家庭</span>
+                <span className="family-action-hint">输入家庭 ID，加入已有家庭</span>
+              </button>
+            </div>
+          ) : familySetupMode === 'create' ? (
+            <div>
+              <div className="field">
+                <label className="field__label">家庭名称</label>
+                <input className="input" placeholder="比如：快乐小家" value={familyName} onChange={(e) => setFamilyName(e.target.value)} />
+              </div>
+              <button className="btn btn--primary btn--block" onClick={createFamily}>创建家庭</button>
+              <button className="btn btn--ghost btn--block" onClick={() => setFamilySetupMode(null)} style={{ marginTop: 8 }}>返回</button>
+            </div>
+          ) : (
+            <div>
+              <div className="field">
+                <label className="field__label">请输入家庭 ID</label>
+                <input className="input" placeholder="如：A7X3K9" value={joinFamilyId} onChange={(e) => setJoinFamilyId(e.target.value.toUpperCase())} maxLength={6} />
+              </div>
+              <button className="btn btn--primary btn--block" onClick={joinFamily}>加入家庭</button>
+              <button className="btn btn--ghost btn--block" onClick={() => setFamilySetupMode(null)} style={{ marginTop: 8 }}>返回</button>
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  }
+
+  /* ---------- 添加宝宝页 ---------- */
+  if (view === 'baby-edit') {
     return (
       <div className="app app--center">
         <span className="blob blob--1" aria-hidden /><span className="blob blob--2" aria-hidden />
         <div className="form">
           <div className="form__head">
             <div className="form__logo"><Baby className="icon icon--lg" /></div>
-            <h2 className="form__title">建立宝宝档案</h2>
-            <p className="form__sub">记录成长的第一步</p>
+            <h2 className="form__title">{babies.length > 0 ? '添加新宝宝' : '添加第一个宝宝'}</h2>
+            <p className="form__sub">{family ? `家庭：${family.family_name}` : '记录成长的第一步'}</p>
           </div>
           {error && <div className="err"><AlertCircle className="icon icon--sm" />{error}</div>}
           <div className="field">
@@ -502,7 +638,68 @@ export default function BabyAppFullStack() {
             <div><label className="field__label">身高 (cm)</label><input type="number" className="input" placeholder="0.0" value={form.height} onChange={set('height')} /></div>
             <div><label className="field__label">体重 (kg)</label><input type="number" className="input" placeholder="0.0" value={form.weight} onChange={set('weight')} /></div>
           </div>
-          <button className="btn btn--primary btn--block" onClick={handleSave}><Save className="icon icon--sm" />保存并生成报告</button>
+          <button className="btn btn--primary btn--block" onClick={addBaby}>
+            <Save className="icon icon--sm" />{babies.length > 0 ? '添加宝宝' : '保存并开始记录'}
+          </button>
+          {babies.length > 0 && (
+            <button className="btn btn--ghost btn--block" onClick={() => {
+              if (babies.length > 0) { setCurrentBabyId(babies[0].baby_id); fetchDashboard(); }
+            }} style={{ marginTop: 8 }}>跳过，查看已有宝宝</button>
+          )}
+        </div>
+      </div>
+    );
+  }
+
+  /* ---------- 旧版：编辑档案（兼容） ---------- */
+
+  /* ---------- 编辑宝宝 ---------- */
+  if (view === 'edit') {
+    const handleEditBaby = async () => {
+      if (!form.name || !form.birthday) return alert('请填写昵称和出生日期');
+      try {
+        setError(null);
+        const res = await apiFetch(`${API_BASE}/family/babies/${currentBabyId}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ ...form, height: parseFloat(form.height) || 0, weight: parseFloat(form.weight) || 0 }),
+        });
+        if (!res.ok) throw new Error(`更新失败 (${res.status})`);
+        await fetchDashboard();
+      } catch (e) { setError('更新失败：' + (e.message || '请确认后端已启动')); }
+    };
+
+    return (
+      <div className="app app--center">
+        <span className="blob blob--1" aria-hidden /><span className="blob blob--2" aria-hidden />
+        <div className="form">
+          <div className="form__head">
+            <div className="form__logo"><Baby className="icon icon--lg" /></div>
+            <h2 className="form__title">编辑宝宝档案</h2>
+            <p className="form__sub">{profile?.name || '更新成长信息'}</p>
+          </div>
+          {error && <div className="err"><AlertCircle className="icon icon--sm" />{error}</div>}
+          <div className="field">
+            <label className="field__label">昵称</label>
+            <input className="input" placeholder="给宝宝起个名字吧" value={form.name} onChange={set('name')} />
+          </div>
+          <div className="field">
+            <label className="field__label">性别</label>
+            <div className="seg">
+              <button type="button" className={`seg__btn seg__btn--boy ${form.gender === 'boy' ? 'seg__btn--on' : ''}`} onClick={() => setForm({ ...form, gender: 'boy' })}>👦 男宝</button>
+              <button type="button" className={`seg__btn seg__btn--girl ${form.gender === 'girl' ? 'seg__btn--on' : ''}`} onClick={() => setForm({ ...form, gender: 'girl' })}>👧 女宝</button>
+            </div>
+          </div>
+          <div className="field">
+            <label className="field__label">出生日期</label>
+            <input type="date" className="input" value={form.birthday} onChange={set('birthday')} />
+          </div>
+          <div className="field field__row">
+            <div><label className="field__label">身高 (cm)</label><input type="number" className="input" placeholder="0.0" value={form.height} onChange={set('height')} /></div>
+            <div><label className="field__label">体重 (kg)</label><input type="number" className="input" placeholder="0.0" value={form.weight} onChange={set('weight')} /></div>
+          </div>
+          <button className="btn btn--primary btn--block" onClick={handleEditBaby}><Save className="icon icon--sm" />保存修改</button>
+          <button className="btn btn--ghost btn--block" onClick={() => { fetchDashboard(); }} style={{ marginTop: 8 }}>取消</button>
         </div>
       </div>
     );
@@ -515,6 +712,12 @@ export default function BabyAppFullStack() {
   const ringDeg = Math.min(1, months / 12) * 360;
   const hPct = pct(profile.height, g.minH, g.maxH);
   const wPct = pct(profile.weight, g.minW, g.maxW);
+
+  const copyFamilyId = () => {
+    if (family) {
+      navigator.clipboard.writeText(family.family_id).then(() => alert('家庭 ID 已复制！')).catch(() => alert('家庭 ID: ' + family.family_id));
+    }
+  };
 
   return (
     <div className="app">
@@ -529,8 +732,41 @@ export default function BabyAppFullStack() {
               <div className="brand__meta">{months} 个月大 · {profile.gender === 'boy' ? '男宝' : '女宝'}</div>
             </div>
           </div>
-          <button className="btn btn--ghost" onClick={() => { setForm(profile); setView('edit'); }}><Pencil className="icon icon--xs" />编辑</button>
+          <div className="topbar__actions">
+            {/* 宝宝切换器 */}
+            {babies.length > 1 && (
+              <div className="baby-switcher">
+                {babies.map(b => (
+                  <button key={b.baby_id} className={`baby-switcher__btn ${b.baby_id === currentBabyId ? 'baby-switcher__btn--on' : ''}`}
+                    onClick={() => switchBaby(b.baby_id)}>
+                    {b.name}
+                  </button>
+                ))}
+                <button className="baby-switcher__btn baby-switcher__btn--add" onClick={() => { setForm({ name: '', gender: 'boy', birthday: '', height: '', weight: '' }); setView('baby-edit'); }} title="添加宝宝">
+                  <Plus className="icon icon--xs" />
+                </button>
+              </div>
+            )}
+            {babies.length <= 1 && (
+              <button className="btn btn--ghost btn--sm" onClick={() => { setForm({ name: '', gender: 'boy', birthday: '', height: '', weight: '' }); setView('baby-edit'); }}>
+                <Plus className="icon icon--xs" />添加宝宝
+              </button>
+            )}
+            <button className="btn btn--ghost" onClick={() => { setForm(profile); setView('edit'); }}><Pencil className="icon icon--xs" />编辑</button>
+          </div>
         </div>
+        {/* 家庭信息栏 */}
+        {family && (
+          <div className="family-bar">
+            <div className="family-bar__inner">
+              <span className="family-bar__name">🏠 {family.family_name}</span>
+              <span className="family-bar__id" onClick={copyFamilyId} title="点击复制家庭 ID">
+                ID: <b>{family.family_id}</b>
+              </span>
+              <span className="family-bar__members">{family.members?.length || 0} 位成员</span>
+            </div>
+          </div>
+        )}
       </header>
 
       <div className="wrap">
