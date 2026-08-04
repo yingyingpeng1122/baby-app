@@ -158,6 +158,58 @@ def init_db():
         user_id TEXT PRIMARY KEY,
         created_at TEXT DEFAULT (datetime('now'))
     )""")
+    # 家庭系统表
+    db.execute("""CREATE TABLE IF NOT EXISTS families (
+        family_id TEXT PRIMARY KEY,
+        family_name TEXT NOT NULL,
+        created_at TEXT DEFAULT (datetime('now'))
+    )""")
+    db.execute("""CREATE TABLE IF NOT EXISTS family_members (
+        user_id TEXT PRIMARY KEY,
+        family_id TEXT NOT NULL,
+        role TEXT DEFAULT 'member',
+        joined_at TEXT DEFAULT (datetime('now'))
+    )""")
+    db.execute("""CREATE TABLE IF NOT EXISTS babies (
+        baby_id TEXT PRIMARY KEY,
+        family_id TEXT NOT NULL,
+        name TEXT, gender TEXT, birthday TEXT,
+        height REAL, weight REAL,
+        created_at TEXT DEFAULT (datetime('now'))
+    )""")
+    db.execute("""CREATE TABLE IF NOT EXISTS feeding_records_v2 (
+        id TEXT, baby_id TEXT, date TEXT,
+        time TEXT, amount REAL, type TEXT, note TEXT DEFAULT '',
+        PRIMARY KEY (baby_id, date, id)
+    )""")
+    db.execute("""CREATE TABLE IF NOT EXISTS checklist_items_v2 (
+        baby_id TEXT, date TEXT, item_id TEXT, checked INTEGER,
+        PRIMARY KEY (baby_id, date, item_id)
+    )""")
+    # 旧数据迁移：profiles → 家庭 + 宝宝
+    _migrate_profiles()
+
+def _migrate_profiles():
+    """将旧 profiles 表数据迁移到家庭系统"""
+    try:
+        rs = db.execute("SELECT user_id, name, gender, birthday, height, weight FROM profiles").fetchall()
+        if not rs:
+            return
+        for r in rs:
+            uid, name, gender, birthday, height, weight = r[0], r[1], r[2], r[3], r[4], r[5]
+            # 检查是否已有家庭
+            existing = db.execute("SELECT family_id FROM family_members WHERE user_id = ?", [uid]).fetchall()
+            if existing:
+                continue
+            fid = generate_family_id()
+            db.execute("INSERT OR IGNORE INTO families (family_id, family_name) VALUES (?, ?)", [fid, f"{name}的家庭"])
+            db.execute("INSERT OR IGNORE INTO family_members (family_id, user_id, role) VALUES (?, ?, 'creator')", [fid, uid])
+            bid = str(uuid.uuid4())[:8]
+            db.execute("INSERT OR IGNORE INTO babies (baby_id, family_id, name, gender, birthday, height, weight) VALUES (?, ?, ?, ?, ?, ?, ?)",
+                       [bid, fid, name, gender, birthday, height, weight])
+        db.sync()
+    except Exception as e:
+        print(f"[migrate] profiles migration failed: {e}")
 
 init_db()
 
@@ -246,6 +298,14 @@ def _get_profile(uid: str) -> Optional[BabyProfile]:
     return BabyProfile(name=r[0], gender=r[1], birthday=r[2], height=r[3], weight=r[4])
 
 # ---------------- 家庭系统辅助函数 ----------------
+def generate_family_id():
+    """生成 6 位随机家庭 ID（排除易混淆字符 O0I1）"""
+    import random
+    import string
+    chars = string.ascii_uppercase + string.digits
+    chars = ''.join(c for c in chars if c not in 'O0I1')
+    return ''.join(random.choices(chars, k=6))
+
 def get_baby_id(request: Request) -> str:
     """从 X-Baby-Id header 获取当前操作的宝宝 ID"""
     bid = request.headers.get("X-Baby-Id", "").strip()
