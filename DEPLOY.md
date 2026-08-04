@@ -71,15 +71,15 @@ docker compose logs -f
 
 ```bash
 # 健康检查
-curl http://localhost:8000/
+curl http://localhost:8000/health
 # 应返回: {"status":"ok"}
 
 # 查看容器状态
 docker compose ps
-# STATUS 应为 Up (healthy)
+# 应看到 baby-app 和 baby-app-nginx 两个容器都是 Up
 ```
 
-然后在浏览器访问 `http://<服务器IP>:8000`
+然后在浏览器访问 `http://<服务器IP>`（80 端口，无需加端口号）
 
 ---
 
@@ -122,16 +122,18 @@ docker compose up -d --build
 
 ## 防火墙配置
 
-如果服务器有防火墙，需要开放 8000 端口：
+现在只需要开放 80 端口（Nginx 反向代理），8000 端口不再暴露到公网：
 
 ```bash
 # Ubuntu / Debian (ufw)
-sudo ufw allow 8000/tcp
+sudo ufw allow 80/tcp
 
 # CentOS / RHEL (firewalld)
-sudo firewall-cmd --add-port=8000/tcp --permanent
+sudo firewall-cmd --add-service=http --permanent
 sudo firewall-cmd --reload
 ```
+
+> ⚠️ 别忘了在云厂商**安全组**中也放行 80 端口（TCP、0.0.0.0/0）。
 
 ---
 
@@ -140,7 +142,9 @@ sudo firewall-cmd --reload
 ```
 /opt/coding/baby-app/
 ├── Dockerfile              # 多阶段构建
-├── docker-compose.yml      # 容器编排
+├── docker-compose.yml      # 容器编排（baby-app + Nginx）
+├── nginx/
+│   └── nginx.conf          # Nginx 反向代理配置
 ├── .env                    # 环境变量（不提交到 Git）
 ├── .env.example            # 环境变量模板
 ├── .dockerignore           # 排除文件
