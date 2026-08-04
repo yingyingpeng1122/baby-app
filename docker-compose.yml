@@ -4,11 +4,28 @@ services:
       context: .
       dockerfile: Dockerfile
     container_name: baby-app
-    ports:
-      - "8000:8000"
+    # 不暴露到公网，仅让 Nginx 通过内部网络访问
+    expose:
+      - "8000"
     environment:
       - TURSO_DB_NAME=${TURSO_DB_NAME:-babyapp-yingyingpeng1122}
       - TURSO_AUTH_TOKEN=${TURSO_AUTH_TOKEN}
+    restart: unless-stopped
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  nginx:
+    image: nginx:alpine
+    container_name: baby-app-nginx
+    ports:
+      - "80:80"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/conf.d/default.conf:ro
+    depends_on:
+      - baby-app
     restart: unless-stopped
     logging:
       driver: "json-file"
