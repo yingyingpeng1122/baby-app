@@ -559,6 +559,10 @@ body { display: block; background: #eef3f1; }
 .baby-switcher__btn--on:hover { background: var(--primary); color: #fff; }
 .baby-switcher__btn--add { width: 30px; height: 30px; padding: 0; display: flex; align-items: center; justify-content: center; border-radius: 50%; color: var(--primary); }
 .baby-switcher__btn--add:hover { background: var(--primary-soft); }
+.baby-switcher__item { display: flex; align-items: center; gap: 0; position: relative; }
+.baby-switcher__del { width: 22px; height: 22px; border: none; border-radius: 50%; background: transparent; color: var(--muted); cursor: pointer; display: grid; place-items: center; transition: all .15s; opacity: 0; }
+.baby-switcher__item:hover .baby-switcher__del { opacity: 1; }
+.baby-switcher__del:hover { background: var(--coral-soft); color: var(--coral); }
 
 /* ---------- 响应式 ---------- */
 @media (max-width: 720px) {

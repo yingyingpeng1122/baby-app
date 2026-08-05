@@ -579,6 +579,10 @@ async def list_babies(request: Request):
 async def add_baby(req: BabyCreateRequest, request: Request):
     """添加宝宝到家庭"""
     fid = get_family_id(request)
+    # 重名校验
+    existing = db.execute("SELECT baby_id FROM babies WHERE family_id = ? AND name = ?", [fid, req.name]).fetchall()
+    if existing:
+        raise HTTPException(status_code=409, detail=f"宝宝「{req.name}」已存在，请使用其他名字")
     bid = str(uuid.uuid4())[:8]
     db.execute("INSERT INTO babies (baby_id, family_id, name, gender, birthday, height, weight) VALUES (?, ?, ?, ?, ?, ?, ?)",
                [bid, fid, req.name, req.gender, req.birthday, req.height, req.weight])
@@ -595,7 +599,12 @@ async def update_baby(baby_id: str, req: BabyUpdateRequest, request: Request):
         raise HTTPException(status_code=404, detail="Baby not found")
     # 只更新提供的字段
     updates = {}
-    if req.name is not None: updates["name"] = req.name
+    if req.name is not None:
+        # 重名校验（排除自身）
+        dup = db.execute("SELECT baby_id FROM babies WHERE family_id = ? AND name = ? AND baby_id != ?", [fid, req.name, baby_id]).fetchall()
+        if dup:
+            raise HTTPException(status_code=409, detail=f"宝宝「{req.name}」已存在，请使用其他名字")
+        updates["name"] = req.name
     if req.gender is not None: updates["gender"] = req.gender
     if req.birthday is not None: updates["birthday"] = req.birthday
     if req.height is not None: updates["height"] = req.height
@@ -611,6 +620,10 @@ async def update_baby(baby_id: str, req: BabyUpdateRequest, request: Request):
 async def delete_baby(baby_id: str, request: Request):
     """删除宝宝（同时删除相关记录）"""
     fid = get_family_id(request)
+    # 检查是否为家庭最后一个宝宝
+    count = db.execute("SELECT COUNT(*) FROM babies WHERE family_id = ?", [fid]).fetchall()
+    if count and count[0][0] <= 1:
+        raise HTTPException(status_code=400, detail="不能删除最后一个宝宝，家庭至少需要一个宝宝")
     db.execute("DELETE FROM babies WHERE baby_id = ? AND family_id = ?", [baby_id, fid])
     db.execute("DELETE FROM feeding_records_v2 WHERE baby_id = ?", [baby_id])
     db.execute("DELETE FROM checklist_items_v2 WHERE baby_id = ?", [baby_id])
