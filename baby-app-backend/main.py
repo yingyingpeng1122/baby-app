@@ -847,6 +847,136 @@ async def get_feeding_evaluation(request: Request, date_str: str = Query(default
         feedCount=feed_count, avgInterval=avg_interval, records=records,
     )
 
+# ---------------- 喂养月历 & 统计 ----------------
+@app.get("/feeding-calendar")
+async def get_feeding_calendar(request: Request, year: int = Query(...), month: int = Query(...)):
+    """返回指定月份每天的喂养水平（good/low/high/empty）"""
+    bid = get_baby_id(request)
+    profile = _get_baby_profile(bid)
+    if not profile:
+        raise HTTPException(status_code=404, detail="Baby profile not found")
+    months = calculate_months(profile["birthday"])
+    fa = get_feeding_advice(months)
+    target_milk = parse_target_milk(fa.milk)
+    _, num_days = _calendar.monthrange(year, month)
+    today = date.today()
+
+    # 批量查询该月所有喂养记录
+    rs = db.execute(
+        "SELECT date, amount, type FROM feeding_records_v2 WHERE baby_id = ? AND date LIKE ?",
+        [bid, f"{year:04d}-{month:02d}-%"]).fetchall()
+
+    # 按日期聚合
+    day_map = {}
+    for r in rs:
+        d = r[0]
+        day_num = int(d.split('-')[2])
+        if day_num not in day_map:
+            day_map[day_num] = {"total_milk": 0, "total_solids": 0, "feed_count": 0}
+        if r[2] == 'milk':
+            day_map[day_num]["total_milk"] += (r[1] or 0)
+        elif r[2] == 'solids':
+            day_map[day_num]["total_solids"] += (r[1] or 0)
+        day_map[day_num]["feed_count"] += 1
+
+    days = {}
+    for day in range(1, num_days + 1):
+        dm = day_map.get(day, {})
+        total_milk = dm.get("total_milk", 0)
+        total_solids = dm.get("total_solids", 0)
+        feed_count = dm.get("feed_count", 0)
+        is_future = date(year, month, day) > today
+
+        if is_future:
+            level = 'future'
+        elif feed_count == 0:
+            level = 'empty'
+        elif target_milk > 0:
+            ratio = total_milk / target_milk
+            if ratio < 0.7:
+                level = 'low'
+            elif ratio > 1.3:
+                level = 'high'
+            else:
+                level = 'good'
+        else:
+            level = 'good' if feed_count > 0 else 'empty'
+
+        days[str(day)] = {
+            "level": level,
+            "totalMilk": total_milk,
+            "totalSolids": total_solids,
+            "feedCount": feed_count,
+            "isFuture": is_future,
+        }
+
+    return {"year": year, "month": month, "targetMilk": target_milk, "days": days}
+
+@app.get("/feeding-stats-monthly")
+async def get_feeding_stats_monthly(request: Request, year: int = Query(...), month: int = Query(...)):
+    """返回指定月份的喂养统计"""
+    bid = get_baby_id(request)
+    profile = _get_baby_profile(bid)
+    if not profile:
+        raise HTTPException(status_code=404, detail="Baby profile not found")
+    months = calculate_months(profile["birthday"])
+    fa = get_feeding_advice(months)
+    target_milk = parse_target_milk(fa.milk)
+    _, num_days = _calendar.monthrange(year, month)
+    today = date.today()
+
+    rs = db.execute(
+        "SELECT date, amount, type FROM feeding_records_v2 WHERE baby_id = ? AND date LIKE ?",
+        [bid, f"{year:04d}-{month:02d}-%"]).fetchall()
+
+    total_milk = 0
+    total_solids = 0
+    total_feeds = 0
+    days_with_data = set()
+    for r in rs:
+        if r[2] == 'milk':
+            total_milk += (r[1] or 0)
+        elif r[2] == 'solids':
+            total_solids += (r[1] or 0)
+        total_feeds += 1
+        days_with_data.add(r[0])
+
+    # 统计每天的水平分布
+    day_map = {}
+    for r in rs:
+        d = r[0]
+        day_num = int(d.split('-')[2])
+        if day_num not in day_map:
+            day_map[day_num] = {"total_milk": 0}
+        if r[2] == 'milk':
+            day_map[day_num]["total_milk"] += (r[1] or 0)
+
+    good_days = 0
+    low_days = 0
+    high_days = 0
+    for day_num, dm in day_map.items():
+        if target_milk > 0:
+            ratio = dm["total_milk"] / target_milk
+            if ratio < 0.7:
+                low_days += 1
+            elif ratio > 1.3:
+                high_days += 1
+            else:
+                good_days += 1
+
+    # 当前月已过天数（排除未来）
+    past_days = min(today.day, num_days) if today.year == year and today.month == month else num_days
+    avg_daily_milk = round(total_milk / max(past_days, 1), 1)
+
+    return {
+        "year": year, "month": month,
+        "totalMilk": total_milk, "totalSolids": total_solids,
+        "totalFeeds": total_feeds, "daysWithData": len(days_with_data),
+        "avgDailyMilk": avg_daily_milk, "targetMilk": target_milk,
+        "goodDays": good_days, "lowDays": low_days, "highDays": high_days,
+        "pastDays": past_days,
+    }
+
 # ---------------- 每日照护清单 ----------------
 def get_checklist_template(months: int) -> list:
     if months < 6:
