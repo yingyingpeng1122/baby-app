@@ -120,7 +120,7 @@ body { display: block; background: #eef3f1; }
 .ring__label { text-align: center; font-size: 11.5px; font-weight: 800; color: var(--muted); margin-top: 8px; letter-spacing: .04em; }
 
 /* ---------- 区块标题 ---------- */
-.section { position: relative; z-index: 1; margin-bottom: 26px; }
+.section { position: relative; margin-bottom: 26px; }
 .section__head { display: flex; align-items: center; gap: 10px; margin: 0 0 14px 2px; }
 .section__ico { width: 32px; height: 32px; border-radius: 10px; display: grid; place-items: center; }
 .section__ico--teal { background: var(--primary-soft); color: var(--primary-600); }
@@ -328,6 +328,13 @@ body { display: block; background: #eef3f1; }
 .feed__eval-tip { font-size: 12.5px; font-weight: 600; color: var(--ink-soft); line-height: 1.45; }
 .feed__eval-tip::before { content: "·"; margin-right: 5px; font-weight: 800; }
 
+/* 喂养水平标记 */
+.feed__level { display: flex; align-items: center; gap: 8px; margin-top: 10px; padding-top: 10px; border-top: 1px dashed rgba(0,0,0,.06); }
+.feed__level-badge { font-size: 12.5px; font-weight: 800; padding: 5px 12px; border-radius: var(--r-pill); }
+.feed__level-badge--good { background: var(--green-soft); color: var(--green); }
+.feed__level-badge--low { background: var(--honey-soft); color: var(--honey); }
+.feed__level-badge--high { background: var(--coral-soft); color: var(--coral); }
+
 /* ---------- 每日照护清单 ---------- */
 .checklist { background: var(--surface); border: 1px solid var(--line); border-radius: var(--r-card); padding: 18px 20px; box-shadow: var(--sh-sm); }
 .checklist__progress { margin-left: auto; font-size: 13px; font-weight: 800; color: var(--primary-600); background: var(--primary-soft); padding: 3px 10px; border-radius: 20px; }
@@ -413,6 +420,10 @@ body { display: block; background: #eef3f1; }
 .cal-cell__dot--full { background: var(--primary); }
 .cal-cell__dot--partial { background: var(--honey); }
 .cal-cell__dot--none { background: var(--line); }
+.cal-cell__dot--feed-good { background: var(--green); }
+.cal-cell__dot--feed-low { background: var(--honey); }
+.cal-cell__dot--feed-high { background: var(--coral); }
+.cal-cell__dot--feed-empty { background: var(--line); }
 
 .cal-legend { display: flex; justify-content: center; gap: 16px; margin-top: 12px; padding-top: 10px; border-top: 1px solid var(--line); }
 .cal-legend__item { display: flex; align-items: center; gap: 5px; font-size: 11px; font-weight: 700; color: var(--muted); }

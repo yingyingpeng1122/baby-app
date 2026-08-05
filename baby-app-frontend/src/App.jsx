@@ -312,6 +312,11 @@ export default function BabyAppFullStack() {
   const [calendarData, setCalendarData] = useState(null);
   const [calendarDate, setCalendarDate] = useState({ year: new Date().getFullYear(), month: new Date().getMonth() + 1 });
   const [calendarDetail, setCalendarDetail] = useState(null); // { date, items }
+  // 喂养日历
+  const [feedingCalendarOpen, setFeedingCalendarOpen] = useState(false);
+  const [feedingCalendarData, setFeedingCalendarData] = useState(null);
+  const [feedingCalendarDate, setFeedingCalendarDate] = useState({ year: new Date().getFullYear(), month: new Date().getMonth() + 1 });
+  const [feedingStats, setFeedingStats] = useState(null);
 
   // 同步 currentBabyId 到模块级变量
   useEffect(() => { _currentBabyId = currentBabyId; }, [currentBabyId]);
@@ -508,6 +513,42 @@ export default function BabyAppFullStack() {
       month += delta;
       if (month < 1) { year--; month = 12; }
       if (month > 12) { year++; month = 1; }
+      return { year, month };
+    });
+  };
+
+  // 喂养日历
+  const fetchFeedingCalendar = async (year, month) => {
+    try {
+      const res = await apiFetch(`${API_BASE}/feeding-calendar?year=${year}&month=${month}`);
+      if (res.ok) setFeedingCalendarData(await res.json());
+    } catch (e) { console.error('fetch feeding calendar failed', e); }
+  };
+
+  const fetchFeedingStats = async (year, month) => {
+    try {
+      const res = await apiFetch(`${API_BASE}/feeding-stats-monthly?year=${year}&month=${month}`);
+      if (res.ok) setFeedingStats(await res.json());
+    } catch (e) { console.error('fetch feeding stats failed', e); }
+  };
+
+  const openFeedingCalendar = () => {
+    const now = new Date();
+    const y = now.getFullYear(), m = now.getMonth() + 1;
+    setFeedingCalendarDate({ year: y, month: m });
+    fetchFeedingCalendar(y, m);
+    fetchFeedingStats(y, m);
+    setFeedingCalendarOpen(true);
+  };
+
+  const changeFeedingCalendarMonth = (delta) => {
+    setFeedingCalendarDate(prev => {
+      let { year, month } = prev;
+      month += delta;
+      if (month < 1) { year--; month = 12; }
+      if (month > 12) { year++; month = 1; }
+      fetchFeedingCalendar(year, month);
+      fetchFeedingStats(year, month);
       return { year, month };
     });
   };
@@ -988,6 +1029,15 @@ export default function BabyAppFullStack() {
                       </span>
                     )}
                   </div>
+                  {/* 今日喂养水平标记 */}
+                  <div className="feed__level">
+                    <span className={`feed__level-badge feed__level-badge--${feedEval.status}`}>
+                      {feedEval.status === 'good' ? '✅ 喂养量充足' : feedEval.status === 'low' ? '⚠️ 喂养量不足' : '📈 喂养量超出'}
+                    </span>
+                    <button className="btn btn--ghost btn--sm" onClick={openFeedingCalendar} style={{ marginLeft: 'auto' }}>
+                      <Calendar className="icon icon--xs" />喂养日历
+                    </button>
+                  </div>
                   {feedEval.suggestions && feedEval.suggestions.length > 0 && (
                     <div className="feed__eval-tips">
                       <Sparkles className="icon icon--xs" />
@@ -1124,6 +1174,100 @@ export default function BabyAppFullStack() {
                         <span className="cal-detail__label">{item.label}</span>
                       </div>
                     ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* 喂养日历弹窗 */}
+        {feedingCalendarOpen && (
+          <div className="cal-overlay" onClick={(e) => { if (e.target === e.currentTarget) setFeedingCalendarOpen(false); }}>
+            <div className="cal-modal" style={{ maxWidth: '480px' }}>
+              <div className="cal-modal__head">
+                <h3 className="cal-modal__title"><Milk className="icon icon--sm" /> 喂养日历</h3>
+                <button className="cal-modal__close" onClick={() => setFeedingCalendarOpen(false)}><X className="icon icon--sm" /></button>
+              </div>
+              <div className="cal-month-nav">
+                <button className="cal-month-nav__btn" onClick={() => changeFeedingCalendarMonth(-1)}><ChevronLeft className="icon icon--sm" /></button>
+                <span className="cal-month-nav__label">{feedingCalendarDate.year}年{feedingCalendarDate.month}月</span>
+                <button className="cal-month-nav__btn" onClick={() => changeFeedingCalendarMonth(1)}><ChevronRight className="icon icon--sm" /></button>
+              </div>
+              <div className="cal-weekdays">
+                {['日','一','二','三','四','五','六'].map(d => <span key={d} className="cal-weekdays__day">{d}</span>)}
+              </div>
+              {(() => {
+                const { year, month } = feedingCalendarDate;
+                const firstDay = new Date(year, month - 1, 1).getDay();
+                const daysInMonth = new Date(year, month, 0).getDate();
+                const today = new Date();
+                const todayStr = `${today.getFullYear()}-${String(today.getMonth()+1).padStart(2,'0')}-${String(today.getDate()).padStart(2,'0')}`;
+                const cells = [];
+                for (let i = 0; i < firstDay; i++) cells.push(<span key={`fe${i}`} className="cal-cell cal-cell--empty" />);
+                for (let d = 1; d <= daysInMonth; d++) {
+                  const dateStr = `${year}-${String(month).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+                  const info = feedingCalendarData?.days?.[String(d)];
+                  const isToday = dateStr === todayStr;
+                  const level = info?.level || 'empty';
+                  cells.push(
+                    <div key={d} className={`cal-cell ${isToday ? 'is-today' : ''} ${level === 'future' ? 'is-future' : ''}`}
+                      title={level === 'good' ? `奶量 ${info.totalMilk}ml` : level === 'low' ? `奶量不足 ${info.totalMilk}ml` : level === 'high' ? `奶量超出 ${info.totalMilk}ml` : level === 'future' ? '未来日期' : level === 'empty' ? '无记录' : ''}>
+                      <span className="cal-cell__num">{d}</span>
+                      {level !== 'future' && level !== 'empty' && (
+                        <span className={`cal-cell__dot cal-cell__dot--feed-${level}`} />
+                      )}
+                      {level === 'empty' && (
+                        <span className="cal-cell__dot cal-cell__dot--none" />
+                      )}
+                    </div>
+                  );
+                }
+                return <div className="cal-grid">{cells}</div>;
+              })()}
+              <div className="cal-legend">
+                <span className="cal-legend__item"><span className="cal-cell__dot cal-cell__dot--feed-good" /> 充足</span>
+                <span className="cal-legend__item"><span className="cal-cell__dot cal-cell__dot--feed-low" /> 不足</span>
+                <span className="cal-legend__item"><span className="cal-cell__dot cal-cell__dot--feed-high" /> 超出</span>
+                <span className="cal-legend__item"><span className="cal-cell__dot cal-cell__dot--none" /> 无记录</span>
+              </div>
+
+              {/* 月度统计 */}
+              {feedingStats && (
+                <div className="feed-stats" style={{ marginTop: 14, padding: '14px 16px', background: 'var(--surface-2)', borderRadius: 'var(--r-mid)', border: '1px solid var(--line)' }}>
+                  <div style={{ fontWeight: 800, fontSize: 14, marginBottom: 10, color: 'var(--text)' }}>
+                    📊 {feedingCalendarDate.year}年{feedingCalendarDate.month}月喂养统计
+                  </div>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px 16px', fontSize: 13 }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                      <span style={{ color: 'var(--muted)' }}>总奶量</span>
+                      <b style={{ color: 'var(--text)' }}>{feedingStats.totalMilk.toFixed(0)}ml</b>
+                    </div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                      <span style={{ color: 'var(--muted)' }}>总辅食</span>
+                      <b style={{ color: 'var(--text)' }}>{feedingStats.totalSolids.toFixed(0)}g</b>
+                    </div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                      <span style={{ color: 'var(--muted)' }}>日均奶量</span>
+                      <b style={{ color: 'var(--text)' }}>{feedingStats.avgDailyMilk.toFixed(0)}ml</b>
+                    </div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                      <span style={{ color: 'var(--muted)' }}>建议每日</span>
+                      <b style={{ color: 'var(--text)' }}>{feedingStats.targetMilk.toFixed(0)}ml</b>
+                    </div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                      <span style={{ color: 'var(--muted)' }}>总喂养次数</span>
+                      <b style={{ color: 'var(--text)' }}>{feedingStats.totalFeeds} 次</b>
+                    </div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                      <span style={{ color: 'var(--muted)' }}>有记录天数</span>
+                      <b style={{ color: 'var(--text)' }}>{feedingStats.daysWithData}/{feedingStats.pastDays} 天</b>
+                    </div>
+                  </div>
+                  <div style={{ display: 'flex', gap: 12, marginTop: 10, paddingTop: 10, borderTop: '1px solid var(--line)', fontSize: 12, fontWeight: 600 }}>
+                    <span style={{ color: 'var(--green)' }}>✅ 充足 {feedingStats.goodDays}天</span>
+                    <span style={{ color: 'var(--honey)' }}>⚠️ 不足 {feedingStats.lowDays}天</span>
+                    <span style={{ color: 'var(--coral)' }}>📈 超出 {feedingStats.highDays}天</span>
                   </div>
                 </div>
               )}
