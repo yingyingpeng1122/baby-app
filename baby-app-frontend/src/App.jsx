@@ -676,7 +676,7 @@ export default function BabyAppFullStack() {
           <div className="form__head">
             <div className="form__logo"><Baby className="icon icon--lg" /></div>
             <h2 className="form__title">编辑宝宝档案</h2>
-            <p className="form__sub">{profile?.name || '更新成长信息'}</p>
+            <p className="form__sub">{form.name || '更新成长信息'}</p>
           </div>
           {error && <div className="err"><AlertCircle className="icon icon--sm" />{error}</div>}
           <div className="field">
@@ -752,7 +752,7 @@ export default function BabyAppFullStack() {
                 <Plus className="icon icon--xs" />添加宝宝
               </button>
             )}
-            <button className="btn btn--ghost" onClick={() => { setForm(profile); setView('edit'); }}><Pencil className="icon icon--xs" />编辑</button>
+            <button className="btn btn--ghost" onClick={() => { setForm({ name: profile.name, gender: profile.gender, birthday: profile.birthday, height: String(profile.height), weight: String(profile.weight) }); setView('edit'); }}><Pencil className="icon icon--xs" />编辑</button>
           </div>
         </div>
         {/* 家庭信息栏 */}
