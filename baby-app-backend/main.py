@@ -138,6 +138,14 @@ def _parse_value(v):
 
 db = TursoDB(TURSO_API, TURSO_TOKEN)
 
+def generate_family_id():
+    """生成 6 位随机家庭 ID（排除易混淆字符 O0I1）"""
+    import random
+    import string
+    chars = string.ascii_uppercase + string.digits
+    chars = ''.join(c for c in chars if c not in 'O0I1')
+    return ''.join(random.choices(chars, k=6))
+
 def init_db():
     db.execute("""CREATE TABLE IF NOT EXISTS profiles (
         user_id TEXT PRIMARY KEY,
@@ -298,14 +306,6 @@ def _get_profile(uid: str) -> Optional[BabyProfile]:
     return BabyProfile(name=r[0], gender=r[1], birthday=r[2], height=r[3], weight=r[4])
 
 # ---------------- 家庭系统辅助函数 ----------------
-def generate_family_id():
-    """生成 6 位随机家庭 ID（排除易混淆字符 O0I1）"""
-    import random
-    import string
-    chars = string.ascii_uppercase + string.digits
-    chars = ''.join(c for c in chars if c not in 'O0I1')
-    return ''.join(random.choices(chars, k=6))
-
 def get_baby_id(request: Request) -> str:
     """从 X-Baby-Id header 获取当前操作的宝宝 ID"""
     bid = request.headers.get("X-Baby-Id", "").strip()
