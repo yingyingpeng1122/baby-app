@@ -1140,7 +1140,12 @@ if DIST_DIR:
     async def serve_spa(full_path: str):
         file_path = os.path.join(DIST_DIR, full_path)
         if os.path.isfile(file_path):
-            return FileResponse(file_path)
+            # 确保 PWA manifest 返回正确 MIME，避免浏览器拒绝
+            media_type = (
+                "application/manifest+json" if full_path.endswith(".webmanifest")
+                else None
+            )
+            return FileResponse(file_path, media_type=media_type)
         return FileResponse(os.path.join(DIST_DIR, "index.html"))
 
 if __name__ == "__main__":
