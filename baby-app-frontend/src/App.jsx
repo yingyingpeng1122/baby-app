@@ -378,6 +378,8 @@ export default function BabyAppFullStack() {
   // ---- 宝宝操作 ----
   const addBaby = async () => {
     if (!form.name || !form.birthday) return alert('请填写昵称和出生日期');
+    // 前端重名校验
+    if (babies.some(b => b.name === form.name)) return alert(`宝宝「${form.name}」已存在，请使用其他名字`);
     try {
       setError(null);
       const res = await apiFetch(`${API_BASE}/family/babies`, {
@@ -385,6 +387,7 @@ export default function BabyAppFullStack() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ ...form, height: parseFloat(form.height) || 0, weight: parseFloat(form.weight) || 0 }),
       });
+      if (res.status === 409) { const e = await res.json(); throw new Error(e.detail || '重名'); }
       if (!res.ok) throw new Error(`添加失败 (${res.status})`);
       const newBaby = await res.json();
       setBabies(prev => [...prev, newBaby]);
@@ -393,6 +396,26 @@ export default function BabyAppFullStack() {
       setForm({ name: '', gender: 'boy', birthday: '', height: '', weight: '' });
       fetchDashboard();
     } catch (e) { setError('添加失败：' + (e.message || '请确认后端已启动')); }
+  };
+
+  const deleteBaby = async (babyId, babyName) => {
+    if (!confirm(`确定要删除宝宝「${babyName}」吗？该宝宝的所有喂养记录和清单数据也将被删除，此操作不可撤销。`)) return;
+    try {
+      setError(null);
+      const res = await apiFetch(`${API_BASE}/family/babies/${babyId}`, { method: 'DELETE' });
+      if (!res.ok) { const e = await res.json(); throw new Error(e.detail || '删除失败'); }
+      // 移除本地列表
+      const newBabies = babies.filter(b => b.baby_id !== babyId);
+      setBabies(newBabies);
+      // 如果删的是当前宝宝，切换到第一个
+      if (babyId === currentBabyId) {
+        if (newBabies.length > 0) {
+          _currentBabyId = newBabies[0].baby_id;
+          setCurrentBabyId(newBabies[0].baby_id);
+          setTimeout(() => fetchDashboard(), 0);
+        }
+      }
+    } catch (e) { setError('删除失败：' + (e.message || '请确认后端已启动')); }
   };
 
   const switchBaby = (babyId) => {
@@ -738,10 +761,15 @@ export default function BabyAppFullStack() {
             {babies.length > 1 && (
               <div className="baby-switcher">
                 {babies.map(b => (
-                  <button key={b.baby_id} className={`baby-switcher__btn ${b.baby_id === currentBabyId ? 'baby-switcher__btn--on' : ''}`}
-                    onClick={() => switchBaby(b.baby_id)}>
-                    {b.name}
-                  </button>
+                  <div key={b.baby_id} className="baby-switcher__item">
+                    <button className={`baby-switcher__btn ${b.baby_id === currentBabyId ? 'baby-switcher__btn--on' : ''}`}
+                      onClick={() => switchBaby(b.baby_id)}>
+                      {b.name}
+                    </button>
+                    <button className="baby-switcher__del" onClick={(e) => { e.stopPropagation(); deleteBaby(b.baby_id, b.name); }} title={`删除 ${b.name}`}>
+                      <Trash2 className="icon icon--xs" />
+                    </button>
+                  </div>
                 ))}
                 <button className="baby-switcher__btn baby-switcher__btn--add" onClick={() => { setForm({ name: '', gender: 'boy', birthday: '', height: '', weight: '' }); setView('baby-edit'); }} title="添加宝宝">
                   <Plus className="icon icon--xs" />
@@ -754,6 +782,11 @@ export default function BabyAppFullStack() {
               </button>
             )}
             <button className="btn btn--ghost" onClick={() => { setForm({ name: profile.name, gender: profile.gender, birthday: profile.birthday, height: String(profile.height), weight: String(profile.weight) }); setView('edit'); }}><Pencil className="icon icon--xs" />编辑</button>
+            {babies.length > 1 && (
+              <button className="btn btn--ghost" style={{ color: 'var(--red)' }} onClick={() => deleteBaby(currentBabyId, profile.name)}>
+                <Trash2 className="icon icon--xs" />删除
+              </button>
+            )}
           </div>
         </div>
         {/* 家庭信息栏 */}
