@@ -332,9 +332,9 @@ export default function BabyAppFullStack() {
       setFamily(fam);
       setBabies(fam.babies || []);
       if (fam.babies && fam.babies.length > 0) {
+        _currentBabyId = fam.babies[0].baby_id;
         setCurrentBabyId(fam.babies[0].baby_id);
         setView('dashboard');
-        // 延迟加载 dashboard 数据
         setTimeout(() => fetchDashboard(), 0);
       } else {
         setView('baby-edit');
@@ -388,6 +388,7 @@ export default function BabyAppFullStack() {
       if (!res.ok) throw new Error(`添加失败 (${res.status})`);
       const newBaby = await res.json();
       setBabies(prev => [...prev, newBaby]);
+      _currentBabyId = newBaby.baby_id;
       setCurrentBabyId(newBaby.baby_id);
       setForm({ name: '', gender: 'boy', birthday: '', height: '', weight: '' });
       fetchDashboard();
@@ -396,12 +397,12 @@ export default function BabyAppFullStack() {
 
   const switchBaby = (babyId) => {
     if (babyId === currentBabyId) return;
+    _currentBabyId = babyId;
     setCurrentBabyId(babyId);
     setData(null);
     setFeedRecords([]);
     setFeedEval(null);
     setChecklist([]);
-    // 延迟确保 babyId 同步到模块级变量
     setTimeout(() => fetchDashboard(), 0);
   };
 
@@ -643,7 +644,7 @@ export default function BabyAppFullStack() {
           </button>
           {babies.length > 0 && (
             <button className="btn btn--ghost btn--block" onClick={() => {
-              if (babies.length > 0) { setCurrentBabyId(babies[0].baby_id); fetchDashboard(); }
+              if (babies.length > 0) { _currentBabyId = babies[0].baby_id; setCurrentBabyId(babies[0].baby_id); fetchDashboard(); }
             }} style={{ marginTop: 8 }}>跳过，查看已有宝宝</button>
           )}
         </div>
