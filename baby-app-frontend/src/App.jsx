@@ -437,6 +437,9 @@ export default function BabyAppFullStack() {
       if (!res.ok) throw new Error('fetch failed');
       setData(await res.json());
       setView('dashboard');
+      // 同时拉取喂养数据和照护清单
+      fetchFeedData();
+      fetchChecklist();
     } catch (e) { console.error(e); setView('baby-edit'); }
   };
 
@@ -452,8 +455,7 @@ export default function BabyAppFullStack() {
     } catch (e) { console.error('fetch feed data failed', e); }
   };
 
-  // dashboard 加载完成后拉取喂养数据
-  useEffect(() => { if (view === 'dashboard') { fetchFeedData(); fetchChecklist(); } }, [view]);
+  // dashboard 加载完成后拉取喂养数据（由 fetchDashboard 内部统一触发）
 
   // 拉取今日照护清单
   const fetchChecklist = async () => {

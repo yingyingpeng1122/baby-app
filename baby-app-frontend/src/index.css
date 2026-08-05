@@ -216,7 +216,7 @@ body { display: block; background: #eef3f1; }
 .dropdown__trigger.is-open .dropdown__chevron { transform: rotate(180deg); color: var(--primary); }
 
 .dropdown__menu {
-  position: absolute; top: calc(100% + 6px); left: 0; z-index: 40;
+  position: absolute; top: calc(100% + 6px); left: 0; z-index: 100;
   width: 100%; min-width: 120px; padding: 5px;
   background: #fff; border: 1px solid var(--line); border-radius: var(--r-mid);
   box-shadow: var(--sh-md); animation: dropdownIn .22s cubic-bezier(.2,.8,.3,1.1);
@@ -254,7 +254,7 @@ body { display: block; background: #eef3f1; }
 .timepicker__label { flex: 1; text-align: left; }
 
 .timepicker__panel {
-  position: absolute; top: calc(100% + 6px); left: 0; z-index: 40;
+  position: absolute; top: calc(100% + 6px); left: 0; z-index: 100;
   width: 196px; background: #fff; border: 1px solid var(--line); border-radius: var(--r-mid);
   box-shadow: var(--sh-md); overflow: hidden; animation: dropdownIn .22s cubic-bezier(.2,.8,.3,1.1);
 }
