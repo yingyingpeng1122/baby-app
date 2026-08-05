@@ -455,7 +455,7 @@ body { display: block; background: #eef3f1; }
 .form__head { text-align: center; margin-bottom: 26px; }
 .form__logo { width: 60px; height: 60px; border-radius: 18px; margin: 0 auto 14px; display: grid; place-items: center; color: #fff; background: linear-gradient(140deg, var(--primary), var(--green)); box-shadow: 0 12px 26px rgba(14,147,132,.3); transform: rotate(-4deg); }
 .form__title { font-family: var(--font-display); font-weight: 600; font-size: 25px; color: var(--ink); margin: 0; }
-.form__sub { color: var(--muted); font-weight: 700; font-size: 13.5px; margin: 6px 0 0; }
+.form__sub { color: var(--ink-soft); font-weight: 700; font-size: 13.5px; margin: 6px 0 0; opacity: 0.8; }
 .err { display: flex; align-items: center; gap: 9px; background: var(--coral-soft); color: var(--coral); border: 1px solid #f6cdbf; border-radius: var(--r-mid); padding: 11px 13px; font-size: 13px; font-weight: 700; margin-bottom: 18px; }
 .field { margin-bottom: 16px; }
 .field__label { display: block; font-size: 12px; font-weight: 800; letter-spacing: .04em; text-transform: uppercase; color: var(--muted); margin: 0 0 7px 2px; }
@@ -539,7 +539,7 @@ body { display: block; background: #eef3f1; }
 .btn--family { display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 20px 24px; text-align: center; }
 .family-action-icon { font-size: 32px; }
 .family-action-text { font-size: 16px; font-weight: 700; font-family: var(--font-display); }
-.family-action-hint { font-size: 12.5px; color: var(--muted); font-weight: 500; }
+.family-action-hint { font-size: 12.5px; color: var(--ink-soft); font-weight: 500; opacity: 0.75; }
 
 /* 家庭信息栏 */
 .family-bar { background: rgba(255,255,255,.5); border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); }
