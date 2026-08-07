@@ -993,26 +993,20 @@ export default function BabyAppFullStack() {
       </header>
 
       <div className="wrap">
-        <Reveal className="hero">
-          <div className="hero__compact">
-            <span className="hero__eyebrow"><Sparkles className="icon icon--xs" />成长档案</span>
-            <h1 className="hero__title">{profile.name} 已经 <b>{months}</b> 个月啦</h1>
-          </div>
-          <span className={`hero__status ${allOk ? 'is-ok' : 'is-warn'}`}>
-            {allOk ? <Check className="icon icon--xs" /> : <AlertCircle className="icon icon--xs" />}
-            {allOk ? '发育良好' : '需关注'}
-          </span>
-        </Reveal>
-
         <Reveal className="section" delay={0.05}>
           <div className="section__head">
             <span className="section__ico section__ico--teal"><Sparkles className="icon icon--sm" /></span>
             <h2 className="section__title">发育概况</h2>
+            <span className={`section__status ${allOk ? 'is-ok' : 'is-warn'}`}>
+              {allOk ? <Check className="icon icon--xs" /> : <AlertCircle className="icon icon--xs" />}
+              {allOk ? '发育良好' : '需关注'}
+            </span>
             <button className={`section__toggle ${devOpen ? 'is-open' : ''}`} onClick={() => setDevOpen(v => !v)} aria-expanded={devOpen}>
               {devOpen ? '收起' : '详情'}
               <ChevronDown className="icon icon--xs" />
             </button>
           </div>
+          <div className="section__sub">{profile.name} 已经 <b>{months}</b> 个月啦</div>
           <div className="assess">
             <span className="assess__ico">{allOk ? <Check className="icon icon--lg" /> : <AlertCircle className="icon icon--lg" />}</span>
             <div className="assess__body">
@@ -1465,12 +1459,18 @@ export default function BabyAppFullStack() {
         )}
 
         <Reveal className="section" delay={0.05}>
-          <h2 className="section__title">早教活动</h2>
+          <div className="section__head">
+            <span className="section__ico section__ico--teal"><BookOpen className="icon icon--sm" /></span>
+            <h2 className="section__title">早教活动</h2>
+          </div>
           <ActList items={activities} onPlay={(a) => setModal({ open: true, title: a.title, src: a.videoUrl || '' })} />
         </Reveal>
 
         <Reveal className="section" delay={0.08}>
-          <h2 className="section__title">音乐区</h2>
+          <div className="section__head">
+            <span className="section__ico section__ico--violet"><Music className="icon icon--sm" /></span>
+            <h2 className="section__title">音乐区</h2>
+          </div>
           <ActList items={music} onPlay={(a) => setModal({ open: true, title: a.title, src: a.videoUrl || '' })} />
         </Reveal>
       </div>

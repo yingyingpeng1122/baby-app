@@ -145,6 +145,11 @@ body { display: block; background: #eef3f1; }
 .section__ico--honey { background: var(--honey-soft); color: var(--honey); }
 .section__ico--violet { background: var(--sky-soft); color: var(--sky); }
 .section__title { font-family: var(--font-display); font-weight: 600; font-size: 19px; color: var(--ink); margin: 0; }
+.section__status { display: inline-flex; align-items: center; gap: 5px; font-size: 13px; font-weight: 800; padding: 6px 13px; border-radius: 999px; flex: none; white-space: nowrap; }
+.section__status.is-ok { color: #0a8f6e; background: rgba(10,143,110,.12); }
+.section__status.is-warn { color: #e0533d; background: rgba(224,83,61,.12); }
+.section__sub { color: var(--muted); font-size: 14.5px; font-weight: 600; margin: 2px 0 14px 2px; }
+.section__sub b { color: var(--primary-600); }
 
 /* ---------- 发育评估条 ---------- */
 .assess { display: flex; align-items: center; gap: 16px; background: linear-gradient(120deg, var(--primary-soft), #fff 70%); border: 1px solid var(--primary-soft); border-radius: var(--r-card); padding: 18px 20px; box-shadow: var(--sh-sm); margin-bottom: 14px; }
