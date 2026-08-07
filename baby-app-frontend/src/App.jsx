@@ -848,7 +848,7 @@ export default function BabyAppFullStack() {
   if (!data) return null;
   const { profile, months, growthStandard: g, isWeightNormal, isHeightNormal, feedingAdvice: f, activities, music = [] } = data;
   const allOk = isWeightNormal && isHeightNormal;
-  const ringDeg = Math.min(1, months / 12) * 360;
+  const [devOpen, setDevOpen] = useState(false);
   const hPct = pct(profile.height, g.minH, g.maxH);
   const wPct = pct(profile.weight, g.minW, g.maxW);
 
@@ -920,28 +920,24 @@ export default function BabyAppFullStack() {
 
       <div className="wrap">
         <Reveal className="hero">
-          <div className="hero__main">
+          <div className="hero__compact">
             <span className="hero__eyebrow"><Sparkles className="icon icon--xs" />成长档案</span>
             <h1 className="hero__title">{profile.name} 已经 <b>{months}</b> 个月啦</h1>
-            <p className="hero__sub">{allOk ? '各项指标都在参考区间里，状态很棒，继续保持这份用心。' : '有一项指标偏离了参考区间，下面的建议帮你留意一下。'}</p>
-            <div className="hero__chips">
-              <span className="chip"><span className="chip__dot" style={{ background: 'var(--sky)' }} />{profile.gender === 'boy' ? '男宝' : '女宝'}</span>
-              <span className="chip"><span className="chip__dot" style={{ background: 'var(--primary)' }} />身高 {profile.height}cm</span>
-              <span className="chip"><span className="chip__dot" style={{ background: 'var(--sky)' }} />体重 {profile.weight}kg</span>
-            </div>
           </div>
-          <div>
-            <div className="ring" style={{ '--deg': `${ringDeg}deg` }}>
-              <div className="ring__hole"><span className="ring__num">{months}</span><span className="ring__unit">个月</span></div>
-            </div>
-            <div className="ring__label">满一岁进度</div>
-          </div>
+          <span className={`hero__status ${allOk ? 'is-ok' : 'is-warn'}`}>
+            {allOk ? <Check className="icon icon--xs" /> : <AlertCircle className="icon icon--xs" />}
+            {allOk ? '发育良好' : '需关注'}
+          </span>
         </Reveal>
 
         <Reveal className="section" delay={0.05}>
           <div className="section__head">
             <span className="section__ico section__ico--teal"><Sparkles className="icon icon--sm" /></span>
             <h2 className="section__title">发育概况</h2>
+            <button className={`section__toggle ${devOpen ? 'is-open' : ''}`} onClick={() => setDevOpen(v => !v)} aria-expanded={devOpen}>
+              {devOpen ? '收起' : '详情'}
+              <ChevronDown className="icon icon--xs" />
+            </button>
           </div>
           <div className="assess">
             <span className="assess__ico">{allOk ? <Check className="icon icon--lg" /> : <AlertCircle className="icon icon--lg" />}</span>
@@ -954,6 +950,7 @@ export default function BabyAppFullStack() {
               <Badge ok={isWeightNormal}>体重{isWeightNormal ? '达标' : '关注'}</Badge>
             </div>
           </div>
+          {devOpen && (
           <div className="grid2">
             <div className="stat stat--teal">
               <div className="stat__head"><span className="stat__label"><span className="stat__ico"><Ruler className="icon icon--sm" /></span>身高</span><Badge ok={isHeightNormal}>{isHeightNormal ? '达标' : '关注'}</Badge></div>
@@ -968,6 +965,7 @@ export default function BabyAppFullStack() {
               <div className="bar__scale"><span>{g.minW}</span><span>参考区间</span><span>{g.maxW}</span></div>
             </div>
           </div>
+          )}
         </Reveal>
 
         <Reveal className="section" delay={0.05}>
