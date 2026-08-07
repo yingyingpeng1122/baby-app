@@ -33,7 +33,7 @@ const USER_ID = getUserId();
 let _currentBabyId = null;
 
 /* 请求超时：避免后端无响应时前端一直转圈 */
-const FETCH_TIMEOUT = 8000;
+const FETCH_TIMEOUT = 15000;
 
 /* 统一 fetch 包装：自动注入 X-User-Id 和 X-Baby-Id header，并带超时兜底 */
 async function apiFetch(url, options = {}) {
@@ -891,7 +891,14 @@ export default function BabyAppFullStack() {
   }
 
   /* ---------- 仪表盘 ---------- */
-  if (!data) return null;
+  if (!data) {
+    return (
+      <div className="app app--center">
+        <span className="blob blob--1" aria-hidden /><span className="blob blob--2" aria-hidden />
+        <div className="loading"><div className="spinner" /><p className="loading__txt">正在加载成长数据…</p></div>
+      </div>
+    );
+  }
   const { profile, months, growthStandard: g, isWeightNormal, isHeightNormal, feedingAdvice: f, activities, music = [] } = data;
   const allOk = isWeightNormal && isHeightNormal;
   const [devOpen, setDevOpen] = useState(false);
