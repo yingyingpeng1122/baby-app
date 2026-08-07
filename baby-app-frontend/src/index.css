@@ -143,6 +143,7 @@ body { display: block; background: #eef3f1; }
 .section__ico--teal { background: var(--primary-soft); color: var(--primary-600); }
 .section__ico--primary { background: var(--primary-soft); color: var(--primary-600); }
 .section__ico--honey { background: var(--honey-soft); color: var(--honey); }
+.section__ico--amber { background: #ffedd5; color: #ea580c; }
 .section__ico--violet { background: var(--sky-soft); color: var(--sky); }
 .section__title { font-family: var(--font-display); font-weight: 600; font-size: 19px; color: var(--ink); margin: 0; }
 .section__status { display: inline-flex; align-items: center; gap: 5px; font-size: 13px; font-weight: 800; padding: 6px 13px; border-radius: 999px; flex: none; white-space: nowrap; }
@@ -156,6 +157,8 @@ body { display: block; background: #eef3f1; }
 .assess__ico { width: 44px; height: 44px; border-radius: 13px; background: #fff; color: var(--primary-600); display: grid; place-items: center; box-shadow: var(--sh-sm); flex: none; }
 .assess__body { flex: 1; min-width: 0; }
 .assess__k { font-size: 12px; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; color: var(--primary-600); }
+.assess__sub { font-size: 13px; font-weight: 700; color: var(--muted); margin: 3px 0 6px; }
+.assess__sub b { color: var(--primary-600); }
 .assess__text { font-size: 14.5px; font-weight: 700; color: var(--ink-soft); margin-top: 2px; }
 .assess__badges { display: flex; gap: 8px; flex: none; }
 

@@ -1058,11 +1058,11 @@ export default function BabyAppFullStack() {
               <ChevronDown className="icon icon--xs" />
             </button>
           </div>
-          <div className="section__sub">{profile.name} 已经 <b>{months}</b> 个月啦</div>
           <div className="assess">
             <span className="assess__ico">{allOk ? <Check className="icon icon--lg" /> : <AlertCircle className="icon icon--lg" />}</span>
             <div className="assess__body">
               <div className="assess__k">综合评估</div>
+              <div className="assess__sub">{profile.name} 已经 <b>{months}</b> 个月啦</div>
               <div className="assess__text">{assessText}</div>
             </div>
             <div className="assess__badges">
@@ -1071,6 +1071,29 @@ export default function BabyAppFullStack() {
             </div>
           </div>
 
+          {devOpen && (
+          <div className="grid2">
+            <div className="stat stat--teal">
+              <div className="stat__head"><span className="stat__label"><span className="stat__ico"><Ruler className="icon icon--sm" /></span>身高</span><Badge ok={growthOk(hStat)}>{HEIGHT_STATUS_TEXT[hStat]}</Badge></div>
+              <div><span className="stat__value">{profile.height}</span><span className="stat__unit">cm</span></div>
+              <div className="bar"><div className="bar__fill" style={{ '--w': `${hPct}%` }} /></div>
+              <div className="bar__scale"><span>{g.minH}</span><span>参考区间</span><span>{g.maxH}</span></div>
+            </div>
+            <div className="stat stat--sky">
+              <div className="stat__head"><span className="stat__label"><span className="stat__ico"><Scale className="icon icon--sm" /></span>体重</span><Badge ok={growthOk(wStat)}>{WEIGHT_STATUS_TEXT[wStat]}</Badge></div>
+              <div><span className="stat__value">{profile.weight}</span><span className="stat__unit">kg</span></div>
+              <div className="bar"><div className="bar__fill" style={{ '--w': `${wPct}%` }} /></div>
+              <div className="bar__scale"><span>{g.minW}</span><span>参考区间</span><span>{g.maxW}</span></div>
+            </div>
+          </div>
+          )}
+        </Reveal>
+
+        <Reveal className="section" delay={0.05}>
+          <div className="section__head">
+            <span className="section__ico section__ico--amber"><Sparkles className="icon icon--sm" /></span>
+            <h2 className="section__title">成长阶段提醒</h2>
+          </div>
           {/* 阶段提醒：即将进入的发育阶段科普 */}
           {stFeatured && (
             <div className="stage-tip">
@@ -1111,22 +1134,6 @@ export default function BabyAppFullStack() {
               </div>
               <p className="stage-tip__why">宝宝已进入幼儿期，更多探索与成长的惊喜在路上，记得定期记录身高体重与日常哦。</p>
             </div>
-          )}
-          {devOpen && (
-          <div className="grid2">
-            <div className="stat stat--teal">
-              <div className="stat__head"><span className="stat__label"><span className="stat__ico"><Ruler className="icon icon--sm" /></span>身高</span><Badge ok={growthOk(hStat)}>{HEIGHT_STATUS_TEXT[hStat]}</Badge></div>
-              <div><span className="stat__value">{profile.height}</span><span className="stat__unit">cm</span></div>
-              <div className="bar"><div className="bar__fill" style={{ '--w': `${hPct}%` }} /></div>
-              <div className="bar__scale"><span>{g.minH}</span><span>参考区间</span><span>{g.maxH}</span></div>
-            </div>
-            <div className="stat stat--sky">
-              <div className="stat__head"><span className="stat__label"><span className="stat__ico"><Scale className="icon icon--sm" /></span>体重</span><Badge ok={growthOk(wStat)}>{WEIGHT_STATUS_TEXT[wStat]}</Badge></div>
-              <div><span className="stat__value">{profile.weight}</span><span className="stat__unit">kg</span></div>
-              <div className="bar"><div className="bar__fill" style={{ '--w': `${wPct}%` }} /></div>
-              <div className="bar__scale"><span>{g.minW}</span><span>参考区间</span><span>{g.maxW}</span></div>
-            </div>
-          </div>
           )}
         </Reveal>
 
