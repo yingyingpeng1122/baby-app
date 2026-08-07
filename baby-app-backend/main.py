@@ -13,6 +13,7 @@ import json
 import re
 import os
 import uuid
+import random
 
 # ---------------- 应用 & 跨域 ----------------
 app = FastAPI(title="Baby Growth Assistant API")
@@ -190,6 +191,11 @@ def init_db():
         time TEXT, amount REAL, type TEXT, note TEXT DEFAULT '',
         PRIMARY KEY (baby_id, date, id)
     )""")
+    # 新增食物种类列（兼容旧库，列已存在则忽略）
+    try:
+        db.execute("ALTER TABLE feeding_records_v2 ADD COLUMN food_groups TEXT DEFAULT ''")
+    except Exception:
+        pass
     db.execute("""CREATE TABLE IF NOT EXISTS checklist_items_v2 (
         baby_id TEXT, date TEXT, item_id TEXT, checked INTEGER,
         PRIMARY KEY (baby_id, date, item_id)
@@ -241,11 +247,14 @@ class FeedingAdvice(BaseModel):
 
 class Activity(BaseModel):
     id: int
-    type: str
-    title: str
-    desc: str
-    ageRange: List[int]
-    videoUrl: str
+    type: str = ''
+    title: str = ''
+    desc: str = ''
+    ageRange: List[int] = [0, 24]
+    videoUrl: str = ''
+    icon: str = ''        # 前端按 icon 渲染彩色图标（视觉/语言/运动/认知…）
+    keyword: str = ''     # B 站搜索词
+    stage: str = ''       # 所属阶段标签（纯乳期/辅食添加初期…）
 
 class FeedingRecord(BaseModel):
     id: str = ''
@@ -253,6 +262,7 @@ class FeedingRecord(BaseModel):
     amount: float
     type: str
     note: str = ''
+    foodGroups: str = ''  # 逗号分隔的 WHO 食物组
 
 class FeedingEvaluation(BaseModel):
     totalMilk: float
@@ -267,6 +277,15 @@ class FeedingEvaluation(BaseModel):
     feedCount: int = 0
     avgInterval: str = ''
     records: List[FeedingRecord] = []
+    # WHO 三项指标扩展
+    effectiveTargetMilk: float = 0      # 辅食抵扣后的有效奶量目标
+    milkDisplaced: bool = False         # 目标是否因辅食下调
+    targetSolidsMeals: int = 0          # 建议辅食餐次
+    solidsMealCount: int = 0            # 当日实际辅食餐次
+    solidsDiversity: int = 0            # 当日食物种类数（去重）
+    targetDiversity: int = 4            # WHO 最低食物种类
+    solidsAmountPerMeal: float = 0      # 平均每餐克数
+    solidsGroupsLogged: bool = False    # 是否记录了食物种类
 
 class DashboardResponse(BaseModel):
     profile: BabyProfile
@@ -408,12 +427,66 @@ FEED_VIDEO_KEYWORD = {
     "幼儿饮食过渡期": "幼儿 一日三餐 辅食 制作 教程",
 }
 
-ACTIVITY_VIDEO_KEYWORD = {
-    "莫扎特效应：安睡曲": "莫扎特 摇篮曲 宝宝 安睡曲",
-    "黑白卡追视": "婴儿 黑白卡 追视 训练",
-    "躲猫猫": "宝宝 躲猫猫 游戏",
-    "儿歌律动": "儿歌律动 认识身体 宝宝",
-    "积木堆高高": "宝宝 搭积木 堆高高",
+# ---------------- 早教活动库（按阶段 + 类型，每次随机抽 3-4 个覆盖多类型）----------------
+# category 作为前端图标/配色 key；stage 作为副标题；keyword 走 B 站搜索
+STAGE_LABEL = {0: '纯乳期', 1: '辅食添加初期', 2: '咀嚼吞咽期', 3: '幼儿期'}
+
+def _stage_key(months: int) -> int:
+    if months < 6:
+        return 0
+    if months < 8:
+        return 1
+    if months < 12:
+        return 2
+    return 3
+
+ACTIVITY_LIBRARY = {
+    0: [  # 纯乳期 (<6月)
+        {'id': 101, 'category': 'vision',   'title': '黑白卡追视',   'desc': '黑白高对比卡锻炼视觉聚焦与追视', 'keyword': '婴儿 黑白卡 追视训练', 'ageRange': [0, 3], 'stage': '纯乳期'},
+        {'id': 102, 'category': 'music',    'title': '莫扎特安睡曲', 'desc': '轻柔古典乐安抚情绪助眠', 'keyword': '莫扎特 摇篮曲 宝宝 安睡曲', 'ageRange': [0, 12], 'stage': '纯乳期'},
+        {'id': 103, 'category': 'language', 'title': '面对面说话',   'desc': '多和宝宝说话，建立语言启蒙', 'keyword': '婴儿 语言启蒙 多说话', 'ageRange': [0, 6], 'stage': '纯乳期'},
+        {'id': 104, 'category': 'social',   'title': '夸张表情互动', 'desc': '做鬼脸、微笑回应，促进社交', 'keyword': '婴儿 表情互动 社交', 'ageRange': [0, 6], 'stage': '纯乳期'},
+        {'id': 105, 'category': 'motor',    'title': '俯卧抬头练习', 'desc': '清醒时趴卧，锻炼颈肩力量', 'keyword': '婴儿 俯卧抬头 tummy time', 'ageRange': [0, 6], 'stage': '纯乳期'},
+        {'id': 106, 'category': 'cog',      'title': '摇铃追声',     'desc': '用摇铃引导转头寻声', 'keyword': '婴儿 追声 摇铃 听觉训练', 'ageRange': [0, 4], 'stage': '纯乳期'},
+        {'id': 107, 'category': 'reading',  'title': '布书触摸',     'desc': '软布书刺激触觉与专注', 'keyword': '婴儿 布书 触摸书', 'ageRange': [0, 6], 'stage': '纯乳期'},
+        {'id': 108, 'category': 'vision',   'title': '红色挂饰追视', 'desc': '红色高对比物吸引注视', 'keyword': '婴儿 红色玩具 追视', 'ageRange': [0, 4], 'stage': '纯乳期'},
+    ],
+    1: [  # 辅食添加初期 (6-8月)
+        {'id': 111, 'category': 'fine',     'title': '抓握牙胶',     'desc': '练习手掌抓握', 'keyword': '婴儿 抓握 牙胶 精细动作', 'ageRange': [4, 8], 'stage': '辅食添加初期'},
+        {'id': 112, 'category': 'motor',    'title': '辅助独坐',     'desc': '靠坐练习腰腹力量', 'keyword': '宝宝 辅助坐 练习', 'ageRange': [5, 9], 'stage': '辅食添加初期'},
+        {'id': 113, 'category': 'language', 'title': '辅食发声模仿', 'desc': '吃饭时模仿咿呀声', 'keyword': '宝宝 辅食 语言互动', 'ageRange': [6, 10], 'stage': '辅食添加初期'},
+        {'id': 114, 'category': 'cog',      'title': '躲猫猫',       'desc': '理解客体永久性', 'keyword': '宝宝 躲猫猫 游戏', 'ageRange': [4, 10], 'stage': '辅食添加初期'},
+        {'id': 115, 'category': 'music',    'title': '儿歌律动',     'desc': '跟儿歌拍手律动', 'keyword': '儿歌律动 认识身体 宝宝', 'ageRange': [6, 18], 'stage': '辅食添加初期'},
+        {'id': 116, 'category': 'reading',  'title': '绘本指认',     'desc': '指认绘本大幅图', 'keyword': '宝宝 绘本 亲子阅读', 'ageRange': [6, 18], 'stage': '辅食添加初期'},
+        {'id': 117, 'category': 'life',     'title': '学用勺感知',   'desc': '让宝宝抓勺玩食物', 'keyword': '宝宝 自主进食 勺 练习', 'ageRange': [6, 12], 'stage': '辅食添加初期'},
+        {'id': 118, 'category': 'vision',   'title': '蔬果卡片认知', 'desc': '彩色蔬果图刺激视觉', 'keyword': '宝宝 蔬果 卡片 认知', 'ageRange': [6, 12], 'stage': '辅食添加初期'},
+        {'id': 119, 'category': 'social',   'title': '照镜子认脸',   'desc': '镜前指认五官', 'keyword': '宝宝 照镜子 认脸', 'ageRange': [6, 12], 'stage': '辅食添加初期'},
+        {'id': 120, 'category': 'fine',     'title': '捏取溶豆',     'desc': '拇指食指捏小食', 'keyword': '宝宝 手指食物 捏取', 'ageRange': [7, 12], 'stage': '辅食添加初期'},
+    ],
+    2: [  # 咀嚼吞咽期 (8-12月)
+        {'id': 121, 'category': 'motor',    'title': '爬行训练',     'desc': '创设环境鼓励爬行', 'keyword': '宝宝 爬行 训练', 'ageRange': [7, 12], 'stage': '咀嚼吞咽期'},
+        {'id': 122, 'category': 'fine',     'title': '手指食物自喂', 'desc': '抓握小块食物自己吃', 'keyword': '宝宝 手指食物 自主进食', 'ageRange': [8, 14], 'stage': '咀嚼吞咽期'},
+        {'id': 123, 'category': 'language', 'title': '指物命名',     'desc': '指认物品说名称', 'keyword': '宝宝 指物 命名 语言', 'ageRange': [8, 18], 'stage': '咀嚼吞咽期'},
+        {'id': 124, 'category': 'cog',      'title': '套杯叠叠乐',   'desc': '大小杯嵌套认知', 'keyword': '宝宝 套杯 叠叠乐', 'ageRange': [9, 18], 'stage': '咀嚼吞咽期'},
+        {'id': 125, 'category': 'music',    'title': '节奏打击',     'desc': '敲打乐器感受节奏', 'keyword': '宝宝 打击乐 节奏', 'ageRange': [8, 18], 'stage': '咀嚼吞咽期'},
+        {'id': 126, 'category': 'reading',  'title': '故事共读',     'desc': '每天固定故事时间', 'keyword': '宝宝 绘本 讲故事', 'ageRange': [8, 24], 'stage': '咀嚼吞咽期'},
+        {'id': 127, 'category': 'life',     'title': '水杯学饮',     'desc': '用学饮杯喝水', 'keyword': '宝宝 学饮杯 喝水', 'ageRange': [9, 18], 'stage': '咀嚼吞咽期'},
+        {'id': 128, 'category': 'social',   'title': '分享游戏',     'desc': '轮流玩培养等待', 'keyword': '宝宝 分享 轮流 游戏', 'ageRange': [9, 24], 'stage': '咀嚼吞咽期'},
+        {'id': 129, 'category': 'vision',   'title': '形状配对',     'desc': '形状积木配对', 'keyword': '宝宝 形状 配对 积木', 'ageRange': [10, 18], 'stage': '咀嚼吞咽期'},
+        {'id': 130, 'category': 'motor',    'title': '扶站练习',     'desc': '扶物站立练腿力', 'keyword': '宝宝 扶站 练习', 'ageRange': [9, 14], 'stage': '咀嚼吞咽期'},
+    ],
+    3: [  # 幼儿期 (>=12月)
+        {'id': 131, 'category': 'motor',    'title': '独立行走',     'desc': '鼓励独走与平衡', 'keyword': '幼儿 学走路 平衡', 'ageRange': [12, 36], 'stage': '幼儿期'},
+        {'id': 132, 'category': 'fine',     'title': '积木垒高',     'desc': '垒高与推倒理解因果', 'keyword': '幼儿 搭积木 垒高', 'ageRange': [12, 36], 'stage': '幼儿期'},
+        {'id': 133, 'category': 'language', 'title': '唱儿歌识字',   'desc': '儿歌中认物识字', 'keyword': '幼儿 儿歌 识字', 'ageRange': [12, 36], 'stage': '幼儿期'},
+        {'id': 134, 'category': 'cog',      'title': '拼图入门',     'desc': '简单拼图练逻辑', 'keyword': '幼儿 拼图 入门', 'ageRange': [18, 36], 'stage': '幼儿期'},
+        {'id': 135, 'category': 'life',     'title': '自己吃饭',     'desc': '练习用勺叉自主进餐', 'keyword': '幼儿 自主进食 勺子', 'ageRange': [12, 36], 'stage': '幼儿期'},
+        {'id': 136, 'category': 'social',   'title': '同伴游戏',     'desc': '和其他宝宝互动', 'keyword': '幼儿 同伴 社交 游戏', 'ageRange': [12, 36], 'stage': '幼儿期'},
+        {'id': 137, 'category': 'reading',  'title': '图画书精读',   'desc': '读图讲故事问答', 'keyword': '幼儿 绘本 精读', 'ageRange': [12, 36], 'stage': '幼儿期'},
+        {'id': 138, 'category': 'music',    'title': '律动跳舞',     'desc': '随音乐自由舞动', 'keyword': '幼儿 律动 跳舞', 'ageRange': [12, 36], 'stage': '幼儿期'},
+        {'id': 139, 'category': 'life',     'title': '穿脱鞋子',     'desc': '练习自己穿鞋', 'keyword': '幼儿 穿鞋 练习', 'ageRange': [24, 48], 'stage': '幼儿期'},
+        {'id': 140, 'category': 'vision',   'title': '颜色认知',     'desc': '辨认基础颜色', 'keyword': '幼儿 颜色 认知', 'ageRange': [18, 36], 'stage': '幼儿期'},
+    ],
 }
 
 def get_feeding_advice(months: int) -> FeedingAdvice:
@@ -450,22 +523,93 @@ def parse_target_milk(milk_str: str) -> float:
         return float(nums[-1])
     return 0
 
+# ---------------- 喂养评估辅助（WHO/IYCF 口径）----------------
+def _solids_displace_threshold(months: int) -> float:
+    """当日辅食总克数达到该值，奶量目标下调（辅食挤占奶）。"""
+    if months < 8:
+        return 120.0
+    if months < 12:
+        return 150.0
+    return 200.0
+
+def _target_meals(months: int) -> int:
+    if months < 8:
+        return 2
+    return 3
+
+def _parse_food_groups(food_groups) -> list:
+    if not food_groups:
+        return []
+    return [g.strip() for g in str(food_groups).split(',') if g.strip()]
+
+def _day_level(total_milk, total_solids, meal_count, diversity, months, target_milk, needs_solids):
+    """返回 'good' / 'low' / 'high'（奶量用动态目标；辅食看餐次+种类）。"""
+    eff = target_milk
+    if target_milk > 0 and total_solids >= _solids_displace_threshold(months):
+        eff = target_milk * 0.75
+    milk_status = 'good'
+    if eff > 0:
+        ratio = total_milk / eff
+        if ratio < 0.7:
+            milk_status = 'low'
+        elif ratio > 1.3:
+            milk_status = 'high'
+    solids_status = 'good'
+    if needs_solids:
+        if meal_count == 0:
+            solids_status = 'low'
+        elif meal_count < _target_meals(months):
+            solids_status = 'low'
+        elif diversity > 0 and diversity < 4:
+            solids_status = 'low'
+    statuses = [s for s in (milk_status, solids_status) if s != 'good']
+    if not statuses:
+        return 'good'
+    if 'low' in statuses:
+        return 'low'
+    if 'high' in statuses:
+        return 'high'
+    return 'good'
+
 def get_activities(months: int) -> List[Activity]:
-    all_activities = [
-        Activity(id=1, type='music', title='莫扎特效应：安睡曲', desc='轻柔古典音乐助眠。', ageRange=[0, 12], videoUrl='#'),
-        Activity(id=2, type='game', title='黑白卡追视', desc='锻炼视觉聚焦。', ageRange=[0, 3], videoUrl='#'),
-        Activity(id=3, type='game', title='躲猫猫', desc='理解客体永久性。', ageRange=[4, 10], videoUrl='#'),
-        Activity(id=4, type='music', title='儿歌律动', desc='认识身体部位。', ageRange=[6, 18], videoUrl='#'),
-        Activity(id=5, type='game', title='积木堆高高', desc='锻炼手眼协调。', ageRange=[10, 24], videoUrl='#'),
-    ]
-    results = [a for a in all_activities if a.ageRange[0] <= months <= a.ageRange[1]]
-    for a in results:
+    """按阶段返回 3-4 个活动，保证覆盖多种类型，每次调用重新随机。"""
+    sk = _stage_key(months)
+    pool = ACTIVITY_LIBRARY.get(sk, [])
+    if not pool:
+        return []
+
+    # 按类型分组，保证多样性
+    by_cat = {}
+    for item in pool:
+        by_cat.setdefault(item['category'], []).append(item)
+
+    cats = list(by_cat.keys())
+    random.shuffle(cats)
+    n = min(random.choice([3, 4]), len(cats))
+
+    chosen = []
+    for c in cats[:n]:
+        chosen.append(random.choice(by_cat[c]))
+    random.shuffle(chosen)
+
+    results = []
+    for item in chosen:
+        a = Activity(
+            id=item['id'],
+            type=item['category'],
+            title=item['title'],
+            desc=item['desc'],
+            ageRange=item['ageRange'],
+            videoUrl='#',
+            icon=item['category'],
+            keyword=item['keyword'],
+            stage=item['stage'],
+        )
         if not a.videoUrl or a.videoUrl == '#':
-            kw = ACTIVITY_VIDEO_KEYWORD.get(a.title, a.title)
-            a.videoUrl = search_bilibili(kw)
-    for a in results:
+            a.videoUrl = search_bilibili(item['keyword'])
         if a.id in activity_videos:
             a.videoUrl = activity_videos[a.id]
+        results.append(a)
     return results
 
 @app.post('/activities/{id}/video')
@@ -664,8 +808,8 @@ async def add_feeding_record(record: FeedingRecord, request: Request):
     today = date.today().isoformat()
     record.id = str(uuid.uuid4())[:8]
     db.execute(
-        "INSERT INTO feeding_records_v2 (id, baby_id, date, time, amount, type, note) VALUES (?, ?, ?, ?, ?, ?, ?)",
-        [record.id, bid, today, record.time, record.amount, record.type, record.note])
+        "INSERT INTO feeding_records_v2 (id, baby_id, date, time, amount, type, note, food_groups) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+        [record.id, bid, today, record.time, record.amount, record.type, record.note, record.foodGroups])
     db.sync()
     return record
 
@@ -674,9 +818,9 @@ async def get_feeding_records(request: Request, date_str: str = Query(default=No
     bid = get_baby_id(request)
     d = date_str or date.today().isoformat()
     rs = db.execute(
-        "SELECT id, time, amount, type, note FROM feeding_records_v2 WHERE baby_id = ? AND date = ?",
+        "SELECT id, time, amount, type, note, food_groups FROM feeding_records_v2 WHERE baby_id = ? AND date = ?",
         [bid, d]).fetchall()
-    return [FeedingRecord(id=r[0], time=r[1], amount=r[2], type=r[3], note=r[4]) for r in rs]
+    return [FeedingRecord(id=r[0], time=r[1], amount=r[2], type=r[3], note=r[4] or '', foodGroups=r[5] or '') for r in rs]
 
 @app.put("/feeding-records/{record_id}", response_model=FeedingRecord)
 async def update_feeding_record(record_id: str, record: FeedingRecord, request: Request):
@@ -688,8 +832,8 @@ async def update_feeding_record(record_id: str, record: FeedingRecord, request: 
     if not rs:
         raise HTTPException(status_code=404, detail="Record not found")
     db.execute(
-        "UPDATE feeding_records_v2 SET time=?, amount=?, type=?, note=? WHERE id=? AND baby_id=? AND date=?",
-        [record.time, record.amount, record.type, record.note, record_id, bid, today])
+        "UPDATE feeding_records_v2 SET time=?, amount=?, type=?, note=?, food_groups=? WHERE id=? AND baby_id=? AND date=?",
+        [record.time, record.amount, record.type, record.note, record.foodGroups, record_id, bid, today])
     db.sync()
     record.id = record_id
     return record
@@ -714,9 +858,9 @@ async def get_feeding_evaluation(request: Request, date_str: str = Query(default
     d = date_str or date.today().isoformat()
 
     rs = db.execute(
-        "SELECT id, time, amount, type, note FROM feeding_records_v2 WHERE baby_id = ? AND date = ?",
+        "SELECT id, time, amount, type, note, food_groups FROM feeding_records_v2 WHERE baby_id = ? AND date = ?",
         [bid, d]).fetchall()
-    records = [FeedingRecord(id=r[0], time=r[1], amount=r[2], type=r[3], note=r[4]) for r in rs]
+    records = [FeedingRecord(id=r[0], time=r[1], amount=r[2], type=r[3], note=r[4] or '', foodGroups=r[5] or '') for r in rs]
 
     milk_records = [r for r in records if r.type == 'milk']
     solids_records = [r for r in records if r.type == 'solids']
@@ -728,46 +872,67 @@ async def get_feeding_evaluation(request: Request, date_str: str = Query(default
         raise HTTPException(status_code=404, detail="Baby profile not found")
     months = calculate_months(profile["birthday"])
     fa = get_feeding_advice(months)
-    fa = get_feeding_advice(months)
     target_milk = parse_target_milk(fa.milk)
+    needs_solids = (fa.solids == '需要')
+
+    # 辅食三项（WHO 口径）
+    meal_count = len(solids_records)
+    groups = set()
+    for r in solids_records:
+        groups.update(_parse_food_groups(r.foodGroups))
+    diversity = len(groups)
+    groups_logged = diversity > 0
+    per_meal = total_solids / meal_count if meal_count > 0 else 0
+    target_meals = _target_meals(months)
+
+    # 奶量目标动态化（辅食抵扣）
+    milk_displaced = target_milk > 0 and total_solids >= _solids_displace_threshold(months)
+    effective_target = target_milk * 0.75 if milk_displaced else target_milk
 
     # 奶量评估
     milk_status = 'good'
     milk_msg = ''
-    if target_milk > 0:
-        ratio = total_milk / target_milk
+    if effective_target > 0:
+        ratio = total_milk / effective_target
         if ratio < 0.7:
             milk_status = 'low'
-            milk_msg = f"奶量 {total_milk:.0f}ml，低于建议量 {target_milk:.0f}ml 的 70%"
+            milk_msg = f"奶量 {total_milk:.0f}ml，低于建议量 {effective_target:.0f}ml 的 70%" + ("（目标已随辅食量下调）" if milk_displaced else "")
         elif ratio > 1.3:
             milk_status = 'high'
-            milk_msg = f"奶量 {total_milk:.0f}ml，超过建议量 {target_milk:.0f}ml 的 130%"
+            milk_msg = f"奶量 {total_milk:.0f}ml，超过建议量 {effective_target:.0f}ml 的 130%"
         else:
-            milk_msg = f"奶量 {total_milk:.0f}ml，在建议范围 {target_milk:.0f}ml 附近"
+            milk_msg = f"奶量 {total_milk:.0f}ml，在建议范围 {effective_target:.0f}ml 附近" + ("（已随辅食量下调目标）" if milk_displaced else "")
 
-    # 辅食评估
+    # 辅食评估（餐次 + 种类多样性 + 量软指导）
     solids_status = 'good'
     solids_msg = ''
-    target_solids_times = 0
-    if fa.solids == '不需要':
+    if not needs_solids:
         if total_solids > 0:
             solids_status = 'high'
             solids_msg = f"当前阶段暂不建议添加辅食，已记录辅食 {total_solids:.0f}g"
     else:
-        if months < 8:
-            target_solids_times = 2
-        elif months < 12:
-            target_solids_times = 3
-        else:
-            target_solids_times = 3
-        if len(solids_records) == 0 and fa.solids == '需要':
+        if meal_count == 0:
             solids_status = 'low'
-            solids_msg = f"今日尚未记录辅食（建议 {target_solids_times} 次，每次约 {fa.solidAmount}）"
-        elif len(solids_records) < target_solids_times:
+            solids_msg = f"今日尚未记录辅食（建议 {target_meals} 次，每次约 {fa.solidAmount}）"
+        elif meal_count < target_meals:
             solids_status = 'low'
-            solids_msg = f"辅食 {len(solids_records)} 次，建议 {target_solids_times} 次（每次约 {fa.solidAmount}）"
+            solids_msg = f"辅食 {meal_count} 次，建议 {target_meals} 次（每次约 {fa.solidAmount}）"
+        elif groups_logged and diversity < 4:
+            solids_status = 'low'
+            solids_msg = f"辅食 {meal_count} 次，但食物种类仅 {diversity} 种（WHO 建议 ≥4 种），建议更丰富"
         else:
-            solids_msg = f"辅食 {len(solids_records)} 次，合计 {total_solids:.0f}g"
+            solids_msg = f"辅食 {meal_count} 次、合计 {total_solids:.0f}g" + (f"、种类 {diversity} 种" if groups_logged else "（未记录食物种类）")
+
+    # 综合状态（不足优先）
+    statuses = [s for s in (milk_status, solids_status) if s != 'good']
+    if not statuses:
+        overall = 'good'
+    elif 'low' in statuses:
+        overall = 'low'
+    elif 'high' in statuses:
+        overall = 'high'
+    else:
+        overall = 'good'
 
     # 喂养次数 & 间隔
     feed_count = len(records)
@@ -785,29 +950,28 @@ async def get_feeding_evaluation(request: Request, date_str: str = Query(default
         avg_m = int(avg_min % 60)
         avg_interval = f"{avg_h}h{avg_m:02d}m"
 
-    # 综合状态
-    statuses = [s for s in [milk_status, solids_status] if s != 'good']
-    if not statuses:
-        overall = 'good'
-    elif 'high' in statuses:
-        overall = 'high'
-    else:
-        overall = 'low'
-
     # 动态建议
     suggestions = []
     if milk_status == 'low':
         if feed_count < 5 and months < 12:
-            suggestions.append(f"今日仅喂奶 {len(milk_records)} 次，可增加 1-2 次喂养，每次 {target_milk/max(len(milk_records),1):.0f}ml 左右")
+            suggestions.append(f"今日仅喂奶 {len(milk_records)} 次，可增加 1-2 次喂养，每次 {effective_target/max(len(milk_records),1):.0f}ml 左右")
         else:
             suggestions.append(f"可适当增加单次奶量，当前平均每次 {total_milk/max(len(milk_records),1):.0f}ml")
     elif milk_status == 'high':
         suggestions.append("奶量偏高，注意观察是否有吐奶或胀气，可适当减少单次量")
 
-    if solids_status == 'low' and fa.solids == '需要':
-        suggestions.append(f"建议增加辅食次数至 {target_solids_times} 次，尝试 {', '.join(fa.types)}")
-    elif solids_status == 'high' and fa.solids == '不需要':
+    if solids_status == 'low' and needs_solids:
+        if meal_count == 0:
+            suggestions.append(f"建议开始添加辅食，尝试 {', '.join(fa.types)}")
+        elif meal_count < target_meals:
+            suggestions.append(f"建议增加辅食次数至 {target_meals} 次，尝试 {', '.join(fa.types)}")
+        elif groups_logged and diversity < 4:
+            suggestions.append(f"辅食种类偏少（{diversity}/4），建议搭配谷物、肉禽鱼、蛋、蔬果等多类食材")
+    elif solids_status == 'high' and not needs_solids:
         suggestions.append(f"当前月龄 ({months} 个月) 以奶为主，暂不建议添加辅食")
+
+    if not groups_logged and needs_solids and meal_count > 0:
+        suggestions.append("记录辅食时可勾选「食物种类」，系统会按 WHO 标准评估营养多样性")
 
     if avg_interval and len(milk_records) >= 2:
         if months < 6:
@@ -824,9 +988,9 @@ async def get_feeding_evaluation(request: Request, date_str: str = Query(default
             suggestions.append(f"平均喂养间隔 {avg_interval} 偏长，宝宝可能饿了，建议缩短至 {ideal_min//60}-{ideal_max//60} 小时")
 
     now_hour = datetime.now().hour
-    if now_hour >= 20 and total_milk < target_milk * 0.7:
+    if now_hour >= 20 and total_milk < effective_target * 0.7:
         suggestions.append("已到晚间，奶量仍偏低，建议睡前补一次奶")
-    elif now_hour >= 14 and now_hour < 20 and len(solids_records) == 0 and fa.solids == '需要':
+    elif now_hour >= 14 and now_hour < 20 and meal_count == 0 and needs_solids:
         suggestions.append("下午了还没添加辅食，建议安排一次")
 
     if not suggestions and overall == 'good':
@@ -845,12 +1009,16 @@ async def get_feeding_evaluation(request: Request, date_str: str = Query(default
         status=overall, milkStatus=milk_status, solidsStatus=solids_status,
         message=message, suggestions=suggestions,
         feedCount=feed_count, avgInterval=avg_interval, records=records,
+        effectiveTargetMilk=effective_target, milkDisplaced=milk_displaced,
+        targetSolidsMeals=target_meals, solidsMealCount=meal_count,
+        solidsDiversity=diversity, targetDiversity=4,
+        solidsAmountPerMeal=per_meal, solidsGroupsLogged=groups_logged,
     )
 
 # ---------------- 喂养月历 & 统计 ----------------
 @app.get("/feeding-calendar")
 async def get_feeding_calendar(request: Request, year: int = Query(...), month: int = Query(...)):
-    """返回指定月份每天的喂养水平（good/low/high/empty）"""
+    """返回指定月份每天的喂养水平（good/low/high/empty），奶量用动态目标、辅食看餐次+种类。"""
     bid = get_baby_id(request)
     profile = _get_baby_profile(bid)
     if not profile:
@@ -858,49 +1026,44 @@ async def get_feeding_calendar(request: Request, year: int = Query(...), month: 
     months = calculate_months(profile["birthday"])
     fa = get_feeding_advice(months)
     target_milk = parse_target_milk(fa.milk)
+    needs_solids = (fa.solids == '需要')
     _, num_days = _calendar.monthrange(year, month)
     today = date.today()
 
-    # 批量查询该月所有喂养记录
     rs = db.execute(
-        "SELECT date, amount, type FROM feeding_records_v2 WHERE baby_id = ? AND date LIKE ?",
+        "SELECT date, amount, type, food_groups FROM feeding_records_v2 WHERE baby_id = ? AND date LIKE ?",
         [bid, f"{year:04d}-{month:02d}-%"]).fetchall()
 
-    # 按日期聚合
     day_map = {}
     for r in rs:
         d = r[0]
         day_num = int(d.split('-')[2])
         if day_num not in day_map:
-            day_map[day_num] = {"total_milk": 0, "total_solids": 0, "feed_count": 0}
+            day_map[day_num] = {"total_milk": 0, "total_solids": 0, "meal_count": 0, "feed_count": 0, "groups": set()}
         if r[2] == 'milk':
             day_map[day_num]["total_milk"] += (r[1] or 0)
         elif r[2] == 'solids':
             day_map[day_num]["total_solids"] += (r[1] or 0)
+            day_map[day_num]["meal_count"] += 1
         day_map[day_num]["feed_count"] += 1
+        day_map[day_num]["groups"].update(_parse_food_groups(r[3]))
 
     days = {}
     for day in range(1, num_days + 1):
         dm = day_map.get(day, {})
         total_milk = dm.get("total_milk", 0)
         total_solids = dm.get("total_solids", 0)
+        meal_count = dm.get("meal_count", 0)
         feed_count = dm.get("feed_count", 0)
+        diversity = len(dm.get("groups", set()))
         is_future = date(year, month, day) > today
 
         if is_future:
             level = 'future'
         elif feed_count == 0:
             level = 'empty'
-        elif target_milk > 0:
-            ratio = total_milk / target_milk
-            if ratio < 0.7:
-                level = 'low'
-            elif ratio > 1.3:
-                level = 'high'
-            else:
-                level = 'good'
         else:
-            level = 'good' if feed_count > 0 else 'empty'
+            level = _day_level(total_milk, total_solids, meal_count, diversity, months, target_milk, needs_solids)
 
         days[str(day)] = {
             "level": level,
@@ -914,7 +1077,7 @@ async def get_feeding_calendar(request: Request, year: int = Query(...), month: 
 
 @app.get("/feeding-stats-monthly")
 async def get_feeding_stats_monthly(request: Request, year: int = Query(...), month: int = Query(...)):
-    """返回指定月份的喂养统计"""
+    """返回指定月份的喂养统计（奶量动态目标 + 辅食餐次/种类）"""
     bid = get_baby_id(request)
     profile = _get_baby_profile(bid)
     if not profile:
@@ -922,49 +1085,52 @@ async def get_feeding_stats_monthly(request: Request, year: int = Query(...), mo
     months = calculate_months(profile["birthday"])
     fa = get_feeding_advice(months)
     target_milk = parse_target_milk(fa.milk)
+    needs_solids = (fa.solids == '需要')
     _, num_days = _calendar.monthrange(year, month)
     today = date.today()
 
     rs = db.execute(
-        "SELECT date, amount, type FROM feeding_records_v2 WHERE baby_id = ? AND date LIKE ?",
+        "SELECT date, amount, type, food_groups FROM feeding_records_v2 WHERE baby_id = ? AND date LIKE ?",
         [bid, f"{year:04d}-{month:02d}-%"]).fetchall()
 
     total_milk = 0
     total_solids = 0
     total_feeds = 0
     days_with_data = set()
-    for r in rs:
-        if r[2] == 'milk':
-            total_milk += (r[1] or 0)
-        elif r[2] == 'solids':
-            total_solids += (r[1] or 0)
-        total_feeds += 1
-        days_with_data.add(r[0])
 
-    # 统计每天的水平分布
     day_map = {}
     for r in rs:
         d = r[0]
         day_num = int(d.split('-')[2])
+        days_with_data.add(d)
         if day_num not in day_map:
-            day_map[day_num] = {"total_milk": 0}
+            day_map[day_num] = {"total_milk": 0, "total_solids": 0, "meal_count": 0, "groups": set()}
         if r[2] == 'milk':
             day_map[day_num]["total_milk"] += (r[1] or 0)
+            total_milk += (r[1] or 0)
+        elif r[2] == 'solids':
+            day_map[day_num]["total_solids"] += (r[1] or 0)
+            day_map[day_num]["meal_count"] += 1
+            total_solids += (r[1] or 0)
+        day_map[day_num]["groups"].update(_parse_food_groups(r[3]))
+        total_feeds += 1
 
-    good_days = 0
-    low_days = 0
-    high_days = 0
+    good_days = low_days = high_days = 0
+    solids_meal_good_days = 0
+    solids_diverse_days = 0
     for day_num, dm in day_map.items():
-        if target_milk > 0:
-            ratio = dm["total_milk"] / target_milk
-            if ratio < 0.7:
-                low_days += 1
-            elif ratio > 1.3:
-                high_days += 1
-            else:
-                good_days += 1
+        lvl = _day_level(dm["total_milk"], dm["total_solids"], dm["meal_count"], len(dm["groups"]), months, target_milk, needs_solids)
+        if lvl == 'good':
+            good_days += 1
+        elif lvl == 'low':
+            low_days += 1
+        else:
+            high_days += 1
+        if needs_solids and dm["meal_count"] >= _target_meals(months):
+            solids_meal_good_days += 1
+        if dm["groups"] and len(dm["groups"]) >= 4:
+            solids_diverse_days += 1
 
-    # 当前月已过天数（排除未来）
     past_days = min(today.day, num_days) if today.year == year and today.month == month else num_days
     avg_daily_milk = round(total_milk / max(past_days, 1), 1)
 
@@ -974,6 +1140,7 @@ async def get_feeding_stats_monthly(request: Request, year: int = Query(...), mo
         "totalFeeds": total_feeds, "daysWithData": len(days_with_data),
         "avgDailyMilk": avg_daily_milk, "targetMilk": target_milk,
         "goodDays": good_days, "lowDays": low_days, "highDays": high_days,
+        "solidsMealGoodDays": solids_meal_good_days, "solidsDiverseDays": solids_diverse_days,
         "pastDays": past_days,
     }
 
