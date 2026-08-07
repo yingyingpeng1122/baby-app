@@ -456,6 +456,26 @@ export default function BabyAppFullStack() {
     } catch (e) { alert('加入家庭失败：' + e.message); }
   };
 
+  // ---- 退出家庭（之后可在设置页重新创建/加入，即实现"切换家庭"）----
+  const leaveFamily = async () => {
+    if (!window.confirm(`确定要退出家庭「${family?.family_name || ''}」吗？\n退出后需重新创建或加入家庭才能继续记录，当前设备数据将清空。`)) return;
+    try {
+      const res = await apiFetch(`${API_BASE}/family/leave`, { method: 'POST' });
+      if (!res.ok) { const e = await res.json(); throw new Error(e.detail || '退出失败'); }
+      // 重置本地状态，回到家庭设置页
+      _currentBabyId = null;
+      setCurrentBabyId(null);
+      setFamily(null);
+      setBabies([]);
+      setData(null);
+      setFeedRecords([]);
+      setFeedEval(null);
+      setChecklist([]);
+      setFamilySetupMode(null);
+      setView('family-setup');
+    } catch (e) { alert('退出家庭失败：' + (e.message || '请确认后端已启动')); }
+  };
+
   // ---- 宝宝操作 ----
   const addBaby = async () => {
     if (!form.name || !form.birthday) return alert('请填写昵称和出生日期');
@@ -966,6 +986,7 @@ export default function BabyAppFullStack() {
                 ID: <b>{family.family_id}</b>
               </span>
               <span className="family-bar__members">{family.members?.length || 0} 位成员</span>
+              <button className="family-bar__leave" onClick={leaveFamily} title="退出当前家庭">退出</button>
             </div>
           </div>
         )}

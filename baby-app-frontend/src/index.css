@@ -640,6 +640,12 @@ body { display: block; background: #eef3f1; }
 .family-bar__id:hover { border-color: var(--primary); color: var(--primary); background: var(--primary-soft); }
 .family-bar__id b { color: var(--text); }
 .family-bar__members { margin-left: auto; color: var(--muted); font-size: 12px; }
+.family-bar__leave {
+  padding: 2px 12px; font-size: 12px; font-weight: 600; font-family: var(--font-display);
+  color: var(--red); background: var(--bg); border: 1px solid var(--line);
+  border-radius: var(--r-pill); cursor: pointer; transition: all .15s;
+}
+.family-bar__leave:hover { color: #fff; background: var(--red); border-color: var(--red); }
 
 /* 宝宝切换器 */
 .topbar__actions { display: flex; align-items: center; gap: 8px; }
