@@ -749,6 +749,115 @@ body { display: block; background: #eef3f1; }
   .cal-cell { font-size: 12px; }
 }
 
+/* ---------- 阶段提醒 ---------- */
+.stage-tip {
+  margin-top: 14px;
+  padding: 16px 16px 14px;
+  border-radius: 18px;
+  background: linear-gradient(135deg, #fff7ed 0%, #fef2f8 100%);
+  border: 1px solid #fed7aa;
+}
+.stage-tip--muted {
+  background: #f1f5f9;
+  border-color: #e2e8f0;
+}
+.stage-tip__head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.stage-tip__ico {
+  color: var(--orange, #f59e0b);
+  flex: none;
+}
+.stage-tip__tag {
+  font-size: 12px;
+  font-weight: 700;
+  color: #c2410c;
+  background: #ffedd5;
+  border: 1px solid #fdba74;
+  padding: 2px 10px;
+  border-radius: 999px;
+  white-space: nowrap;
+}
+.stage-tip__title {
+  margin: 0;
+  font-size: 17px;
+  font-weight: 800;
+  color: #9a3412;
+}
+.stage-tip__why {
+  margin: 10px 0 12px;
+  font-size: 13.5px;
+  line-height: 1.7;
+  color: #57534e;
+}
+.stage-tip__why b { color: #c2410c; }
+.stage-tip__cols {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 14px;
+}
+.stage-tip__k {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  font-weight: 700;
+  color: #7c2d12;
+  margin-bottom: 7px;
+}
+.stage-tip__col:first-child .stage-tip__k { color: #9a3412; }
+.stage-tip__col:last-child .stage-tip__k { color: #0e7490; }
+.stage-tip__list {
+  margin: 0;
+  padding-left: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.stage-tip__list li {
+  position: relative;
+  padding-left: 16px;
+  font-size: 12.5px;
+  line-height: 1.6;
+  color: #57534e;
+}
+.stage-tip__list li::before {
+  content: "";
+  position: absolute;
+  left: 4px;
+  top: 8px;
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: #fb923c;
+}
+.stage-tip__col:last-child .stage-tip__list li::before { background: #22d3ee; }
+.stage-tip__foot {
+  margin-top: 13px;
+  padding-top: 11px;
+  border-top: 1px dashed #fdba74;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+.stage-tip__src {
+  font-size: 11px;
+  color: #a8a29e;
+  line-height: 1.5;
+}
+.stage-tip__cur, .stage-tip__next {
+  font-size: 11.5px;
+  color: #78716c;
+}
+.stage-tip__cur b, .stage-tip__next b { color: #c2410c; }
+@media (max-width: 480px) {
+  .stage-tip__cols { grid-template-columns: 1fr; gap: 10px; }
+}
+
 /* ---------- 无障碍：尊重减少动效 ---------- */
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation: none !important; transition: none !important; }

@@ -4,7 +4,7 @@ import {
   Baby, Ruler, Scale, Milk, Utensils, Music, Gamepad2, Video, Save,
   PlayCircle, Loader2, AlertCircle, Sparkles, Pencil, Check, Maximize2, Minimize2,
   Plus, Trash2, Clock, TrendingUp, ChevronDown, Sun, BookOpen, Heart, Moon, Pill, Smile, ListChecks, ChevronLeft, ChevronRight, Calendar, X,
-  Eye, MessageCircle, Footprints, Hand, Brain
+  Eye, MessageCircle, Footprints, Hand, Brain, Bell, Lightbulb
 } from 'lucide-react';
 
 // WHO 最低食物种类（MDD）的 7 个食物组
@@ -925,7 +925,10 @@ export default function BabyAppFullStack() {
       </div>
     );
   }
-  const { profile, months, growthStandard: g, isWeightNormal, isHeightNormal, weightStatus: wStat, heightStatus: hStat, feedingAdvice: f, activities, music = [] } = data;
+  const { profile, months, growthStandard: g, isWeightNormal, isHeightNormal, weightStatus: wStat, heightStatus: hStat, feedingAdvice: f, activities, music = [], stageTip: st = {} } = data;
+  const stFeatured = st.featured || null;
+  const stCurrent = st.current || [];
+  const stAfter = st.after || null;
   const allOk = isWeightNormal && isHeightNormal;
   const hPct = pct(profile.height, g.minH, g.maxH);
   const wPct = pct(profile.weight, g.minW, g.maxW);
@@ -1031,6 +1034,48 @@ export default function BabyAppFullStack() {
               <Badge ok={growthOk(wStat)}>体重{WEIGHT_STATUS_TEXT[wStat]}</Badge>
             </div>
           </div>
+
+          {/* 阶段提醒：即将进入的发育阶段科普 */}
+          {stFeatured && (
+            <div className="stage-tip">
+              <div className="stage-tip__head">
+                <Sparkles className="icon icon--sm stage-tip__ico" />
+                <span className="stage-tip__tag">{stFeatured.status === 'upcoming' ? (stFeatured.monthsAway > 0 ? `即将进入 · 约 ${stFeatured.monthsAway} 个月后` : '即将进入') : '正在经历'}</span>
+                <h3 className="stage-tip__title">{stFeatured.title}</h3>
+              </div>
+              <p className="stage-tip__why"><b>原理：</b>{stFeatured.principle}</p>
+              <div className="stage-tip__cols">
+                <div className="stage-tip__col">
+                  <div className="stage-tip__k"><Bell className="icon icon--xs" />信号提醒</div>
+                  <ul className="stage-tip__list">
+                    {stFeatured.signs.map((s, i) => <li key={i}>{s}</li>)}
+                  </ul>
+                </div>
+                <div className="stage-tip__col">
+                  <div className="stage-tip__k"><Lightbulb className="icon icon--xs" />陪伴建议</div>
+                  <ul className="stage-tip__list">
+                    {stFeatured.advice.map((s, i) => <li key={i}>{s}</li>)}
+                  </ul>
+                </div>
+              </div>
+              <div className="stage-tip__foot">
+                <span className="stage-tip__src">资料来源：{stFeatured.sources}</span>
+                {stCurrent.length > 0 && (
+                  <span className="stage-tip__cur">正在经历：{stCurrent.map(c => c.title).join('、')}</span>
+                )}
+                {stAfter && <span className="stage-tip__next">之后将迎来：{stAfter}</span>}
+              </div>
+            </div>
+          )}
+          {!stFeatured && (
+            <div className="stage-tip stage-tip--muted">
+              <div className="stage-tip__head">
+                <Sparkles className="icon icon--sm stage-tip__ico" />
+                <h3 className="stage-tip__title">成长新阶段</h3>
+              </div>
+              <p className="stage-tip__why">宝宝已进入幼儿期，更多探索与成长的惊喜在路上，记得定期记录身高体重与日常哦。</p>
+            </div>
+          )}
           {devOpen && (
           <div className="grid2">
             <div className="stat stat--teal">
