@@ -388,6 +388,7 @@ export default function BabyAppFullStack() {
   const [feedingCalendarData, setFeedingCalendarData] = useState(null);
   const [feedingCalendarDate, setFeedingCalendarDate] = useState({ year: new Date().getFullYear(), month: new Date().getMonth() + 1 });
   const [feedingStats, setFeedingStats] = useState(null);
+  const [devOpen, setDevOpen] = useState(false); // 发育概况折叠（必须放在提前 return 之前，遵守 hooks 规则）
 
   // 同步 currentBabyId 到模块级变量
   useEffect(() => { _currentBabyId = currentBabyId; }, [currentBabyId]);
@@ -921,7 +922,6 @@ export default function BabyAppFullStack() {
   }
   const { profile, months, growthStandard: g, isWeightNormal, isHeightNormal, feedingAdvice: f, activities, music = [] } = data;
   const allOk = isWeightNormal && isHeightNormal;
-  const [devOpen, setDevOpen] = useState(false);
   const hPct = pct(profile.height, g.minH, g.maxH);
   const wPct = pct(profile.weight, g.minW, g.maxW);
 
