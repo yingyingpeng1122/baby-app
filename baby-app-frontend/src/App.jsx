@@ -86,6 +86,11 @@ const Badge = ({ ok, children }) => (
   </span>
 );
 
+// 身高 / 体重偏离参考区间时的状态文案（分级提醒）
+const HEIGHT_STATUS_TEXT = { normal: '达标', short: '偏矮', tall: '偏高' };
+const WEIGHT_STATUS_TEXT = { normal: '达标', light: '略轻', under: '超轻', heavy: '略重', over: '超重' };
+const growthOk = (s) => s === 'normal';
+
 function VideoModal({ open, title, src = '', onClose }) {
   const cardRef = useRef(null);
   const [isFullscreen, setIsFullscreen] = useState(false); // 浏览器原生 Fullscreen API
@@ -920,10 +925,18 @@ export default function BabyAppFullStack() {
       </div>
     );
   }
-  const { profile, months, growthStandard: g, isWeightNormal, isHeightNormal, feedingAdvice: f, activities, music = [] } = data;
+  const { profile, months, growthStandard: g, isWeightNormal, isHeightNormal, weightStatus: wStat, heightStatus: hStat, feedingAdvice: f, activities, music = [] } = data;
   const allOk = isWeightNormal && isHeightNormal;
   const hPct = pct(profile.height, g.minH, g.maxH);
   const wPct = pct(profile.weight, g.minW, g.maxW);
+
+  // 综合评估文案：分别列出偏离的指标（偏矮/偏高、超轻/略轻/略重/超重）
+  const growthIssues = [];
+  if (hStat !== 'normal') growthIssues.push('身高' + HEIGHT_STATUS_TEXT[hStat]);
+  if (wStat !== 'normal') growthIssues.push('体重' + WEIGHT_STATUS_TEXT[wStat]);
+  const assessText = allOk
+    ? '身高与体重均落在同龄参考区间内，发育节奏良好。'
+    : `${growthIssues.join('、')}，偏离同龄参考区间，建议结合喂养与睡眠再观察两周。`;
 
   const copyFamilyId = () => {
     if (family) {
@@ -1011,23 +1024,23 @@ export default function BabyAppFullStack() {
             <span className="assess__ico">{allOk ? <Check className="icon icon--lg" /> : <AlertCircle className="icon icon--lg" />}</span>
             <div className="assess__body">
               <div className="assess__k">综合评估</div>
-              <div className="assess__text">{allOk ? '身高与体重均落在同龄参考区间内，发育节奏良好。' : '部分指标偏离参考区间，建议结合喂养与睡眠再观察两周。'}</div>
+              <div className="assess__text">{assessText}</div>
             </div>
             <div className="assess__badges">
-              <Badge ok={isHeightNormal}>身高{isHeightNormal ? '达标' : '关注'}</Badge>
-              <Badge ok={isWeightNormal}>体重{isWeightNormal ? '达标' : '关注'}</Badge>
+              <Badge ok={growthOk(hStat)}>身高{HEIGHT_STATUS_TEXT[hStat]}</Badge>
+              <Badge ok={growthOk(wStat)}>体重{WEIGHT_STATUS_TEXT[wStat]}</Badge>
             </div>
           </div>
           {devOpen && (
           <div className="grid2">
             <div className="stat stat--teal">
-              <div className="stat__head"><span className="stat__label"><span className="stat__ico"><Ruler className="icon icon--sm" /></span>身高</span><Badge ok={isHeightNormal}>{isHeightNormal ? '达标' : '关注'}</Badge></div>
+              <div className="stat__head"><span className="stat__label"><span className="stat__ico"><Ruler className="icon icon--sm" /></span>身高</span><Badge ok={growthOk(hStat)}>{HEIGHT_STATUS_TEXT[hStat]}</Badge></div>
               <div><span className="stat__value">{profile.height}</span><span className="stat__unit">cm</span></div>
               <div className="bar"><div className="bar__fill" style={{ '--w': `${hPct}%` }} /></div>
               <div className="bar__scale"><span>{g.minH}</span><span>参考区间</span><span>{g.maxH}</span></div>
             </div>
             <div className="stat stat--sky">
-              <div className="stat__head"><span className="stat__label"><span className="stat__ico"><Scale className="icon icon--sm" /></span>体重</span><Badge ok={isWeightNormal}>{isWeightNormal ? '达标' : '关注'}</Badge></div>
+              <div className="stat__head"><span className="stat__label"><span className="stat__ico"><Scale className="icon icon--sm" /></span>体重</span><Badge ok={growthOk(wStat)}>{WEIGHT_STATUS_TEXT[wStat]}</Badge></div>
               <div><span className="stat__value">{profile.weight}</span><span className="stat__unit">kg</span></div>
               <div className="bar"><div className="bar__fill" style={{ '--w': `${wPct}%` }} /></div>
               <div className="bar__scale"><span>{g.minW}</span><span>参考区间</span><span>{g.maxW}</span></div>
