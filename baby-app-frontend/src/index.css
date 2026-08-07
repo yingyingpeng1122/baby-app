@@ -583,6 +583,29 @@ body { display: block; background: #eef3f1; }
 .modal__card:fullscreen .modal__video,
 .modal__card:-webkit-full-screen .modal__video { flex: 1; min-height: 0; aspect-ratio: auto; height: 100%; }
 
+/* iOS 等不支持元素原生全屏：用 .is-fullscreen 撑满视口的“伪全屏”兜底（与原生全屏共用同一套样式） */
+.modal__card.is-fullscreen {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  max-width: none;
+  width: 100vw;
+  height: 100vh;
+  border-radius: 0;
+  background: #000;
+  display: flex;
+  flex-direction: column;
+}
+.modal__card.is-fullscreen .modal__head { background: #0c211d; border-bottom-color: rgba(255,255,255,.08); }
+.modal__card.is-fullscreen .modal__title { color: #fff; }
+.modal__card.is-fullscreen .modal__iconbtn,
+.modal__card.is-fullscreen .modal__close { background: rgba(255,255,255,.08); color: #fff; }
+.modal__card.is-fullscreen .modal__iconbtn:hover,
+.modal__card.is-fullscreen .modal__close:hover { background: rgba(255,255,255,.16); color: #fff; }
+.modal__card.is-fullscreen .modal__video { flex: 1; min-height: 0; aspect-ratio: auto; height: 100%; }
+/* 伪全屏下隐藏遮罩，避免误触关闭 */
+.modal--pseudo-fullscreen .modal__backdrop { display: none; }
+
 /* ---------- 滚动揭示 ---------- */
 .reveal { opacity: 0; transform: translateY(20px); transition: opacity .7s cubic-bezier(.2,.8,.2,1), transform .7s cubic-bezier(.2,.8,.2,1); transition-delay: var(--d, 0s); }
 .reveal.in-view { opacity: 1; transform: none; }

@@ -79,26 +79,47 @@ const Badge = ({ ok, children }) => (
 
 function VideoModal({ open, title, src = '', onClose }) {
   const cardRef = useRef(null);
-  const [isFullscreen, setIsFullscreen] = useState(false);
+  const [isFullscreen, setIsFullscreen] = useState(false); // 浏览器原生 Fullscreen API
+  const [pseudoFullscreen, setPseudoFullscreen] = useState(false); // iOS 等不支持元素全屏时的伪全屏兜底
 
-  // 全屏状态变化监听：用户可能通过浏览器自带方式退出全屏
+  // 全屏状态变化监听：用户可能通过浏览器自带方式（Esc / 系统手势）退出全屏
   useEffect(() => {
-    const onChange = () => setIsFullscreen(!!document.fullscreenElement);
+    const onChange = () => setIsFullscreen(!!(document.fullscreenElement || document.webkitFullscreenElement));
     document.addEventListener('fullscreenchange', onChange);
-    return () => document.removeEventListener('fullscreenchange', onChange);
+    document.addEventListener('webkitfullscreenchange', onChange);
+    return () => {
+      document.removeEventListener('fullscreenchange', onChange);
+      document.removeEventListener('webkitfullscreenchange', onChange);
+    };
   }, []);
 
+  // 伪全屏下按 Esc 退出
+  useEffect(() => {
+    if (!pseudoFullscreen) return;
+    const onKey = (e) => { if (e.key === 'Escape') setPseudoFullscreen(false); };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [pseudoFullscreen]);
+
   const toggleFullscreen = async () => {
-    try {
-      if (!document.fullscreenElement) {
-        await cardRef.current?.requestFullscreen?.();
-      } else {
-        await document.exitFullscreen?.();
+    const el = cardRef.current;
+    if (!el) return;
+    // 桌面 / Android Chrome 等支持原生全屏：优先用标准 Fullscreen API
+    if (typeof el.requestFullscreen === 'function') {
+      try {
+        if (!document.fullscreenElement) {
+          await el.requestFullscreen();
+        } else {
+          await document.exitFullscreen();
+        }
+        return;
+      } catch (e) {
+        // 原生失败则降级到伪全屏
+        console.warn('native fullscreen failed, fallback to pseudo', e);
       }
-    } catch (e) {
-      // 部分浏览器（如老 Safari）不支持 requestFullscreen，静默失败即可
-      console.warn('fullscreen toggle failed', e);
     }
+    // iOS Safari 等：元素没有 requestFullscreen，用撑满视口的“伪全屏”兜底
+    setPseudoFullscreen((v) => !v);
   };
 
   if (!open) return null;
@@ -106,22 +127,26 @@ function VideoModal({ open, title, src = '', onClose }) {
   const isEmpty = !src || src === '#';
   const videoSrc = isEmpty ? '' : src;
   const biliEmbed = getBiliEmbedUrl(videoSrc);
+  const active = isFullscreen || pseudoFullscreen;
   return (
-    <div className="modal" role="dialog" aria-modal="true">
-      <div className="modal__backdrop" onClick={onClose} />
-      <div className="modal__card modal__card--video" ref={cardRef}>
+    <div className={`modal ${pseudoFullscreen ? 'modal--pseudo-fullscreen' : ''}`} role="dialog" aria-modal="true">
+      <div
+        className="modal__backdrop"
+        onClick={pseudoFullscreen ? undefined : onClose}
+      />
+      <div className={`modal__card modal__card--video ${active ? 'is-fullscreen' : ''}`} ref={cardRef}>
         <div className="modal__head">
           <h3 className="modal__title">{title}</h3>
           <div className="modal__head-actions">
             <button
               className="modal__iconbtn"
               onClick={toggleFullscreen}
-              aria-label={isFullscreen ? '退出全屏' : '全屏播放'}
-              title={isFullscreen ? '退出全屏' : '全屏播放'}
+              aria-label={active ? '退出全屏' : '全屏播放'}
+              title={active ? '退出全屏' : '全屏播放'}
             >
-              {isFullscreen ? <Minimize2 className="icon icon--sm" /> : <Maximize2 className="icon icon--sm" />}
+              {active ? <Minimize2 className="icon icon--sm" /> : <Maximize2 className="icon icon--sm" />}
             </button>
-            <button className="modal__close" onClick={onClose} aria-label="关闭">✕</button>
+            <button className="modal__close" onClick={() => { setPseudoFullscreen(false); onClose(); }} aria-label="关闭">✕</button>
           </div>
         </div>
         <div className="modal__video">
