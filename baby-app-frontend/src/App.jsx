@@ -891,7 +891,14 @@ export default function BabyAppFullStack() {
   }
 
   /* ---------- 仪表盘 ---------- */
-  if (!data) return null;
+  if (!data) {
+    return (
+      <div className="app app--center">
+        <span className="blob blob--1" aria-hidden /><span className="blob blob--2" aria-hidden />
+        <div className="loading"><div className="spinner" /><p className="loading__txt">正在加载成长数据…</p></div>
+      </div>
+    );
+  }
   const { profile, months, growthStandard: g, isWeightNormal, isHeightNormal, feedingAdvice: f, activities, music = [] } = data;
   const allOk = isWeightNormal && isHeightNormal;
   const [devOpen, setDevOpen] = useState(false);
