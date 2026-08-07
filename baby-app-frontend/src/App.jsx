@@ -33,7 +33,7 @@ const USER_ID = getUserId();
 let _currentBabyId = null;
 
 /* 请求超时：避免后端无响应时前端一直转圈 */
-const FETCH_TIMEOUT = 8000;
+const FETCH_TIMEOUT = 15000;
 
 /* 统一 fetch 包装：自动注入 X-User-Id 和 X-Baby-Id header，并带超时兜底 */
 async function apiFetch(url, options = {}) {
