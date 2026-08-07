@@ -377,6 +377,8 @@ export default function BabyAppFullStack() {
   const [joinFamilyId, setJoinFamilyId] = useState('');
   // 成员昵称编辑
   const [nickModal, setNickModal] = useState({ open: false, nickname: '' });
+  // 成长阶段详情弹窗
+  const [stageModal, setStageModal] = useState(null); // { key,title,principle,signs,advice,sources } | null
   // 喂养记录
   const [feedRecords, setFeedRecords] = useState([]);
   const [feedEval, setFeedEval] = useState(null);
@@ -1094,12 +1096,23 @@ export default function BabyAppFullStack() {
             <span className="section__ico section__ico--amber"><Sparkles className="icon icon--sm" /></span>
             <h2 className="section__title">成长阶段提醒</h2>
           </div>
+          {/* 正在经历的阶段：仅罗列名字，点击弹出详情 */}
+          {stCurrent.length > 0 && (
+            <div className="stage-now">
+              <div className="stage-now__label"><Bell className="icon icon--xs" />正在经历</div>
+              <div className="stage-now__chips">
+                {stCurrent.map(c => (
+                  <button type="button" key={c.key} className="stage-now__chip" onClick={() => setStageModal(c)}>{c.title}</button>
+                ))}
+              </div>
+            </div>
+          )}
           {/* 阶段提醒：即将进入的发育阶段科普 */}
-          {stFeatured && (
+          {stFeatured && stFeatured.status === 'upcoming' && (
             <div className="stage-tip">
               <div className="stage-tip__head">
                 <Sparkles className="icon icon--sm stage-tip__ico" />
-                <span className="stage-tip__tag">{stFeatured.status === 'upcoming' ? (stFeatured.monthsAway > 0 ? `即将进入 · 约 ${stFeatured.monthsAway} 个月后` : '即将进入') : '正在经历'}</span>
+                <span className="stage-tip__tag">{stFeatured.monthsAway > 0 ? `即将进入 · 约 ${stFeatured.monthsAway} 个月后` : '即将进入'}</span>
                 <h3 className="stage-tip__title">{stFeatured.title}</h3>
               </div>
               <p className="stage-tip__why"><b>原理：</b>{stFeatured.principle}</p>
@@ -1119,20 +1132,22 @@ export default function BabyAppFullStack() {
               </div>
               <div className="stage-tip__foot">
                 <span className="stage-tip__src">资料来源：{stFeatured.sources}</span>
-                {stCurrent.length > 0 && (
-                  <span className="stage-tip__cur">正在经历：{stCurrent.map(c => c.title).join('、')}</span>
-                )}
                 {stAfter && <span className="stage-tip__next">之后将迎来：{stAfter}</span>}
               </div>
             </div>
           )}
-          {!stFeatured && (
+          {/* 暂无即将进入的阶段 */}
+          {(!stFeatured || stFeatured.status !== 'upcoming') && (
             <div className="stage-tip stage-tip--muted">
               <div className="stage-tip__head">
                 <Sparkles className="icon icon--sm stage-tip__ico" />
-                <h3 className="stage-tip__title">成长新阶段</h3>
+                <h3 className="stage-tip__title">{stCurrent.length > 0 ? '暂无即将进入的阶段' : '成长新阶段'}</h3>
               </div>
-              <p className="stage-tip__why">宝宝已进入幼儿期，更多探索与成长的惊喜在路上，记得定期记录身高体重与日常哦。</p>
+              <p className="stage-tip__why">
+                {stCurrent.length > 0
+                  ? '宝宝当前正处于上方所列阶段，点击名字可查看原理、信号提醒与陪伴建议。'
+                  : '宝宝已进入幼儿期，更多探索与成长的惊喜在路上，记得定期记录身高体重与日常哦。'}
+              </p>
             </div>
           )}
         </Reveal>
@@ -1602,6 +1617,47 @@ export default function BabyAppFullStack() {
                 <button className="btn btn--ghost" onClick={() => setNickModal({ open: false, nickname: '' })}>取消</button>
                 <button className="btn btn--primary" onClick={saveNickname}>保存</button>
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 成长阶段详情弹窗：点击「正在经历」名字时展示 */}
+      {stageModal && (
+        <div className="modal" role="dialog" aria-modal="true">
+          <div className="modal__backdrop" onClick={() => setStageModal(null)} />
+          <div className="modal__card modal__card--stage">
+            <div className="modal__head">
+              <h3 className="modal__title">{stageModal.title}</h3>
+              <button className="modal__close" onClick={() => setStageModal(null)} aria-label="关闭">✕</button>
+            </div>
+            <div className="modal__body">
+              <div className="stage-now__tag">正在经历</div>
+              {stageModal.principle && (
+                <div className="stage-modal__block">
+                  <div className="stage-tip__k"><BookOpen className="icon icon--xs" />原理</div>
+                  <p className="stage-modal__text">{stageModal.principle}</p>
+                </div>
+              )}
+              {stageModal.signs && stageModal.signs.length > 0 && (
+                <div className="stage-modal__block">
+                  <div className="stage-tip__k stage-tip__k--warn"><Bell className="icon icon--xs" />信号提醒</div>
+                  <ul className="stage-tip__list">
+                    {stageModal.signs.map((s, i) => <li key={i}>{s}</li>)}
+                  </ul>
+                </div>
+              )}
+              {stageModal.advice && stageModal.advice.length > 0 && (
+                <div className="stage-modal__block">
+                  <div className="stage-tip__k stage-tip__k--care"><Lightbulb className="icon icon--xs" />陪伴建议</div>
+                  <ul className="stage-tip__list">
+                    {stageModal.advice.map((s, i) => <li key={i}>{s}</li>)}
+                  </ul>
+                </div>
+              )}
+              {stageModal.sources && (
+                <p className="stage-modal__src">资料来源：{stageModal.sources}</p>
+              )}
             </div>
           </div>
         </div>
