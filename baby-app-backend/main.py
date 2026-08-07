@@ -323,6 +323,8 @@ class DashboardResponse(BaseModel):
     growthStandard: dict
     isWeightNormal: bool
     isHeightNormal: bool
+    weightStatus: str = "normal"   # normal | high | low
+    heightStatus: str = "normal"   # normal | high | low
     feedingAdvice: FeedingAdvice
     activities: List[Activity]
     music: List[Activity] = []
@@ -434,6 +436,32 @@ def calculate_months(birthday_str: str) -> int:
     months = (today.year - birth.year) * 12 + (today.month - birth.month)
     return max(0, months)
 
+def _weight_status(value, base) -> str:
+    """体重细分：达标 / 略轻 / 超轻 / 略重 / 超重"""
+    if value is None or base is None:
+        return 'normal'
+    if value < base * 0.75:
+        return 'under'   # 超轻
+    if value < base * 0.90:
+        return 'light'   # 略轻
+    if value <= base * 1.10:
+        return 'normal'  # 达标
+    if value <= base * 1.25:
+        return 'heavy'   # 略重
+    return 'over'        # 超重
+
+
+def _height_status(value, base) -> str:
+    """身高细分：达标 / 偏矮 / 偏高"""
+    if value is None or base is None:
+        return 'normal'
+    if value < base * 0.92:
+        return 'short'   # 偏矮
+    if value <= base * 1.08:
+        return 'normal'  # 达标
+    return 'tall'        # 偏高
+
+
 def get_growth_standard(gender: str, months: int) -> dict:
     if months < 0:
         months = 0
@@ -442,13 +470,15 @@ def get_growth_standard(gender: str, months: int) -> dict:
     base_h_boy = 50 + (months * 2.5)
     base_h_girl = 49 + (months * 2.3)
     if gender == 'boy':
-        return {
-            "minW": round(base_w_boy * 0.8, 1), "maxW": round(base_w_boy * 1.2, 1),
-            "minH": round(base_h_boy * 0.9, 1), "maxH": round(base_h_boy * 1.1, 1),
-        }
+        base_w, base_h = base_w_boy, base_h_boy
+    else:
+        base_w, base_h = base_w_girl, base_h_girl
     return {
-        "minW": round(base_w_girl * 0.8, 1), "maxW": round(base_w_girl * 1.2, 1),
-        "minH": round(base_h_girl * 0.9, 1), "maxH": round(base_h_girl * 1.1, 1),
+        # 达标区间（用于进度条「参考区间」展示）
+        "minW": round(base_w * 0.9, 1), "maxW": round(base_w * 1.1, 1),
+        "minH": round(base_h * 0.92, 1), "maxH": round(base_h * 1.08, 1),
+        # 基准值，用于细分判定（偏高/偏矮、超重/略重…）
+        "baseW": round(base_w, 2), "baseH": round(base_h, 2),
     }
 
 FEED_VIDEO_KEYWORD = {
@@ -1081,7 +1111,10 @@ async def get_feeding_evaluation(request: Request, date_str: str = Query(default
     suggestions = []
     if milk_status == 'low':
         if feed_count < 5 and months < 12:
-            suggestions.append(f"今日仅喂奶 {len(milk_records)} 次，可增加 1-2 次喂养，每次 {effective_target/max(len(milk_records),1):.0f}ml 左右")
+            # 按「建议每日喂奶次数」拆分每日总量，得到合理的单次奶量（避免把全天总量当成单次量）
+            recommend_feeds = 5 if months >= 6 else 6
+            per_feed = effective_target / recommend_feeds
+            suggestions.append(f"今日仅喂奶 {len(milk_records)} 次，建议每日喂奶约 {recommend_feeds} 次，每次约 {per_feed:.0f}ml")
         else:
             suggestions.append(f"可适当增加单次奶量，当前平均每次 {total_milk/max(len(milk_records),1):.0f}ml")
     elif milk_status == 'high':
@@ -1403,6 +1436,8 @@ async def get_dashboard(request: Request):
     std = get_growth_standard(profile.gender, months)
     is_w_normal = std['minW'] <= profile.weight <= std['maxW']
     is_h_normal = std['minH'] <= profile.height <= std['maxH']
+    weight_status = _weight_status(profile.weight, std.get('baseW'))
+    height_status = _height_status(profile.height, std.get('baseH'))
 
     return DashboardResponse(
         profile=profile,
@@ -1410,6 +1445,8 @@ async def get_dashboard(request: Request):
         growthStandard=std,
         isWeightNormal=is_w_normal,
         isHeightNormal=is_h_normal,
+        weightStatus=weight_status,
+        heightStatus=height_status,
         feedingAdvice=get_feeding_advice(months),
         activities=get_activities(months),
         music=get_music(),
