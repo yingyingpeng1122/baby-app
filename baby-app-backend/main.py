@@ -1695,7 +1695,18 @@ def get_stage_tip(months: float) -> dict:
             feat["monthsAway"] = 0
         after = None
 
-    current = [{"key": s["key"], "title": s["title"]} for s in active]
+    # 当前正在经历的阶段：附带完整科普数据，供前端弹窗展示
+    current = [
+        {
+            "key": s["key"],
+            "title": s["title"],
+            "principle": s.get("principle", ""),
+            "signs": s.get("signs", []),
+            "advice": s.get("advice", []),
+            "sources": s.get("sources", ""),
+        }
+        for s in active
+    ]
     return {"featured": feat, "current": current, "after": after}
 
 

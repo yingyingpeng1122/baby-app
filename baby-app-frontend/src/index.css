@@ -874,6 +874,78 @@ body { display: block; background: #eef3f1; }
   .stage-tip__cols { grid-template-columns: 1fr; gap: 10px; }
 }
 
+/* 正在经历：可点击的名字行（置于即将进入卡片上方） */
+.stage-now {
+  margin-top: 14px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.stage-now__label {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 12px;
+  font-weight: 700;
+  color: #9a3412;
+  flex: none;
+}
+.stage-now__chips {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.stage-now__chip {
+  appearance: none;
+  border: 1px solid #fdba74;
+  background: #fff7ed;
+  color: #c2410c;
+  font-size: 13px;
+  font-weight: 700;
+  padding: 6px 14px;
+  border-radius: 999px;
+  cursor: pointer;
+  transition: transform .12s ease, background .15s ease, box-shadow .15s ease;
+}
+.stage-now__chip:hover {
+  background: #ffedd5;
+  box-shadow: 0 3px 10px rgba(234, 88, 12, .18);
+  transform: translateY(-1px);
+}
+.stage-now__chip:active { transform: translateY(0); }
+.stage-now__tag {
+  display: inline-block;
+  font-size: 12px;
+  font-weight: 700;
+  color: #c2410c;
+  background: #ffedd5;
+  border: 1px solid #fdba74;
+  padding: 2px 10px;
+  border-radius: 999px;
+  margin-bottom: 12px;
+}
+/* 阶段详情弹窗 */
+.modal__card--stage { max-width: 520px; }
+.stage-modal__block { margin-bottom: 14px; }
+.stage-modal__text {
+  margin: 0;
+  font-size: 13.5px;
+  line-height: 1.7;
+  color: #57534e;
+}
+.stage-tip__k--warn { color: #9a3412 !important; }
+.stage-tip__k--care { color: #0e7490 !important; }
+.stage-modal__src {
+  font-size: 11px;
+  color: #a8a29e;
+  line-height: 1.5;
+  padding-top: 11px;
+  border-top: 1px dashed #fdba74;
+  margin: 0;
+}
+
+
 /* ---------- 无障碍：尊重减少动效 ---------- */
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation: none !important; transition: none !important; }
