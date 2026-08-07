@@ -77,7 +77,7 @@ body { display: block; background: #eef3f1; }
 
 .blob { position: fixed; z-index: 0; border-radius: 50%; filter: blur(46px); opacity: .55; pointer-events: none; }
 .blob--1 { width: 320px; height: 320px; top: -60px; left: -70px; background: radial-gradient(circle at 30% 30%, var(--primary-soft), transparent 70%); animation: floaty 16s ease-in-out infinite; }
-.blob--2 { width: 360px; height: 360px; bottom: -90px; right: -80px; background: radial-gradient(circle at 60% 40%, var(--coral-soft), transparent 70%); animation: floaty 20s ease-in-out infinite reverse; }
+.blob--2 { width: 360px; height: 360px; bottom: -90px; right: -80px; background: radial-gradient(circle at 60% 40%, var(--green-soft), transparent 70%); animation: floaty 20s ease-in-out infinite reverse; }
 
 /* ---------- 通用 ---------- */
 .icon { width: 20px; height: 20px; stroke-width: 2.1; flex: none; }
