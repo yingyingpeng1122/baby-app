@@ -445,7 +445,6 @@ def _stage_key(months: int) -> int:
 ACTIVITY_LIBRARY = {
     0: [  # 纯乳期 (<6月)
         {'id': 101, 'category': 'vision',   'title': '黑白卡追视',   'desc': '黑白高对比卡锻炼视觉聚焦与追视', 'keyword': '婴儿 黑白卡 追视训练', 'ageRange': [0, 3], 'stage': '纯乳期'},
-        {'id': 102, 'category': 'music',    'title': '莫扎特安睡曲', 'desc': '轻柔古典乐安抚情绪助眠', 'keyword': '莫扎特 摇篮曲 宝宝 安睡曲', 'ageRange': [0, 12], 'stage': '纯乳期'},
         {'id': 103, 'category': 'language', 'title': '面对面说话',   'desc': '多和宝宝说话，建立语言启蒙', 'keyword': '婴儿 语言启蒙 多说话', 'ageRange': [0, 6], 'stage': '纯乳期'},
         {'id': 104, 'category': 'social',   'title': '夸张表情互动', 'desc': '做鬼脸、微笑回应，促进社交', 'keyword': '婴儿 表情互动 社交', 'ageRange': [0, 6], 'stage': '纯乳期'},
         {'id': 105, 'category': 'motor',    'title': '俯卧抬头练习', 'desc': '清醒时趴卧，锻炼颈肩力量', 'keyword': '婴儿 俯卧抬头 tummy time', 'ageRange': [0, 6], 'stage': '纯乳期'},
@@ -458,7 +457,6 @@ ACTIVITY_LIBRARY = {
         {'id': 112, 'category': 'motor',    'title': '辅助独坐',     'desc': '靠坐练习腰腹力量', 'keyword': '宝宝 辅助坐 练习', 'ageRange': [5, 9], 'stage': '辅食添加初期'},
         {'id': 113, 'category': 'language', 'title': '辅食发声模仿', 'desc': '吃饭时模仿咿呀声', 'keyword': '宝宝 辅食 语言互动', 'ageRange': [6, 10], 'stage': '辅食添加初期'},
         {'id': 114, 'category': 'cog',      'title': '躲猫猫',       'desc': '理解客体永久性', 'keyword': '宝宝 躲猫猫 游戏', 'ageRange': [4, 10], 'stage': '辅食添加初期'},
-        {'id': 115, 'category': 'music',    'title': '儿歌律动',     'desc': '跟儿歌拍手律动', 'keyword': '儿歌律动 认识身体 宝宝', 'ageRange': [6, 18], 'stage': '辅食添加初期'},
         {'id': 116, 'category': 'reading',  'title': '绘本指认',     'desc': '指认绘本大幅图', 'keyword': '宝宝 绘本 亲子阅读', 'ageRange': [6, 18], 'stage': '辅食添加初期'},
         {'id': 117, 'category': 'life',     'title': '学用勺感知',   'desc': '让宝宝抓勺玩食物', 'keyword': '宝宝 自主进食 勺 练习', 'ageRange': [6, 12], 'stage': '辅食添加初期'},
         {'id': 118, 'category': 'vision',   'title': '蔬果卡片认知', 'desc': '彩色蔬果图刺激视觉', 'keyword': '宝宝 蔬果 卡片 认知', 'ageRange': [6, 12], 'stage': '辅食添加初期'},
@@ -470,7 +468,6 @@ ACTIVITY_LIBRARY = {
         {'id': 122, 'category': 'fine',     'title': '手指食物自喂', 'desc': '抓握小块食物自己吃', 'keyword': '宝宝 手指食物 自主进食', 'ageRange': [8, 14], 'stage': '咀嚼吞咽期'},
         {'id': 123, 'category': 'language', 'title': '指物命名',     'desc': '指认物品说名称', 'keyword': '宝宝 指物 命名 语言', 'ageRange': [8, 18], 'stage': '咀嚼吞咽期'},
         {'id': 124, 'category': 'cog',      'title': '套杯叠叠乐',   'desc': '大小杯嵌套认知', 'keyword': '宝宝 套杯 叠叠乐', 'ageRange': [9, 18], 'stage': '咀嚼吞咽期'},
-        {'id': 125, 'category': 'music',    'title': '节奏打击',     'desc': '敲打乐器感受节奏', 'keyword': '宝宝 打击乐 节奏', 'ageRange': [8, 18], 'stage': '咀嚼吞咽期'},
         {'id': 126, 'category': 'reading',  'title': '故事共读',     'desc': '每天固定故事时间', 'keyword': '宝宝 绘本 讲故事', 'ageRange': [8, 24], 'stage': '咀嚼吞咽期'},
         {'id': 127, 'category': 'life',     'title': '水杯学饮',     'desc': '用学饮杯喝水', 'keyword': '宝宝 学饮杯 喝水', 'ageRange': [9, 18], 'stage': '咀嚼吞咽期'},
         {'id': 128, 'category': 'social',   'title': '分享游戏',     'desc': '轮流玩培养等待', 'keyword': '宝宝 分享 轮流 游戏', 'ageRange': [9, 24], 'stage': '咀嚼吞咽期'},
@@ -485,7 +482,6 @@ ACTIVITY_LIBRARY = {
         {'id': 135, 'category': 'life',     'title': '自己吃饭',     'desc': '练习用勺叉自主进餐', 'keyword': '幼儿 自主进食 勺子', 'ageRange': [12, 36], 'stage': '幼儿期'},
         {'id': 136, 'category': 'social',   'title': '同伴游戏',     'desc': '和其他宝宝互动', 'keyword': '幼儿 同伴 社交 游戏', 'ageRange': [12, 36], 'stage': '幼儿期'},
         {'id': 137, 'category': 'reading',  'title': '图画书精读',   'desc': '读图讲故事问答', 'keyword': '幼儿 绘本 精读', 'ageRange': [12, 36], 'stage': '幼儿期'},
-        {'id': 138, 'category': 'music',    'title': '律动跳舞',     'desc': '随音乐自由舞动', 'keyword': '幼儿 律动 跳舞', 'ageRange': [12, 36], 'stage': '幼儿期'},
         {'id': 139, 'category': 'life',     'title': '穿脱鞋子',     'desc': '练习自己穿鞋', 'keyword': '幼儿 穿鞋 练习', 'ageRange': [24, 48], 'stage': '幼儿期'},
         {'id': 140, 'category': 'vision',   'title': '颜色认知',     'desc': '辨认基础颜色', 'keyword': '幼儿 颜色 认知', 'ageRange': [18, 36], 'stage': '幼儿期'},
     ],
@@ -629,6 +625,11 @@ MUSIC_LIBRARY = [
     {'id': 209, 'title': '身体音阶歌',   'desc': '指认身体部位，边唱边动', 'keyword': '身体音阶歌 儿歌 认识身体', 'lang': '中文儿歌'},
     {'id': 210, 'title': '刷牙歌',       'desc': '养成刷牙好习惯', 'keyword': '刷牙歌 儿歌 宝宝 习惯', 'lang': '中文儿歌'},
     {'id': 211, 'title': '三只小熊',     'desc': '中文版亲子律动', 'keyword': '三只小熊 儿歌 中文 宝宝', 'lang': '中文儿歌'},
+    # —— 从早教活动区迁移过来的音乐律动类（中文）——
+    {'id': 102, 'title': '莫扎特安睡曲', 'desc': '轻柔古典乐安抚情绪助眠', 'keyword': '莫扎特 摇篮曲 宝宝 安睡曲', 'lang': '中文儿歌'},
+    {'id': 115, 'title': '儿歌律动',     'desc': '跟儿歌拍手律动', 'keyword': '儿歌律动 认识身体 宝宝', 'lang': '中文儿歌'},
+    {'id': 125, 'title': '节奏打击',     'desc': '敲打乐器感受节奏', 'keyword': '宝宝 打击乐 节奏', 'lang': '中文儿歌'},
+    {'id': 138, 'title': '律动跳舞',     'desc': '随音乐自由舞动', 'keyword': '幼儿 律动 跳舞', 'lang': '中文儿歌'},
     # —— 英文 nursery rhymes / songs ——
     {'id': 221, 'title': 'Twinkle Twinkle Little Star', 'desc': '英文经典摇篮曲', 'keyword': 'Twinkle Twinkle Little Star nursery rhyme', 'lang': '英文童谣'},
     {'id': 222, 'title': 'Old MacDonald Had a Farm', 'desc': '认识农场动物与叫声', 'keyword': 'Old MacDonald Had a Farm nursery rhyme', 'lang': '英文童谣'},
