@@ -3,8 +3,18 @@ import { useState, useEffect, useRef } from 'react';
 import {
   Baby, Ruler, Scale, Milk, Utensils, Music, Gamepad2, Video, Save,
   PlayCircle, Loader2, AlertCircle, Sparkles, Pencil, Check, Maximize2, Minimize2,
-  Plus, Trash2, Clock, TrendingUp, ChevronDown, Sun, BookOpen, Heart, Moon, Pill, Smile, ListChecks, ChevronLeft, ChevronRight, Calendar, X
+  Plus, Trash2, Clock, TrendingUp, ChevronDown, Sun, BookOpen, Heart, Moon, Pill, Smile, ListChecks, ChevronLeft, ChevronRight, Calendar, X,
+  Eye, MessageCircle, Footprints, Hand, Brain
 } from 'lucide-react';
+
+// WHO 最低食物种类（MDD）的 7 个食物组
+const FOOD_GROUPS = ['谷物根茎', '豆坚果', '奶制品', '肉禽鱼', '蛋', '富维A果蔬', '其他果蔬'];
+
+// 早教活动类型 → 图标
+const ACT_ICONS = {
+  vision: Eye, music: Music, language: MessageCircle, motor: Footprints,
+  fine: Hand, cog: Brain, social: Smile, reading: BookOpen, life: Baby,
+};
 
 const API_BASE = import.meta.env.VITE_API_BASE || (import.meta.env.DEV ? 'http://localhost:8000' : window.location.origin);
 
@@ -302,7 +312,7 @@ export default function BabyAppFullStack() {
   // 喂养记录
   const [feedRecords, setFeedRecords] = useState([]);
   const [feedEval, setFeedEval] = useState(null);
-  const [feedForm, setFeedForm] = useState({ time: '', amount: '', type: 'milk', note: '' });
+  const [feedForm, setFeedForm] = useState({ time: '', amount: '', type: 'milk', note: '', foodGroups: [] });
   const [feedLoading, setFeedLoading] = useState(false);
   const [editingId, setEditingId] = useState(null);
   // 每日照护清单
@@ -574,6 +584,7 @@ export default function BabyAppFullStack() {
             amount: parseFloat(feedForm.amount),
             type: feedForm.type,
             note: feedForm.note,
+            foodGroups: feedForm.foodGroups.join(','),
           }),
         });
         setEditingId(null);
@@ -587,10 +598,11 @@ export default function BabyAppFullStack() {
             amount: parseFloat(feedForm.amount),
             type: feedForm.type,
             note: feedForm.note,
+            foodGroups: feedForm.foodGroups.join(','),
           }),
         });
       }
-      setFeedForm({ time: '', amount: '', type: 'milk', note: '' });
+      setFeedForm({ time: '', amount: '', type: 'milk', note: '', foodGroups: [] });
       await fetchFeedData();
     } catch (e) { alert('操作失败：' + e.message); }
     setFeedLoading(false);
@@ -598,12 +610,21 @@ export default function BabyAppFullStack() {
 
   const startEdit = (r) => {
     setEditingId(r.id);
-    setFeedForm({ time: r.time, amount: String(r.amount), type: r.type, note: r.note || '' });
+    setFeedForm({ time: r.time, amount: String(r.amount), type: r.type, note: r.note || '', foodGroups: r.foodGroups ? r.foodGroups.split(',').filter(Boolean) : [] });
   };
 
   const cancelEdit = () => {
     setEditingId(null);
-    setFeedForm({ time: '', amount: '', type: 'milk', note: '' });
+    setFeedForm({ time: '', amount: '', type: 'milk', note: '', foodGroups: [] });
+  };
+
+  const toggleFoodGroup = (g) => {
+    setFeedForm({
+      ...feedForm,
+      foodGroups: feedForm.foodGroups.includes(g)
+        ? feedForm.foodGroups.filter((x) => x !== g)
+        : [...feedForm.foodGroups, g],
+    });
   };
 
   const deleteFeedRecord = async (id) => {
@@ -956,6 +977,24 @@ export default function BabyAppFullStack() {
                     ]}
                   />
                 </div>
+                {feedForm.type === 'solids' && (
+                  <div className="feed__log-field feed__log-field--note">
+                    <label>食物种类（按 WHO 标准评估营养多样性）</label>
+                    <div className="feed__foodgroups">
+                      {FOOD_GROUPS.map((g) => (
+                        <button
+                          key={g}
+                          type="button"
+                          className={`feed__chip ${feedForm.foodGroups.includes(g) ? 'feed__chip--on' : ''}`}
+                          onClick={() => toggleFoodGroup(g)}
+                        >
+                          {feedForm.foodGroups.includes(g) && <Check className="icon icon--xs" />}
+                          {g}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
                 <div className="feed__log-field feed__log-field--note">
                   <label>备注</label>
                   <input type="text" className="input input--sm" placeholder="如：晨奶" value={feedForm.note} onChange={(e) => setFeedForm({ ...feedForm, note: e.target.value })} />
@@ -1013,7 +1052,12 @@ export default function BabyAppFullStack() {
                     <span className={`feed__eval-stat feed__eval-stat--${feedEval.milkStatus}`}>
                       <Milk className="icon icon--xs" />
                       奶量 <b>{feedEval.totalMilk.toFixed(0)}ml</b>
-                      {feedEval.targetMilk > 0 && <span className="feed__eval-target">/ 建议 {feedEval.targetMilk.toFixed(0)}ml</span>}
+                      {feedEval.targetMilk > 0 && (
+                        <span className="feed__eval-target">
+                          / 建议 {feedEval.effectiveTargetMilk.toFixed(0)}ml
+                          {feedEval.milkDisplaced && '（已随辅食下调）'}
+                        </span>
+                      )}
                     </span>
                     {feedEval.totalSolids > 0 && (
                       <span className={`feed__eval-stat feed__eval-stat--${feedEval.solidsStatus}`}>
@@ -1029,6 +1073,28 @@ export default function BabyAppFullStack() {
                       </span>
                     )}
                   </div>
+
+                  {/* 辅食三项评估（WHO 口径：餐次 + 种类 + 单餐量） */}
+                  {feedEval.solidsMealCount > 0 && (
+                    <div className="feed__eval-solids">
+                      <div className="feed__eval-solids-item">
+                        <span className="feed__eval-solids-label">餐次</span>
+                        <span className={`feed__eval-solids-val ${feedEval.solidsMealCount >= feedEval.targetSolidsMeals ? 'is-ok' : 'is-bad'}`}>
+                          {feedEval.solidsMealCount}/{feedEval.targetSolidsMeals}
+                        </span>
+                      </div>
+                      <div className="feed__eval-solids-item">
+                        <span className="feed__eval-solids-label">种类</span>
+                        <span className={`feed__eval-solids-val ${feedEval.solidsDiversity >= feedEval.targetDiversity ? 'is-ok' : (feedEval.solidsGroupsLogged ? 'is-bad' : '')}`}>
+                          {feedEval.solidsDiversity}/{feedEval.targetDiversity}
+                        </span>
+                      </div>
+                      <div className="feed__eval-solids-item">
+                        <span className="feed__eval-solids-label">单餐量</span>
+                        <span className="feed__eval-solids-val">{feedEval.solidsAmountPerMeal.toFixed(0)}g</span>
+                      </div>
+                    </div>
+                  )}
                   {/* 今日喂养水平标记 */}
                   <div className="feed__level">
                     <span className={`feed__level-badge feed__level-badge--${feedEval.status}`}>
@@ -1277,17 +1343,20 @@ export default function BabyAppFullStack() {
 
         <Reveal className="section" delay={0.05}>
           <div className="acts">
-            {activities.map((a, i) => (
+            {activities.map((a, i) => {
+              const Icon = ACT_ICONS[a.icon] || Sparkles;
+              return (
               <Reveal key={a.id} className="act" delay={i * 0.07}>
-                <span className={`act__tile ${a.type === 'music' ? 'act__tile--music' : 'act__tile--game'}`}>{a.type === 'music' ? <Music className="icon icon--lg" /> : <Gamepad2 className="icon icon--lg" />}</span>
+                <span className={`act__tile act__tile--${a.icon || 'cog'}`}><Icon className="icon icon--lg" /></span>
                 <div className="act__main">
                   <div className="act__title">{a.title}</div>
                   <div className="act__desc">{a.desc}</div>
-                  <span className="act__age">适用 {a.ageRange[0]}–{a.ageRange[1]} 个月</span>
+                  <span className="act__age">{a.stage ? `适合 · ${a.stage}` : `适用 ${a.ageRange[0]}–${a.ageRange[1]} 个月`}</span>
                 </div>
                 <button className="act__play" aria-label={`查看 ${a.title} 演示`} onClick={() => setModal({ open: true, title: a.title, src: a.videoUrl || '' })}><PlayCircle className="icon icon--sm" /></button>
               </Reveal>
-            ))}
+              );
+            })}
             {activities.length === 0 && <div className="acts__empty">本月暂无推荐活动</div>}
           </div>
         </Reveal>

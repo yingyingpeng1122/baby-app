@@ -28,6 +28,16 @@ body { display: block; background: #eef3f1; }
   --honey-soft: #fbeccd;
   --coral: #ef6f4c;
   --coral-soft: #fde3da;
+  --violet: #7c5cd6;
+  --violet-soft: #ece7fb;
+  --mint: #1fa98a;
+  --mint-soft: #dcf3ee;
+  --rose: #e96fa0;
+  --rose-soft: #fbe6f0;
+  --teal: #2bb3c0;
+  --teal-soft: #dbf2f4;
+  --plum: #8e5bc9;
+  --plum-soft: #ece4f7;
   --ring-bg: #e7efec;
 
   --r-card: 22px;
@@ -453,6 +463,46 @@ body { display: block; background: #eef3f1; }
 .act:hover .act__tile { transform: scale(1.08) rotate(4deg); }
 .act__tile--music { background: var(--coral-soft); color: var(--coral); }
 .act__tile--game { background: var(--sky-soft); color: var(--sky); }
+.act__tile--vision { background: var(--violet-soft); color: var(--violet); }
+.act__tile--language { background: var(--green-soft); color: var(--green); }
+.act__tile--motor { background: var(--sky-soft); color: var(--sky); }
+.act__tile--fine { background: var(--honey-soft); color: var(--honey); }
+.act__tile--cog { background: var(--mint-soft); color: var(--mint); }
+.act__tile--social { background: var(--rose-soft); color: var(--rose); }
+.act__tile--reading { background: var(--teal-soft); color: var(--teal); }
+.act__tile--life { background: var(--plum-soft); color: var(--plum); }
+
+/* ---------- 食物种类多选（WHO 7 组） ---------- */
+.feed__log-field--note { flex: 0 0 100%; }
+.feed__foodgroups { display: flex; flex-wrap: wrap; gap: 7px; margin-top: 8px; }
+.feed__chip {
+  display: inline-flex; align-items: center; gap: 4px;
+  font-size: 12px; font-weight: 800; font-family: var(--font-body);
+  color: var(--muted); background: var(--surface-2);
+  border: 1.5px solid var(--line); border-radius: var(--r-pill);
+  padding: 6px 12px; cursor: pointer; transition: all .18s ease;
+}
+.feed__chip:hover { border-color: var(--primary); }
+.feed__chip .icon { width: 13px; height: 13px; }
+.feed__chip--on {
+  color: #fff; background: var(--primary); border-color: var(--primary);
+  box-shadow: 0 4px 12px rgba(14,147,132,.28);
+}
+
+/* ---------- 辅食三项评估（WHO 口径） ---------- */
+.feed__eval-solids {
+  display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px;
+  padding-top: 10px; border-top: 1px dashed var(--line);
+}
+.feed__eval-solids-item {
+  display: inline-flex; align-items: center; gap: 6px;
+  background: var(--surface-2); border: 1px solid var(--line);
+  border-radius: var(--r-sm); padding: 5px 10px;
+}
+.feed__eval-solids-label { font-size: 11px; font-weight: 800; color: var(--muted); letter-spacing: .02em; }
+.feed__eval-solids-val { font-size: 13px; font-weight: 800; color: var(--muted); }
+.feed__eval-solids-val.is-ok { color: var(--green); }
+.feed__eval-solids-val.is-bad { color: var(--honey); }
 .act__main { flex: 1; min-width: 0; }
 .act__title { font-family: var(--font-display); font-weight: 600; font-size: 16px; color: var(--ink); }
 .act__desc { font-size: 13px; font-weight: 600; color: var(--muted); margin-top: 2px; }
