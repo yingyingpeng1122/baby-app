@@ -553,6 +553,12 @@ body { display: block; background: #eef3f1; }
 .modal__card { position: relative; width: 100%; max-width: 520px; background: #fff; border-radius: 22px; overflow: hidden; box-shadow: var(--sh-lg); animation: pop .26s cubic-bezier(.2,.9,.3,1.2); }
 /* 视频弹窗加大：让 16:9 视频画面更显眼 */
 .modal__card--video { max-width: 880px; }
+.modal__card--form { max-width: 420px; }
+.modal__body { padding: 18px 22px 22px; }
+.modal__hint { font-size: 13px; color: var(--muted); line-height: 1.6; margin: 0 0 14px; }
+.modal__actions { display: flex; gap: 10px; justify-content: flex-end; margin-top: 18px; }
+.field__input { width: 100%; padding: 12px 14px; font-size: 15px; font-family: var(--font-body); color: var(--text); background: var(--bg); border: 1.5px solid var(--line); border-radius: 12px; outline: none; transition: border-color .15s, box-shadow .15s; }
+.field__input:focus { border-color: var(--primary); box-shadow: 0 0 0 3px var(--primary-soft); }
 .modal__head { display: flex; align-items: center; justify-content: space-between; padding: 16px 20px; border-bottom: 1px solid var(--line-soft); gap: 12px; }
 .modal__head-actions { display: flex; align-items: center; gap: 8px; flex: none; }
 .modal__title { font-family: var(--font-display); font-weight: 600; font-size: 17px; margin: 0; color: var(--ink); min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -644,13 +650,20 @@ body { display: block; background: #eef3f1; }
 .family-bar__id { cursor: pointer; padding: 2px 10px; background: var(--bg); border-radius: var(--r-pill); border: 1px dashed var(--line); font-size: 12px; color: var(--muted); transition: all .15s; }
 .family-bar__id:hover { border-color: var(--primary); color: var(--primary); background: var(--primary-soft); }
 .family-bar__id b { color: var(--text); }
-.family-bar__members { margin-left: auto; color: var(--muted); font-size: 12px; }
+.family-bar__members { margin-left: auto; display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
 .family-bar__leave {
   padding: 2px 12px; font-size: 12px; font-weight: 600; font-family: var(--font-display);
   color: var(--red); background: var(--bg); border: 1px solid var(--line);
   border-radius: var(--r-pill); cursor: pointer; transition: all .15s;
 }
 .family-bar__leave:hover { color: #fff; background: var(--red); border-color: var(--red); }
+
+/* 家庭成员昵称 chips */
+.member-chip { display: inline-flex; align-items: center; gap: 4px; padding: 3px 10px; font-size: 12px; font-weight: 700; font-family: var(--font-body); color: var(--text); background: var(--bg); border: 1px solid var(--line); border-radius: var(--r-pill); cursor: default; transition: all .15s; }
+.member-chip--me { cursor: pointer; color: var(--primary-600); background: var(--primary-soft); border-color: var(--primary-soft); }
+.member-chip--me:hover { border-color: var(--primary); box-shadow: 0 0 0 3px rgba(14,147,132,.12); }
+.member-chip__me { font-size: 10px; font-weight: 800; padding: 1px 5px; border-radius: var(--r-pill); background: var(--primary); color: #fff; }
+.member-chip .icon { opacity: .7; }
 
 /* 宝宝切换器 */
 .topbar__actions { display: flex; align-items: center; gap: 8px; }

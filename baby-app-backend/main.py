@@ -206,6 +206,7 @@ def init_db():
         user_id TEXT PRIMARY KEY,
         family_id TEXT NOT NULL,
         role TEXT DEFAULT 'member',
+        nickname TEXT DEFAULT '',
         joined_at TEXT DEFAULT (datetime('now'))
     )""")
     db.execute("""CREATE TABLE IF NOT EXISTS babies (
@@ -223,6 +224,11 @@ def init_db():
     # 新增食物种类列（兼容旧库，列已存在则忽略）
     try:
         db.execute("ALTER TABLE feeding_records_v2 ADD COLUMN food_groups TEXT DEFAULT ''")
+    except Exception:
+        pass
+    # 新增成员昵称列（兼容旧库，列已存在则忽略）
+    try:
+        db.execute("ALTER TABLE family_members ADD COLUMN nickname TEXT DEFAULT ''")
     except Exception:
         pass
     db.execute("""CREATE TABLE IF NOT EXISTS checklist_items_v2 (
@@ -860,15 +866,30 @@ async def get_family(request: Request):
         raise HTTPException(status_code=404, detail="Not in any family")
     fid = member[0][0]
     fam = db.execute("SELECT family_name FROM families WHERE family_id = ?", [fid]).fetchall()
-    members = db.execute("SELECT user_id, role FROM family_members WHERE family_id = ?", [fid]).fetchall()
+    members = db.execute("SELECT user_id, role, nickname FROM family_members WHERE family_id = ?", [fid]).fetchall()
     babies = db.execute("SELECT baby_id, name, gender, birthday, height, weight FROM babies WHERE family_id = ?", [fid]).fetchall()
     return {
         "family_id": fid,
         "family_name": fam[0][0] if fam else "",
         "role": member[0][1],
-        "members": [{"user_id": m[0], "role": m[1]} for m in members],
+        "members": [{"user_id": m[0], "role": m[1], "nickname": m[2] or ""} for m in members],
         "babies": [{"baby_id": b[0], "name": b[1], "gender": b[2], "birthday": b[3], "height": b[4], "weight": b[5]} for b in babies],
     }
+
+@app.put("/family/member")
+async def update_my_member(request: Request):
+    """当前登录用户更新自己在家庭中的昵称（仅可改本人）"""
+    uid = get_uid(request)
+    try:
+        body = await request.json()
+    except Exception:
+        body = {}
+    nickname = (body.get("nickname") or "").strip()
+    if len(nickname) > 20:
+        raise HTTPException(status_code=400, detail="昵称不能超过 20 个字符")
+    db.execute("UPDATE family_members SET nickname = ? WHERE user_id = ?", [nickname, uid])
+    db.sync()
+    return {"ok": True, "nickname": nickname}
 
 @app.get("/family/babies")
 async def list_babies(request: Request):

@@ -375,6 +375,8 @@ export default function BabyAppFullStack() {
   const [familySetupMode, setFamilySetupMode] = useState(null); // 'create' | 'join' | null
   const [familyName, setFamilyName] = useState('');
   const [joinFamilyId, setJoinFamilyId] = useState('');
+  // 成员昵称编辑
+  const [nickModal, setNickModal] = useState({ open: false, nickname: '' });
   // 喂养记录
   const [feedRecords, setFeedRecords] = useState([]);
   const [feedEval, setFeedEval] = useState(null);
@@ -480,6 +482,22 @@ export default function BabyAppFullStack() {
       setFamilySetupMode(null);
       setView('family-setup');
     } catch (e) { alert('退出家庭失败：' + (e.message || '请确认后端已启动')); }
+  };
+
+  // ---- 更新我的成员昵称 ----
+  const saveNickname = async () => {
+    try {
+      const res = await apiFetch(`${API_BASE}/family/member`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ nickname: nickModal.nickname.trim() }),
+      });
+      if (!res.ok) { const e = await res.json(); throw new Error(e.detail || '保存失败'); }
+      // 刷新家庭信息，使成员栏立即更新
+      const fres = await apiFetch(`${API_BASE}/family`);
+      if (fres.ok) setFamily(await fres.json());
+      setNickModal({ open: false, nickname: '' });
+    } catch (e) { alert('保存昵称失败：' + (e.message || '请确认后端已启动')); }
   };
 
   // ---- 宝宝操作 ----
@@ -1001,7 +1019,25 @@ export default function BabyAppFullStack() {
               <span className="family-bar__id" onClick={copyFamilyId} title="点击复制家庭 ID">
                 ID: <b>{family.family_id}</b>
               </span>
-              <span className="family-bar__members">{family.members?.length || 0} 位成员</span>
+              <div className="family-bar__members">
+                {family.members?.map((m) => {
+                  const isMe = m.user_id === USER_ID;
+                  const name = m.nickname || (m.role === 'creator' ? '创建者' : '成员');
+                  return (
+                    <button
+                      key={m.user_id}
+                      type="button"
+                      className={`member-chip ${isMe ? 'member-chip--me' : ''}`}
+                      title={isMe ? '点击修改我的昵称' : name}
+                      onClick={isMe ? () => setNickModal({ open: true, nickname: m.nickname || '' }) : undefined}
+                    >
+                      {isMe && <span className="member-chip__me">我</span>}
+                      <span className="member-chip__name">{name}</span>
+                      {isMe && <Pencil className="icon icon--xs" />}
+                    </button>
+                  );
+                })}
+              </div>
               <button className="family-bar__leave" onClick={leaveFamily} title="退出当前家庭">退出</button>
             </div>
           </div>
@@ -1534,6 +1570,35 @@ export default function BabyAppFullStack() {
       </div>
 
       <VideoModal open={modal.open} title={modal.title} src={modal.src || ''} onClose={() => setModal({ open: false, title: '', src: '' })} />
+
+      {/* 成员昵称编辑弹窗 */}
+      {nickModal.open && (
+        <div className="modal" role="dialog" aria-modal="true">
+          <div className="modal__backdrop" onClick={() => setNickModal({ open: false, nickname: '' })} />
+          <div className="modal__card modal__card--form">
+            <div className="modal__head">
+              <h3 className="modal__title">设置我的昵称</h3>
+              <button className="modal__close" onClick={() => setNickModal({ open: false, nickname: '' })} aria-label="关闭">✕</button>
+            </div>
+            <div className="modal__body">
+              <p className="modal__hint">给自己起个好记的称呼，方便家人识别（如 妈妈、爸爸、奶奶）。仅你自己可修改。</p>
+              <input
+                className="field__input"
+                value={nickModal.nickname}
+                maxLength={20}
+                placeholder="例如：妈妈"
+                autoFocus
+                onChange={(e) => setNickModal((v) => ({ ...v, nickname: e.target.value }))}
+                onKeyDown={(e) => { if (e.key === 'Enter') saveNickname(); }}
+              />
+              <div className="modal__actions">
+                <button className="btn btn--ghost" onClick={() => setNickModal({ open: false, nickname: '' })}>取消</button>
+                <button className="btn btn--primary" onClick={saveNickname}>保存</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
