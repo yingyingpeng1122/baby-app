@@ -32,11 +32,20 @@ const USER_ID = getUserId();
 /* 当前选中的宝宝 ID（模块级，组件内通过 useEffect 同步） */
 let _currentBabyId = null;
 
-/* 统一 fetch 包装：自动注入 X-User-Id 和 X-Baby-Id header */
+/* 请求超时：避免后端无响应时前端一直转圈 */
+const FETCH_TIMEOUT = 8000;
+
+/* 统一 fetch 包装：自动注入 X-User-Id 和 X-Baby-Id header，并带超时兜底 */
 async function apiFetch(url, options = {}) {
   const headers = { ...(options.headers || {}), 'X-User-Id': USER_ID };
   if (_currentBabyId) headers['X-Baby-Id'] = _currentBabyId;
-  return fetch(url, { ...options, headers });
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), FETCH_TIMEOUT);
+  try {
+    return await fetch(url, { ...options, headers, signal: ctrl.signal });
+  } finally {
+    clearTimeout(timer);
+  }
 }
 
 /* 清单图标映射 */
@@ -350,6 +359,7 @@ function TimePicker({ value, onChange }) {
 export default function BabyAppFullStack() {
   const [view, setView] = useState('loading');
   const [error, setError] = useState(null);
+  const [connError, setConnError] = useState(null); // 初始化连接失败（超时/网络不可达）
   const [data, setData] = useState(null);
   const [modal, setModal] = useState({ open: false, title: '' });
   const [form, setForm] = useState({ name: '', gender: 'boy', birthday: '', height: '', weight: '' });
@@ -407,7 +417,12 @@ export default function BabyAppFullStack() {
       }
     } catch (e) {
       console.error('init family failed', e);
-      setView('family-setup');
+      if (e.name === 'AbortError') {
+        setConnError('连接后端超时，请确认服务已启动或检查网络');
+        setView('conn-error');
+      } else {
+        setView('family-setup');
+      }
     }
   };
 
@@ -506,7 +521,15 @@ export default function BabyAppFullStack() {
       // 同时拉取喂养数据和照护清单
       fetchFeedData();
       fetchChecklist();
-    } catch (e) { console.error(e); setView('baby-edit'); }
+    } catch (e) {
+      console.error(e);
+      if (e.name === 'AbortError') {
+        setConnError('连接后端超时，请确认服务已启动或检查网络');
+        setView('conn-error');
+      } else {
+        setView('baby-edit');
+      }
+    }
   };
 
   // 拉取今日喂养记录 + 评估
@@ -686,6 +709,29 @@ export default function BabyAppFullStack() {
   };
 
   const set = (k) => (e) => setForm({ ...form, [k]: e.target.value });
+
+  /* ---------- 连接失败兜底 ---------- */
+  if (view === 'conn-error') {
+    return (
+      <div className="app app--center">
+        <span className="blob blob--1" aria-hidden /><span className="blob blob--2" aria-hidden />
+        <div className="form">
+          <div className="form__head">
+            <div className="form__logo"><AlertCircle className="icon icon--lg" /></div>
+            <h2 className="form__title">暂时连不上服务</h2>
+            <p className="form__sub">{connError || '请确认后端已启动，或检查网络连接'}</p>
+          </div>
+          <button className="btn btn--primary btn--block" onClick={() => { setConnError(null); setError(null); initFamily(); }}>
+            <Loader2 className="icon icon--sm" />重新连接
+          </button>
+          <p className="form__sub" style={{ marginTop: 12, fontSize: 12 }}>
+            本地调试：请先启动后端（FastAPI，默认 8000 端口），再用 <code>npm run dev</code> 打开；<br />
+            线上访问请确认网络可连通 baby.datawinwin.cn
+          </p>
+        </div>
+      </div>
+    );
+  }
 
   /* ---------- 加载 ---------- */
   if (view === 'loading') {
