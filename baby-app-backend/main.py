@@ -738,6 +738,28 @@ async def init_user():
     db.sync()
     return {"userId": uid}
 
+@app.post("/family/leave")
+async def leave_family(request: Request):
+    """退出当前家庭：移除成员关系；若家庭已无成员，则一并清理家庭与宝宝数据。"""
+    uid = get_uid(request)
+    member = db.execute("SELECT family_id FROM family_members WHERE user_id = ?", [uid]).fetchall()
+    if not member:
+        raise HTTPException(status_code=404, detail="Not in any family")
+    fid = member[0][0]
+    db.execute("DELETE FROM family_members WHERE user_id = ?", [uid])
+    # 家庭成员已全部离开 → 清理孤儿家庭及其宝宝数据，避免脏数据堆积
+    remain = db.execute("SELECT 1 FROM family_members WHERE family_id = ?", [fid]).fetchall()
+    if not remain:
+        baby_ids = db.execute("SELECT baby_id FROM babies WHERE family_id = ?", [fid]).fetchall()
+        for b in baby_ids:
+            bid = b[0]
+            db.execute("DELETE FROM feeding_records_v2 WHERE baby_id = ?", [bid])
+            db.execute("DELETE FROM checklist_items_v2 WHERE baby_id = ?", [bid])
+        db.execute("DELETE FROM babies WHERE family_id = ?", [fid])
+        db.execute("DELETE FROM families WHERE family_id = ?", [fid])
+    db.sync()
+    return {"ok": True, "family_id": fid}
+
 # ---------------- 家庭系统 API ----------------
 class FamilyCreateRequest(BaseModel):
     family_name: str
