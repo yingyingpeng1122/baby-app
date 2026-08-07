@@ -255,6 +255,7 @@ class Activity(BaseModel):
     icon: str = ''        # 前端按 icon 渲染彩色图标（视觉/语言/运动/认知…）
     keyword: str = ''     # B 站搜索词
     stage: str = ''       # 所属阶段标签（纯乳期/辅食添加初期…）
+    lang: str = ''        # 音乐区标签（中文儿歌/英文童谣），早教活动留空
 
 class FeedingRecord(BaseModel):
     id: str = ''
@@ -295,6 +296,7 @@ class DashboardResponse(BaseModel):
     isHeightNormal: bool
     feedingAdvice: FeedingAdvice
     activities: List[Activity]
+    music: List[Activity] = []
 
 class ChecklistItem(BaseModel):
     id: str
@@ -604,6 +606,79 @@ def get_activities(months: int) -> List[Activity]:
             icon=item['category'],
             keyword=item['keyword'],
             stage=item['stage'],
+        )
+        if not a.videoUrl or a.videoUrl == '#':
+            a.videoUrl = search_bilibili(item['keyword'])
+        if a.id in activity_videos:
+            a.videoUrl = activity_videos[a.id]
+        results.append(a)
+    return results
+
+# ---------------- 音乐区（中文儿歌/童谣 + 英文 nursery rhymes，每次随机 3-4 个，中英文都有）----------------
+# lang 用于前端标签（中文儿歌 / 英文童谣）；keyword 走 B 站搜索；icon 统一用 music
+MUSIC_LIBRARY = [
+    # —— 中文儿歌 / 童谣 ——
+    {'id': 201, 'title': '小星星',       'desc': '一闪一闪亮晶晶，经典中文儿歌', 'keyword': '小星星 儿歌 中文 宝宝', 'lang': '中文儿歌'},
+    {'id': 202, 'title': '两只老虎',     'desc': '简单旋律，认识动物', 'keyword': '两只老虎 儿歌 中文', 'lang': '中文儿歌'},
+    {'id': 203, 'title': '摇篮曲',       'desc': '轻柔哼唱，安抚入睡', 'keyword': '摇篮曲 宝宝 催眠 儿歌', 'lang': '中文儿歌'},
+    {'id': 204, 'title': '找朋友',       'desc': '互动游戏，培养社交', 'keyword': '找朋友 儿歌 宝宝 互动', 'lang': '中文儿歌'},
+    {'id': 205, 'title': '小毛驴',       'desc': '俏皮节奏，跟唱律动', 'keyword': '小毛驴 儿歌 中文', 'lang': '中文儿歌'},
+    {'id': 206, 'title': '数鸭子',       'desc': '数数启蒙，欢快好记', 'keyword': '数鸭子 儿歌 中文', 'lang': '中文儿歌'},
+    {'id': 207, 'title': '拔萝卜',       'desc': '合作主题，亲子共唱', 'keyword': '拔萝卜 儿歌 中文 宝宝', 'lang': '中文儿歌'},
+    {'id': 208, 'title': '小白兔白又白', 'desc': '认识小动物，轻快童谣', 'keyword': '小白兔白又白 童谣 儿歌', 'lang': '中文儿歌'},
+    {'id': 209, 'title': '身体音阶歌',   'desc': '指认身体部位，边唱边动', 'keyword': '身体音阶歌 儿歌 认识身体', 'lang': '中文儿歌'},
+    {'id': 210, 'title': '刷牙歌',       'desc': '养成刷牙好习惯', 'keyword': '刷牙歌 儿歌 宝宝 习惯', 'lang': '中文儿歌'},
+    {'id': 211, 'title': '三只小熊',     'desc': '中文版亲子律动', 'keyword': '三只小熊 儿歌 中文 宝宝', 'lang': '中文儿歌'},
+    # —— 英文 nursery rhymes / songs ——
+    {'id': 221, 'title': 'Twinkle Twinkle Little Star', 'desc': '英文经典摇篮曲', 'keyword': 'Twinkle Twinkle Little Star nursery rhyme', 'lang': '英文童谣'},
+    {'id': 222, 'title': 'Old MacDonald Had a Farm', 'desc': '认识农场动物与叫声', 'keyword': 'Old MacDonald Had a Farm nursery rhyme', 'lang': '英文童谣'},
+    {'id': 223, 'title': 'Wheels on the Bus', 'desc': '交通工具拟声儿歌', 'keyword': 'Wheels on the Bus nursery rhyme', 'lang': '英文童谣'},
+    {'id': 224, 'title': 'Baby Shark', 'desc': '活泼洗脑，亲子共舞', 'keyword': 'Baby Shark song nursery', 'lang': '英文童谣'},
+    {'id': 225, 'title': 'If You Are Happy', 'desc': '情绪动作儿歌', 'keyword': 'If You are Happy and You Know It nursery', 'lang': '英文童谣'},
+    {'id': 226, 'title': 'Head Shoulders Knees and Toes', 'desc': '指认身体部位英文歌', 'keyword': 'Head Shoulders Knees and Toes song', 'lang': '英文童谣'},
+    {'id': 227, 'title': 'The ABC Song', 'desc': '字母启蒙英文歌', 'keyword': 'ABC song alphabet nursery', 'lang': '英文童谣'},
+    {'id': 228, 'title': 'Five Little Monkeys', 'desc': '数数英文儿歌', 'keyword': 'Five Little Monkeys jump nursery rhyme', 'lang': '英文童谣'},
+    {'id': 229, 'title': 'Row Your Boat', 'desc': '轻柔英文摇篮曲', 'keyword': 'Row Row Row Your Boat nursery rhyme', 'lang': '英文童谣'},
+    {'id': 230, 'title': 'London Bridge', 'desc': '经典英文童谣', 'keyword': 'London Bridge is Falling Down nursery', 'lang': '英文童谣'},
+    {'id': 231, 'title': 'Itsy Bitsy Spider', 'desc': '动作英文儿歌', 'keyword': 'Itsy Bitsy Spider nursery rhyme', 'lang': '英文童谣'},
+]
+
+def get_music() -> List[Activity]:
+    """音乐区：每次随机 3-4 个，且中英文都会覆盖到。全阶段适用。"""
+    pool = MUSIC_LIBRARY
+    if not pool:
+        return []
+
+    by_lang = {}
+    for item in pool:
+        by_lang.setdefault(item['lang'], []).append(item)
+
+    n = min(random.choice([3, 4]), len(pool))
+    chosen = []
+    # 优先保证中英文各至少 1 个
+    for lang, items in by_lang.items():
+        if len(chosen) < n:
+            chosen.append(random.choice(items))
+    # 再从全部里补足到 n 个
+    rest = [it for it in pool if it not in chosen]
+    random.shuffle(rest)
+    while len(chosen) < n and rest:
+        chosen.append(rest.pop())
+    random.shuffle(chosen)
+
+    results = []
+    for item in chosen:
+        a = Activity(
+            id=item['id'],
+            type='music',
+            title=item['title'],
+            desc=item['desc'],
+            ageRange=[0, 36],
+            videoUrl='#',
+            icon='music',
+            keyword=item['keyword'],
+            stage='',
+            lang=item['lang'],
         )
         if not a.videoUrl or a.videoUrl == '#':
             a.videoUrl = search_bilibili(item['keyword'])
@@ -1285,6 +1360,7 @@ async def get_dashboard(request: Request):
         isHeightNormal=is_h_normal,
         feedingAdvice=get_feeding_advice(months),
         activities=get_activities(months),
+        music=get_music(),
     )
 
 # ---------------- 静态文件托管（生产环境） ----------------

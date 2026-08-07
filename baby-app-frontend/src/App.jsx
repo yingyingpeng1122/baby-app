@@ -184,6 +184,32 @@ function VideoModal({ open, title, src = '', onClose }) {
 
 const pct = (v, lo, hi) => Math.max(4, Math.min(100, ((v - lo) / (hi - lo)) * 100));
 
+// 早教活动 / 音乐区 共用的卡片列表
+function ActList({ items, onPlay }) {
+  return (
+    <div className="acts">
+      {items.map((a, i) => {
+        const Icon = ACT_ICONS[a.icon] || Sparkles;
+        const sub = a.lang
+          ? a.lang
+          : (a.stage ? `适合 · ${a.stage}` : `适用 ${a.ageRange?.[0] ?? 0}–${a.ageRange?.[1] ?? 24} 个月`);
+        return (
+          <Reveal key={a.id} className="act" delay={i * 0.07}>
+            <span className={`act__tile act__tile--${a.icon || 'cog'}`}><Icon className="icon icon--lg" /></span>
+            <div className="act__main">
+              <div className="act__title">{a.title}</div>
+              <div className="act__desc">{a.desc}</div>
+              <span className="act__age">{sub}</span>
+            </div>
+            <button className="act__play" aria-label={`查看 ${a.title} 演示`} onClick={() => onPlay(a)}><PlayCircle className="icon icon--sm" /></button>
+          </Reveal>
+        );
+      })}
+      {items.length === 0 && <div className="acts__empty">暂无推荐</div>}
+    </div>
+  );
+}
+
 function getBiliEmbedUrl(url) {
   if (!url) return '';
   try {
@@ -820,7 +846,7 @@ export default function BabyAppFullStack() {
 
   /* ---------- 仪表盘 ---------- */
   if (!data) return null;
-  const { profile, months, growthStandard: g, isWeightNormal, isHeightNormal, feedingAdvice: f, activities } = data;
+  const { profile, months, growthStandard: g, isWeightNormal, isHeightNormal, feedingAdvice: f, activities, music = [] } = data;
   const allOk = isWeightNormal && isHeightNormal;
   const ringDeg = Math.min(1, months / 12) * 360;
   const hPct = pct(profile.height, g.minH, g.maxH);
@@ -1367,23 +1393,13 @@ export default function BabyAppFullStack() {
         )}
 
         <Reveal className="section" delay={0.05}>
-          <div className="acts">
-            {activities.map((a, i) => {
-              const Icon = ACT_ICONS[a.icon] || Sparkles;
-              return (
-              <Reveal key={a.id} className="act" delay={i * 0.07}>
-                <span className={`act__tile act__tile--${a.icon || 'cog'}`}><Icon className="icon icon--lg" /></span>
-                <div className="act__main">
-                  <div className="act__title">{a.title}</div>
-                  <div className="act__desc">{a.desc}</div>
-                  <span className="act__age">{a.stage ? `适合 · ${a.stage}` : `适用 ${a.ageRange[0]}–${a.ageRange[1]} 个月`}</span>
-                </div>
-                <button className="act__play" aria-label={`查看 ${a.title} 演示`} onClick={() => setModal({ open: true, title: a.title, src: a.videoUrl || '' })}><PlayCircle className="icon icon--sm" /></button>
-              </Reveal>
-              );
-            })}
-            {activities.length === 0 && <div className="acts__empty">本月暂无推荐活动</div>}
-          </div>
+          <h2 className="section__title">早教活动</h2>
+          <ActList items={activities} onPlay={(a) => setModal({ open: true, title: a.title, src: a.videoUrl || '' })} />
+        </Reveal>
+
+        <Reveal className="section" delay={0.08}>
+          <h2 className="section__title">音乐区</h2>
+          <ActList items={music} onPlay={(a) => setModal({ open: true, title: a.title, src: a.videoUrl || '' })} />
         </Reveal>
       </div>
 
