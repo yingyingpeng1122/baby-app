@@ -396,6 +396,7 @@ export default function BabyAppFullStack() {
   const [feedingCalendarOpen, setFeedingCalendarOpen] = useState(false);
   const [feedingCalendarData, setFeedingCalendarData] = useState(null);
   const [feedingCalendarDate, setFeedingCalendarDate] = useState({ year: new Date().getFullYear(), month: new Date().getMonth() + 1 });
+  const [feedingDetail, setFeedingDetail] = useState(null); // { date, records }
   const [feedingStats, setFeedingStats] = useState(null);
   const [devOpen, setDevOpen] = useState(false); // 发育概况折叠（必须放在提前 return 之前，遵守 hooks 规则）
 
@@ -662,10 +663,22 @@ export default function BabyAppFullStack() {
     } catch (e) { console.error('fetch feeding stats failed', e); }
   };
 
+  // 拉取某日喂养记录详情
+  const fetchFeedingDetail = async (dateStr) => {
+    try {
+      const res = await apiFetch(`${API_BASE}/feeding-records?date=${dateStr}`);
+      if (res.ok) {
+        const records = await res.json();
+        setFeedingDetail({ date: dateStr, records });
+      }
+    } catch (e) { console.error('fetch feeding detail failed', e); }
+  };
+
   const openFeedingCalendar = () => {
     const now = new Date();
     const y = now.getFullYear(), m = now.getMonth() + 1;
     setFeedingCalendarDate({ year: y, month: m });
+    setFeedingDetail(null);
     fetchFeedingCalendar(y, m);
     fetchFeedingStats(y, m);
     setFeedingCalendarOpen(true);
@@ -677,6 +690,7 @@ export default function BabyAppFullStack() {
       month += delta;
       if (month < 1) { year--; month = 12; }
       if (month > 12) { year++; month = 1; }
+      setFeedingDetail(null);
       fetchFeedingCalendar(year, month);
       fetchFeedingStats(year, month);
       return { year, month };
@@ -1509,8 +1523,15 @@ export default function BabyAppFullStack() {
                   const info = feedingCalendarData?.days?.[String(d)];
                   const isToday = dateStr === todayStr;
                   const level = info?.level || 'empty';
+                  const hasData = level === 'good' || level === 'low' || level === 'high';
+                  const isSelected = feedingDetail?.date === dateStr;
                   cells.push(
-                    <div key={d} className={`cal-cell ${isToday ? 'is-today' : ''} ${level === 'future' ? 'is-future' : ''}`}
+                    <button
+                      key={d}
+                      type="button"
+                      className={`cal-cell ${isToday ? 'is-today' : ''} ${level === 'future' ? 'is-future' : ''} ${hasData ? 'has-data' : ''} ${isSelected ? 'is-selected' : ''}`}
+                      disabled={!hasData}
+                      onClick={() => hasData && fetchFeedingDetail(dateStr)}
                       title={level === 'good' ? `奶量 ${info.totalMilk}ml` : level === 'low' ? `奶量不足 ${info.totalMilk}ml` : level === 'high' ? `奶量超出 ${info.totalMilk}ml` : level === 'future' ? '未来日期' : level === 'empty' ? '无记录' : ''}>
                       <span className="cal-cell__num">{d}</span>
                       {level !== 'future' && level !== 'empty' && (
@@ -1519,7 +1540,7 @@ export default function BabyAppFullStack() {
                       {level === 'empty' && (
                         <span className="cal-cell__dot cal-cell__dot--none" />
                       )}
-                    </div>
+                    </button>
                   );
                 }
                 return <div className="cal-grid">{cells}</div>;
@@ -1530,6 +1551,35 @@ export default function BabyAppFullStack() {
                 <span className="cal-legend__item"><span className="cal-cell__dot cal-cell__dot--feed-high" /> 超出</span>
                 <span className="cal-legend__item"><span className="cal-cell__dot cal-cell__dot--none" /> 无记录</span>
               </div>
+
+              {/* 某日喂养记录详情 */}
+              {feedingDetail && (
+                <div className="cal-detail cal-detail--feed">
+                  <div className="cal-detail__head">
+                    <span className="cal-detail__date">{feedingDetail.date.slice(5).replace('-', '月')}日 喂养记录</span>
+                    <span className="cal-detail__count">{feedingDetail.records.length} 条</span>
+                  </div>
+                  {feedingDetail.records.length === 0 ? (
+                    <div className="cal-detail__empty">这一天没有喂养记录</div>
+                  ) : (
+                    <div className="cal-detail__list">
+                      {feedingDetail.records.map(r => (
+                        <div key={r.id} className="feed-detail__item">
+                          <div className="feed-detail__top">
+                            <span className={`feed-detail__type feed-detail__type--${r.type}`}>{r.type === 'milk' ? '奶' : '辅食'}</span>
+                            <span className="feed-detail__time">{r.time || '--:--'}</span>
+                            <span className="feed-detail__amount">{r.amount != null ? `${r.amount}${r.type === 'milk' ? 'ml' : 'g'}` : ''}</span>
+                          </div>
+                          {r.foodGroups && r.type === 'solids' && (
+                            <div className="feed-detail__groups">种类：{r.foodGroups}</div>
+                          )}
+                          {r.note && <div className="feed-detail__note">备注：{r.note}</div>}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
 
               {/* 月度统计 */}
               {feedingStats && (

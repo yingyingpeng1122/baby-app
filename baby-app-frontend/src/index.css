@@ -470,6 +470,27 @@ body { display: block; background: #eef3f1; }
 .cal-detail__label { font-size: 13px; font-weight: 700; color: var(--ink); }
 .cal-detail__item.is-checked .cal-detail__label { color: var(--primary-600); }
 
+/* 喂养日历：选中日高亮 */
+.cal-cell.is-selected { border-color: var(--primary); background: var(--primary-soft); box-shadow: 0 0 0 2px var(--primary-soft); }
+.cal-cell:disabled { cursor: default; }
+/* 喂养记录详情条目 */
+.cal-detail--feed .cal-detail__list { gap: 8px; }
+.feed-detail__item {
+  padding: 10px 12px; border-radius: var(--r-sm);
+  background: #fff; border: 1px solid var(--line);
+}
+.feed-detail__top { display: flex; align-items: center; gap: 10px; }
+.feed-detail__type {
+  font-size: 11px; font-weight: 800; padding: 2px 9px; border-radius: 10px; flex: none;
+}
+.feed-detail__type--milk { background: var(--primary-soft); color: var(--primary-600); }
+.feed-detail__type--solids { background: #fff7ed; color: #c2410c; }
+.feed-detail__time { font-weight: 800; color: var(--ink); font-size: 14px; font-family: var(--font-display); }
+.feed-detail__amount { margin-left: auto; font-weight: 800; color: var(--text); font-size: 14px; }
+.feed-detail__groups, .feed-detail__note { font-size: 12px; color: var(--muted); margin-top: 5px; line-height: 1.5; }
+.feed-detail__groups::before, .feed-detail__note::before { content: ''; }
+.cal-detail__empty { font-size: 13px; color: var(--muted); text-align: center; padding: 6px 0; }
+
 /* ---------- 早教列表 ---------- */
 .acts { display: grid; gap: 12px; }
 .act { display: flex; align-items: center; gap: 15px; background: var(--surface); border: 1px solid var(--line); border-radius: 18px; padding: 15px 16px; box-shadow: var(--sh-sm); transition: transform .22s ease, box-shadow .22s ease, border-color .22s ease; }
