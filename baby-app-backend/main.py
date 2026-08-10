@@ -428,10 +428,10 @@ def search_bilibili(keyword):
 _load_cache()
 
 # ---------------- 业务逻辑 ----------------
-def calculate_months(birthday_str: str) -> int:
+def calculate_months(birthday_str: str, as_of: date | None = None) -> int:
     birth = datetime.strptime(birthday_str, "%Y-%m-%d").date()
-    today = date.today()
-    months = (today.year - birth.year) * 12 + (today.month - birth.month)
+    ref = as_of or date.today()
+    months = (ref.year - birth.year) * 12 + (ref.month - birth.month)
     return max(0, months)
 
 def _weight_status(value, base) -> str:
@@ -598,14 +598,15 @@ def _parse_food_groups(food_groups) -> list:
     return [g.strip() for g in str(food_groups).split(',') if g.strip()]
 
 def _day_level(total_milk, total_solids, meal_count, diversity, months, target_milk, needs_solids):
-    """返回 'good' / 'low' / 'high'（奶量用动态目标；辅食仅看「是否吃到了」，餐次/种类为建议项）。"""
+    """返回 'good' / 'low' / 'high'（奶量用动态目标；辅食仅看「是否吃到了」，餐次/种类为建议项）。
+    奶量需达到目标（含辅食下调后的目标）才算充足，未达即不足。"""
     eff = target_milk
     if target_milk > 0 and total_solids >= _solids_displace_threshold(months):
         eff = target_milk * 0.75
     milk_status = 'good'
     if eff > 0:
         ratio = total_milk / eff
-        if ratio < 0.7:
+        if ratio < 1.0:
             milk_status = 'low'
         elif ratio > 1.3:
             milk_status = 'high'
@@ -1055,19 +1056,19 @@ async def get_feeding_evaluation(request: Request, date_str: str = Query(default
     milk_displaced = target_milk > 0 and total_solids >= _solids_displace_threshold(months)
     effective_target = target_milk * 0.75 if milk_displaced else target_milk
 
-    # 奶量评估
+    # 奶量评估（需达到目标才算充足；上限 130% 判超出）
     milk_status = 'good'
     milk_msg = ''
     if effective_target > 0:
         ratio = total_milk / effective_target
-        if ratio < 0.7:
+        if ratio < 1.0:
             milk_status = 'low'
-            milk_msg = f"奶量 {total_milk:.0f}ml，低于建议量 {effective_target:.0f}ml 的 70%" + ("（目标已随辅食量下调）" if milk_displaced else "")
+            milk_msg = f"奶量 {total_milk:.0f}ml，低于建议量 {effective_target:.0f}ml" + ("（目标已随辅食量下调）" if milk_displaced else "")
         elif ratio > 1.3:
             milk_status = 'high'
             milk_msg = f"奶量 {total_milk:.0f}ml，超过建议量 {effective_target:.0f}ml 的 130%"
         else:
-            milk_msg = f"奶量 {total_milk:.0f}ml，在建议范围 {effective_target:.0f}ml 附近" + ("（已随辅食量下调目标）" if milk_displaced else "")
+            milk_msg = f"奶量 {total_milk:.0f}ml，已达到建议量 {effective_target:.0f}ml" + ("（已随辅食量下调目标）" if milk_displaced else "")
 
     # 辅食评估（餐次 + 种类多样性作为建议项；仅「需要辅食却完全没吃」判不足）
     solids_status = 'good'
@@ -1285,14 +1286,20 @@ async def get_feeding_stats_monthly(request: Request, year: int = Query(...), mo
     solids_meal_good_days = 0
     solids_diverse_days = 0
     for day_num, dm in day_map.items():
-        lvl = _day_level(dm["total_milk"], dm["total_solids"], dm["meal_count"], len(dm["groups"]), months, target_milk, needs_solids)
+        # 按当天实际日期算月龄/目标，避免跨月混用今天的月龄导致目标不准
+        day_date = date(year, month, day_num)
+        day_months = calculate_months(profile["birthday"], as_of=day_date)
+        day_fa = get_feeding_advice(day_months)
+        day_target = parse_target_milk(day_fa.milk)
+        day_needs = (day_fa.solids == '需要')
+        lvl = _day_level(dm["total_milk"], dm["total_solids"], dm["meal_count"], len(dm["groups"]), day_months, day_target, day_needs)
         if lvl == 'good':
             good_days += 1
         elif lvl == 'low':
             low_days += 1
         else:
             high_days += 1
-        if needs_solids and dm["meal_count"] >= _target_meals(months):
+        if day_needs and dm["meal_count"] >= _target_meals(day_months):
             solids_meal_good_days += 1
         if dm["groups"] and len(dm["groups"]) >= 4:
             solids_diverse_days += 1

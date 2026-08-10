@@ -877,6 +877,14 @@ body { display: block; background: #eef3f1; }
   .feed__record-del { width: 32px; height: 32px; }
   .timepicker__item { padding: 10px 0; }
   .cal-cell { font-size: 12px; }
+
+  /* 喂养详情总结：窄屏让等级徽章独占一行，三个数值横向均分 */
+  .feed-detail__summary { flex-wrap: wrap; gap: 8px; }
+  .feed-detail__level { order: -1; flex: 1 1 100%; margin-bottom: 2px; }
+  .feed-detail__sum-item { flex: 1; }
+  /* 月报数字在小屏略缩，避免三列拥挤 */
+  .feed-monthly__num { font-size: 22px; }
+  .feed-monthly__item { padding: 10px 4px; }
 }
 
 /* ---------- 阶段提醒 ---------- */
