@@ -1663,6 +1663,33 @@ export default function BabyAppFullStack() {
                     <span className="cal-detail__date">{feedingDetail.date.slice(5).replace('-', '月')}日 喂养记录</span>
                     <span className="cal-detail__count">{feedingDetail.records.length} 条</span>
                   </div>
+                  {/* 当日总结 */}
+                  {(() => {
+                    const milkRecords = feedingDetail.records.filter(r => r.type === 'milk');
+                    const solidsRecords = feedingDetail.records.filter(r => r.type === 'solids');
+                    const totalMilk = milkRecords.reduce((s, r) => s + (r.amount || 0), 0);
+                    const totalSolids = solidsRecords.reduce((s, r) => s + (r.amount || 0), 0);
+                    const dayNum = parseInt(feedingDetail.date.split('-')[2], 10);
+                    const level = feedingCalendarData?.days?.[String(dayNum)]?.level || 'empty';
+                    const levelText = level === 'good' ? '充足' : level === 'low' ? '不足' : level === 'high' ? '超出' : '无记录';
+                    return (
+                      <div className="feed-detail__summary">
+                        <div className="feed-detail__sum-item">
+                          <span className="feed-detail__sum-v">{totalMilk}<small>ml</small></span>
+                          <span className="feed-detail__sum-k">总奶量</span>
+                        </div>
+                        <div className="feed-detail__sum-item">
+                          <span className="feed-detail__sum-v">{totalSolids}<small>g</small></span>
+                          <span className="feed-detail__sum-k">总辅食</span>
+                        </div>
+                        <div className="feed-detail__sum-item">
+                          <span className="feed-detail__sum-v">{feedingDetail.records.length}<small>次</small></span>
+                          <span className="feed-detail__sum-k">喂养次数</span>
+                        </div>
+                        <span className={`feed-detail__level feed-detail__level--${level}`}>{levelText}</span>
+                      </div>
+                    );
+                  })()}
                   {feedingDetail.records.length === 0 ? (
                     <div className="cal-detail__empty">这一天没有喂养记录</div>
                   ) : (
@@ -1685,42 +1712,23 @@ export default function BabyAppFullStack() {
                 </div>
               )}
 
-              {/* 月度统计 */}
+              {/* 月度统计（精简：仅 充足 / 不足 / 超出 天数） */}
               {feedingStats && (
-                <div className="feed-stats" style={{ marginTop: 14, padding: '14px 16px', background: 'var(--surface-2)', borderRadius: 'var(--r-mid)', border: '1px solid var(--line)' }}>
-                  <div style={{ fontWeight: 800, fontSize: 14, marginBottom: 10, color: 'var(--text)' }}>
-                    📊 {feedingCalendarDate.year}年{feedingCalendarDate.month}月喂养统计
-                  </div>
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px 16px', fontSize: 13 }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                      <span style={{ color: 'var(--muted)' }}>总奶量</span>
-                      <b style={{ color: 'var(--text)' }}>{feedingStats.totalMilk.toFixed(0)}ml</b>
+                <div className="feed-monthly">
+                  <div className="feed-monthly__title">📊 {feedingCalendarDate.year}年{feedingCalendarDate.month}月喂养月报</div>
+                  <div className="feed-monthly__grid">
+                    <div className="feed-monthly__item feed-monthly__item--good">
+                      <span className="feed-monthly__num">{feedingStats.goodDays}</span>
+                      <span className="feed-monthly__label">充足天数</span>
                     </div>
-                    <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                      <span style={{ color: 'var(--muted)' }}>总辅食</span>
-                      <b style={{ color: 'var(--text)' }}>{feedingStats.totalSolids.toFixed(0)}g</b>
+                    <div className="feed-monthly__item feed-monthly__item--low">
+                      <span className="feed-monthly__num">{feedingStats.lowDays}</span>
+                      <span className="feed-monthly__label">不足天数</span>
                     </div>
-                    <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                      <span style={{ color: 'var(--muted)' }}>日均奶量</span>
-                      <b style={{ color: 'var(--text)' }}>{feedingStats.avgDailyMilk.toFixed(0)}ml</b>
+                    <div className="feed-monthly__item feed-monthly__item--high">
+                      <span className="feed-monthly__num">{feedingStats.highDays}</span>
+                      <span className="feed-monthly__label">超出天数</span>
                     </div>
-                    <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                      <span style={{ color: 'var(--muted)' }}>建议每日</span>
-                      <b style={{ color: 'var(--text)' }}>{feedingStats.targetMilk.toFixed(0)}ml</b>
-                    </div>
-                    <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                      <span style={{ color: 'var(--muted)' }}>总喂养次数</span>
-                      <b style={{ color: 'var(--text)' }}>{feedingStats.totalFeeds} 次</b>
-                    </div>
-                    <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                      <span style={{ color: 'var(--muted)' }}>有记录天数</span>
-                      <b style={{ color: 'var(--text)' }}>{feedingStats.daysWithData}/{feedingStats.pastDays} 天</b>
-                    </div>
-                  </div>
-                  <div style={{ display: 'flex', gap: 12, marginTop: 10, paddingTop: 10, borderTop: '1px solid var(--line)', fontSize: 12, fontWeight: 600 }}>
-                    <span style={{ color: 'var(--green)' }}>✅ 充足 {feedingStats.goodDays}天</span>
-                    <span style={{ color: 'var(--honey)' }}>⚠️ 不足 {feedingStats.lowDays}天</span>
-                    <span style={{ color: 'var(--coral)' }}>📈 超出 {feedingStats.highDays}天</span>
                   </div>
                 </div>
               )}

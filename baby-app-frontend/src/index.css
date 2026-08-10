@@ -409,7 +409,14 @@ body { display: block; background: #eef3f1; }
   background: #fff; border-radius: var(--r-card); box-shadow: var(--sh-lg);
   width: 100%; max-width: 400px; max-height: 85vh; overflow-y: auto;
   padding: 22px 24px; animation: slideUp .25s cubic-bezier(.2,.8,.3,1);
+  /* 细窄自定义滚动条，避免默认滚动条突兀 */
+  scrollbar-width: thin;
+  scrollbar-color: var(--line) transparent;
 }
+.cal-modal::-webkit-scrollbar { width: 6px; }
+.cal-modal::-webkit-scrollbar-track { background: transparent; }
+.cal-modal::-webkit-scrollbar-thumb { background: var(--line); border-radius: 3px; }
+.cal-modal::-webkit-scrollbar-thumb:hover { background: var(--muted); }
 .cal-modal__head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px; }
 .cal-modal__title { display: flex; align-items: center; gap: 6px; font-family: var(--font-display); font-size: 17px; font-weight: 800; color: var(--ink); }
 .cal-modal__close { background: none; border: none; cursor: pointer; color: var(--muted); padding: 4px; border-radius: 8px; transition: color .15s; }
@@ -491,6 +498,91 @@ body { display: block; background: #eef3f1; }
 .feed-detail__groups, .feed-detail__note { font-size: 12px; color: var(--muted); margin-top: 5px; line-height: 1.5; }
 .feed-detail__groups::before, .feed-detail__note::before { content: ''; }
 .cal-detail__empty { font-size: 13px; color: var(--muted); text-align: center; padding: 6px 0; }
+
+/* 喂养详情：当日总结 */
+.feed-detail__summary {
+  display: flex;
+  align-items: stretch;
+  gap: 8px;
+  margin-bottom: 12px;
+  padding: 12px 14px;
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  border-radius: var(--r-mid);
+}
+.feed-detail__sum-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  flex: 1;
+  min-width: 0;
+}
+.feed-detail__sum-v {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 20px;
+  color: var(--ink);
+  line-height: 1.1;
+}
+.feed-detail__sum-v small { font-size: 11px; font-weight: 800; color: var(--muted); margin-left: 1px; }
+.feed-detail__sum-k { font-size: 11px; font-weight: 800; color: var(--muted); margin-top: 3px; }
+.feed-detail__level {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 13px;
+  font-weight: 800;
+  padding: 0 14px;
+  border-radius: var(--r-pill);
+  flex: none;
+}
+.feed-detail__level--good { background: var(--green-soft); color: var(--green); }
+.feed-detail__level--low { background: var(--honey-soft); color: var(--honey); }
+.feed-detail__level--high { background: var(--coral-soft); color: var(--coral); }
+.feed-detail__level--empty { background: var(--surface-2); color: var(--muted); border: 1px solid var(--line); }
+
+/* 月度喂养月报（精简版：仅 充足 / 不足 / 超出 天数） */
+.feed-monthly {
+  margin-top: 14px;
+  padding: 14px 16px 16px;
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  border-radius: var(--r-mid);
+}
+.feed-monthly__title {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 15px;
+  color: var(--ink);
+  margin-bottom: 12px;
+}
+.feed-monthly__grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 10px;
+}
+.feed-monthly__item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 5px;
+  padding: 12px 6px;
+  border-radius: var(--r-mid);
+}
+.feed-monthly__item--good { background: var(--green-soft); }
+.feed-monthly__item--low { background: var(--honey-soft); }
+.feed-monthly__item--high { background: var(--coral-soft); }
+.feed-monthly__num {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 26px;
+  line-height: 1;
+}
+.feed-monthly__item--good .feed-monthly__num { color: var(--green); }
+.feed-monthly__item--low .feed-monthly__num { color: var(--honey); }
+.feed-monthly__item--high .feed-monthly__num { color: var(--coral); }
+.feed-monthly__label { font-size: 12px; font-weight: 800; color: var(--ink-soft); }
 
 /* ---------- 早教列表 ---------- */
 .acts { display: grid; gap: 12px; }
