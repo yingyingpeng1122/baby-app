@@ -598,7 +598,7 @@ def _parse_food_groups(food_groups) -> list:
     return [g.strip() for g in str(food_groups).split(',') if g.strip()]
 
 def _day_level(total_milk, total_solids, meal_count, diversity, months, target_milk, needs_solids):
-    """返回 'good' / 'low' / 'high'（奶量用动态目标；辅食看餐次+种类）。"""
+    """返回 'good' / 'low' / 'high'（奶量用动态目标；辅食仅看「是否吃到了」，餐次/种类为建议项）。"""
     eff = target_milk
     if target_milk > 0 and total_solids >= _solids_displace_threshold(months):
         eff = target_milk * 0.75
@@ -610,13 +610,9 @@ def _day_level(total_milk, total_solids, meal_count, diversity, months, target_m
         elif ratio > 1.3:
             milk_status = 'high'
     solids_status = 'good'
-    if needs_solids:
-        if meal_count == 0:
-            solids_status = 'low'
-        elif meal_count < _target_meals(months):
-            solids_status = 'low'
-        elif diversity > 0 and diversity < 4:
-            solids_status = 'low'
+    # 辅食仅在「需要辅食却完全没吃」时判不足；餐次/种类不足只作为建议，不拉低整体结论
+    if needs_solids and total_solids == 0:
+        solids_status = 'low'
     statuses = [s for s in (milk_status, solids_status) if s != 'good']
     if not statuses:
         return 'good'
@@ -1073,7 +1069,7 @@ async def get_feeding_evaluation(request: Request, date_str: str = Query(default
         else:
             milk_msg = f"奶量 {total_milk:.0f}ml，在建议范围 {effective_target:.0f}ml 附近" + ("（已随辅食量下调目标）" if milk_displaced else "")
 
-    # 辅食评估（餐次 + 种类多样性 + 量软指导）
+    # 辅食评估（餐次 + 种类多样性作为建议项；仅「需要辅食却完全没吃」判不足）
     solids_status = 'good'
     solids_msg = ''
     if not needs_solids:
@@ -1081,15 +1077,9 @@ async def get_feeding_evaluation(request: Request, date_str: str = Query(default
             solids_status = 'high'
             solids_msg = f"当前阶段暂不建议添加辅食，已记录辅食 {total_solids:.0f}g"
     else:
-        if meal_count == 0:
+        if total_solids == 0:
             solids_status = 'low'
             solids_msg = f"今日尚未记录辅食（建议 {target_meals} 次，每次约 {fa.solidAmount}）"
-        elif meal_count < target_meals:
-            solids_status = 'low'
-            solids_msg = f"辅食 {meal_count} 次，建议 {target_meals} 次（每次约 {fa.solidAmount}）"
-        elif groups_logged and diversity < 4:
-            solids_status = 'low'
-            solids_msg = f"辅食 {meal_count} 次，但食物种类仅 {diversity} 种（WHO 建议 ≥4 种），建议更丰富"
         else:
             solids_msg = f"辅食 {meal_count} 次、合计 {total_solids:.0f}g" + (f"、种类 {diversity} 种" if groups_logged else "（未记录食物种类）")
 
@@ -1136,12 +1126,15 @@ async def get_feeding_evaluation(request: Request, date_str: str = Query(default
     if solids_status == 'low' and needs_solids:
         if meal_count == 0:
             suggestions.append(f"建议开始添加辅食，尝试 {', '.join(fa.types)}")
-        elif meal_count < target_meals:
-            suggestions.append(f"建议增加辅食次数至 {target_meals} 次，尝试 {', '.join(fa.types)}")
-        elif groups_logged and diversity < 4:
-            suggestions.append(f"辅食种类偏少（{diversity}/4），建议搭配谷物、肉禽鱼、蛋、蔬果等多类食材")
     elif solids_status == 'high' and not needs_solids:
         suggestions.append(f"当前月龄 ({months} 个月) 以奶为主，暂不建议添加辅食")
+
+    # 辅食已吃但餐次/种类不足：作为建议项，不影响「充足/不足」整体判定
+    if needs_solids and total_solids > 0:
+        if meal_count < target_meals:
+            suggestions.append(f"建议逐步增加辅食次数至 {target_meals} 次（当前 {meal_count} 次），尝试 {', '.join(fa.types)}")
+        if groups_logged and diversity < 4:
+            suggestions.append(f"辅食种类偏少（{diversity}/4），建议搭配谷物、肉禽鱼、蛋、蔬果等多类食材")
 
     if not groups_logged and needs_solids and meal_count > 0:
         suggestions.append("记录辅食时可勾选「食物种类」，系统会按 WHO 标准评估营养多样性")
