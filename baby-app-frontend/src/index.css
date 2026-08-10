@@ -678,10 +678,10 @@ body { display: block; background: #eef3f1; }
 .family-bar__members { margin-left: auto; display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
 .family-bar__leave {
   padding: 2px 12px; font-size: 12px; font-weight: 600; font-family: var(--font-display);
-  color: var(--red); background: var(--bg); border: 1px solid var(--line);
+  color: var(--coral); background: var(--bg); border: 1px solid var(--line);
   border-radius: var(--r-pill); cursor: pointer; transition: all .15s;
 }
-.family-bar__leave:hover { color: #fff; background: var(--red); border-color: var(--red); }
+.family-bar__leave:hover { color: #fff; background: var(--coral); border-color: var(--coral); }
 
 /* 家庭成员昵称 chips */
 .member-chip { display: inline-flex; align-items: center; gap: 4px; padding: 3px 10px; font-size: 12px; font-weight: 700; font-family: var(--font-body); color: var(--text); background: var(--bg); border: 1px solid var(--line); border-radius: var(--r-pill); cursor: default; transition: all .15s; }
