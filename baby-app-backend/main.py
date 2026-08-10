@@ -183,15 +183,6 @@ def init_db():
         height REAL, weight REAL,
         created_at TEXT DEFAULT (datetime('now'))
     )""")
-    db.execute("""CREATE TABLE IF NOT EXISTS feeding_records (
-        id TEXT, user_id TEXT, date TEXT,
-        time TEXT, amount REAL, type TEXT, note TEXT DEFAULT '',
-        PRIMARY KEY (user_id, date, id)
-    )""")
-    db.execute("""CREATE TABLE IF NOT EXISTS checklist_items (
-        user_id TEXT, date TEXT, item_id TEXT, checked INTEGER,
-        PRIMARY KEY (user_id, date, item_id)
-    )""")
     db.execute("""CREATE TABLE IF NOT EXISTS users (
         user_id TEXT PRIMARY KEY,
         created_at TEXT DEFAULT (datetime('now'))

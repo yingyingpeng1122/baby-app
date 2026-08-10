@@ -1268,79 +1268,7 @@ export default function BabyAppFullStack() {
           )}
         </Reveal>
 
-        <Reveal className="section" delay={0.05}>
-          <button
-            type="button"
-            className={`care-toggle ${careOpen ? 'is-open' : ''}`}
-            onClick={() => setCareOpen(v => !v)}
-            aria-expanded={careOpen}
-          >
-            <span className="section__ico section__ico--rose"><Heart className="icon icon--sm" /></span>
-            <h2 className="section__title">宝宝生病护理指南</h2>
-            <span className="care-toggle__hint">{careOpen ? '收起' : '点击展开'}</span>
-            <ChevronDown className="icon icon--sm care-toggle__chev" />
-          </button>
 
-          {careOpen && (
-            <div className="care">
-              <div className="care__disclaimer">
-                <AlertCircle className="icon icon--xs" />
-                本指南为通用科普，<b>不能替代医生诊断</b>。用药前请遵医嘱，尤其 3 个月以下婴儿出现发热须立即就医。
-              </div>
-
-              <div className="care__block">
-                <h3 className="care__h">阶段相关发烧风险</h3>
-                {CARE_GUIDE.stageFever.map(it => {
-                  const Ico = CARE_ICONS[it.icon] || Thermometer;
-                  const open = careItem === it.key;
-                  return (
-                    <div className={`care-item ${open ? 'is-open' : ''}`} key={it.key}>
-                      <button type="button" className="care-item__head" onClick={() => setCareItem(open ? null : it.key)} aria-expanded={open}>
-                        <Ico className="icon icon--sm care-item__ico" />
-                        <span className="care-item__title">{it.title}</span>
-                        <ChevronDown className="icon icon--xs care-item__chev" />
-                      </button>
-                      {open && (
-                        <ul className="care-item__list">
-                          {it.points.map((p, i) => <li key={i}>{p}</li>)}
-                        </ul>
-                      )}
-                    </div>
-                  );
-                })}
-              </div>
-
-              <div className="care__block">
-                <h3 className="care__h">常见不适护理</h3>
-                {CARE_GUIDE.illnesses.map(it => {
-                  const Ico = CARE_ICONS[it.icon] || Stethoscope;
-                  const open = careItem === it.key;
-                  return (
-                    <div className={`care-item ${open ? 'is-open' : ''}`} key={it.key}>
-                      <button type="button" className="care-item__head" onClick={() => setCareItem(open ? null : it.key)} aria-expanded={open}>
-                        <Ico className="icon icon--sm care-item__ico" />
-                        <span className="care-item__title">{it.title}</span>
-                        <ChevronDown className="icon icon--xs care-item__chev" />
-                      </button>
-                      {open && (
-                        <ul className="care-item__list">
-                          {it.points.map((p, i) => <li key={i}>{p}</li>)}
-                        </ul>
-                      )}
-                    </div>
-                  );
-                })}
-              </div>
-
-              <div className="care__redflag">
-                <h3 className="care__h care__h--warn"><AlertCircle className="icon icon--xs" />必须立即就医的红线</h3>
-                <ul className="care__redlist">
-                  {CARE_GUIDE.redflags.map((r, i) => <li key={i}>{r}</li>)}
-                </ul>
-              </div>
-            </div>
-          )}
-        </Reveal>
 
         <Reveal className="section" delay={0.05}>
           <div className="section__head">
@@ -1814,6 +1742,80 @@ export default function BabyAppFullStack() {
             <h2 className="section__title">音乐区</h2>
           </div>
           <ActList items={music} onPlay={(a) => setModal({ open: true, title: a.title, src: a.videoUrl || '' })} />
+        </Reveal>
+
+        <Reveal className="section" delay={0.05}>
+          <button
+            type="button"
+            className={`care-toggle ${careOpen ? 'is-open' : ''}`}
+            onClick={() => setCareOpen(v => !v)}
+            aria-expanded={careOpen}
+          >
+            <span className="section__ico section__ico--rose"><Heart className="icon icon--sm" /></span>
+            <h2 className="section__title">宝宝生病护理指南</h2>
+            <span className="care-toggle__hint">{careOpen ? '收起' : '点击展开'}</span>
+            <ChevronDown className="icon icon--sm care-toggle__chev" />
+          </button>
+
+          {careOpen && (
+            <div className="care">
+              <div className="care__disclaimer">
+                <AlertCircle className="icon icon--xs" />
+                本指南为通用科普，<b>不能替代医生诊断</b>。用药前请遵医嘱，尤其 3 个月以下婴儿出现发热须立即就医。
+              </div>
+
+              <div className="care__block">
+                <h3 className="care__h">阶段相关发烧风险</h3>
+                {CARE_GUIDE.stageFever.map(it => {
+                  const Ico = CARE_ICONS[it.icon] || Thermometer;
+                  const open = careItem === it.key;
+                  return (
+                    <div className={`care-item ${open ? 'is-open' : ''}`} key={it.key}>
+                      <button type="button" className="care-item__head" onClick={() => setCareItem(open ? null : it.key)} aria-expanded={open}>
+                        <Ico className="icon icon--sm care-item__ico" />
+                        <span className="care-item__title">{it.title}</span>
+                        <ChevronDown className="icon icon--xs care-item__chev" />
+                      </button>
+                      {open && (
+                        <ul className="care-item__list">
+                          {it.points.map((p, i) => <li key={i}>{p}</li>)}
+                        </ul>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+
+              <div className="care__block">
+                <h3 className="care__h">常见不适护理</h3>
+                {CARE_GUIDE.illnesses.map(it => {
+                  const Ico = CARE_ICONS[it.icon] || Stethoscope;
+                  const open = careItem === it.key;
+                  return (
+                    <div className={`care-item ${open ? 'is-open' : ''}`} key={it.key}>
+                      <button type="button" className="care-item__head" onClick={() => setCareItem(open ? null : it.key)} aria-expanded={open}>
+                        <Ico className="icon icon--sm care-item__ico" />
+                        <span className="care-item__title">{it.title}</span>
+                        <ChevronDown className="icon icon--xs care-item__chev" />
+                      </button>
+                      {open && (
+                        <ul className="care-item__list">
+                          {it.points.map((p, i) => <li key={i}>{p}</li>)}
+                        </ul>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+
+              <div className="care__redflag">
+                <h3 className="care__h care__h--warn"><AlertCircle className="icon icon--xs" />必须立即就医的红线</h3>
+                <ul className="care__redlist">
+                  {CARE_GUIDE.redflags.map((r, i) => <li key={i}>{r}</li>)}
+                </ul>
+              </div>
+            </div>
+          )}
         </Reveal>
       </div>
 
