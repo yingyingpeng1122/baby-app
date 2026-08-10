@@ -145,6 +145,7 @@ body { display: block; background: #eef3f1; }
 .section__ico--honey { background: var(--honey-soft); color: var(--honey); }
 .section__ico--amber { background: #ffedd5; color: #ea580c; }
 .section__ico--violet { background: var(--sky-soft); color: var(--sky); }
+.section__ico--rose { background: var(--rose-soft); color: var(--rose); }
 .section__title { font-family: var(--font-display); font-weight: 600; font-size: 19px; color: var(--ink); margin: 0; }
 .section__status { display: inline-flex; align-items: center; gap: 5px; font-size: 13px; font-weight: 800; padding: 6px 13px; border-radius: 999px; flex: none; white-space: nowrap; }
 .section__status.is-ok { color: #0a8f6e; background: rgba(10,143,110,.12); }
@@ -966,6 +967,158 @@ body { display: block; background: #eef3f1; }
   margin: 0;
 }
 
+
+/* ---------- 生病护理指南 ---------- */
+.care-toggle {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  background: #fff;
+  border: 1.5px solid #ffe1ee;
+  border-radius: var(--r-mid);
+  padding: 14px 16px;
+  cursor: pointer;
+  text-align: left;
+  transition: border-color .2s ease, box-shadow .2s ease, transform .1s ease;
+}
+.care-toggle:hover { border-color: var(--rose); box-shadow: 0 4px 14px rgba(233,111,160,.14); }
+.care-toggle:active { transform: scale(.995); }
+.care-toggle .section__title { font-size: 18px; }
+.care-toggle__hint {
+  margin-left: auto;
+  font-size: 12.5px;
+  font-weight: 800;
+  color: var(--rose);
+  background: var(--rose-soft);
+  padding: 4px 11px;
+  border-radius: 999px;
+  white-space: nowrap;
+}
+.care-toggle.is-open { border-color: var(--rose); }
+.care-toggle__chev { color: var(--rose); transition: transform .2s ease; }
+.care-toggle.is-open .care-toggle__chev { transform: rotate(180deg); }
+
+.care { padding: 14px 2px 2px; display: flex; flex-direction: column; gap: 16px; }
+.care__disclaimer {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  font-size: 12.5px;
+  font-weight: 600;
+  line-height: 1.6;
+  color: #b45309;
+  background: #fff7ed;
+  border: 1px solid #fed7aa;
+  border-radius: 12px;
+  padding: 10px 12px;
+}
+.care__disclaimer .icon { flex: none; margin-top: 2px; }
+.care__disclaimer b { color: #c2410c; }
+
+.care__block { display: flex; flex-direction: column; gap: 9px; }
+.care__h {
+  font-family: var(--font-display);
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--ink);
+  margin: 0;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.care__h--warn { color: #dc2626; }
+
+.care-item {
+  border: 1px solid #f1e7ec;
+  border-radius: 13px;
+  overflow: hidden;
+  background: #fff;
+}
+.care-item.is-open { border-color: var(--rose-soft); box-shadow: 0 3px 12px rgba(233,111,160,.1); }
+.care-item__head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  border: none;
+  background: #fff;
+  padding: 12px 14px;
+  cursor: pointer;
+  text-align: left;
+  font-size: 14.5px;
+  font-weight: 700;
+  color: var(--ink);
+}
+.care-item__ico { color: var(--rose); flex: none; }
+.care-item__title { flex: 1; }
+.care-item__chev { color: var(--muted); transition: transform .2s ease; flex: none; }
+.care-item.is-open .care-item__chev { transform: rotate(180deg); color: var(--rose); }
+.care-item__list {
+  list-style: none;
+  margin: 0;
+  padding: 0 14px 13px 42px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.care-item__list li {
+  position: relative;
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 1.62;
+  color: #555;
+}
+.care-item__list li::before {
+  content: '';
+  position: absolute;
+  left: -14px;
+  top: 8px;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--rose-soft);
+  box-shadow: 0 0 0 2px #fff, 0 0 0 3px var(--rose-soft);
+}
+.care-item__list li b { color: var(--ink); }
+
+.care__redflag {
+  background: #fef2f2;
+  border: 1px solid #fecaca;
+  border-radius: 14px;
+  padding: 13px 15px;
+}
+.care__redlist {
+  list-style: none;
+  margin: 9px 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+}
+.care__redlist li {
+  position: relative;
+  padding-left: 18px;
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.6;
+  color: #b91c1c;
+}
+.care__redlist li::before {
+  content: '!';
+  position: absolute;
+  left: 0;
+  top: 1px;
+  width: 13px;
+  height: 13px;
+  border-radius: 50%;
+  background: #dc2626;
+  color: #fff;
+  font-size: 9px;
+  font-weight: 800;
+  line-height: 13px;
+  text-align: center;
+}
 
 /* ---------- 无障碍：尊重减少动效 ---------- */
 @media (prefers-reduced-motion: reduce) {

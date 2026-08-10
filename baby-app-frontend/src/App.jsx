@@ -3,12 +3,111 @@ import { useState, useEffect, useRef } from 'react';
 import {
   Baby, Ruler, Scale, Milk, Utensils, Music, Gamepad2, Video, Save,
   PlayCircle, Loader2, AlertCircle, Sparkles, Pencil, Check, Maximize2, Minimize2,
-  Plus, Trash2, Clock, TrendingUp, ChevronDown, Sun, BookOpen, Heart, Moon, Pill, Smile, ListChecks, ChevronLeft, ChevronRight, Calendar, X,
+  Plus, Trash2, Clock, TrendingUp, ChevronDown, Sun, BookOpen, Heart, Moon, Pill, Smile, ListChecks, ChevronLeft, ChevronRight, Calendar, X, Thermometer, Stethoscope, Syringe, Activity,
   Eye, MessageCircle, Footprints, Hand, Brain, Bell, Lightbulb
 } from 'lucide-react';
 
 // WHO 最低食物种类（MDD）的 7 个食物组
 const FOOD_GROUPS = ['谷物根茎', '豆坚果', '奶制品', '肉禽鱼', '蛋', '富维A果蔬', '其他果蔬'];
+
+// 宝宝生病护理指南（通用科普，不能替代医生诊断）
+const CARE_GUIDE = {
+  stageFever: [
+    {
+      key: 'teething',
+      title: '出牙期（约 4–10 个月，常从 6 个月起）',
+      icon: 'thermometer',
+      points: [
+        '常见表现：流口水、爱咬东西、牙龈红肿、烦躁，以及轻微体温升高（多数 < 38°C）。',
+        '重要区分：出牙一般只引起低热；若体温 ≥ 38°C 或持续不退，多半是其他原因（感冒、中耳炎等），需排查。',
+        '护理：牙胶冷藏后冷敷、干净手指轻按摩牙龈、及时擦干口水防口水疹。',
+      ],
+    },
+    {
+      key: 'vaccine',
+      title: '接种疫苗后（2/3/4/5/6/8/12/18 月龄等）',
+      icon: 'syringe',
+      points: [
+        '常见：接种后 1–2 天内低热（约 37.5–38.5°C），百白破、麻腮风等疫苗更明显。',
+        '麻腮风疫苗多在接种后 7–12 天出现低热和零星皮疹，通常 1–2 天自行消退。',
+        '护理：多喂母乳/水、适当减衣、必要时按年龄用退热药（见“发烧”）。',
+        '需就医：发热超过 48 小时、体温 ≥ 39°C、精神极差或接种部位严重红肿。',
+      ],
+    },
+    {
+      key: 'roseola',
+      title: '幼儿急疹 / 玫瑰疹（6–18 个月高发）',
+      icon: 'activity',
+      points: [
+        '特点：体温骤升到 39–40°C，持续 3–4 天，孩子精神通常尚可；热退后全身出玫瑰色皮疹。',
+        '护理：高热期按“发烧”处理，重点退热、补液、观察精神。',
+        '警惕：若高热伴精神差、抽搐、皮疹按压不褪色，及时就医。',
+      ],
+    },
+  ],
+  illnesses: [
+    {
+      key: 'fever',
+      title: '发烧',
+      icon: 'thermometer',
+      points: [
+        '测量：肛温最准；发热约指肛温 ≥ 38°C（腋温 ≥ 37.5°C）。',
+        '居家退热：≥ 2 个月可用对乙酰氨基酚（按体重 10–15 mg/kg，间隔 ≥ 4–6 小时）；≥ 6 个月可加用布洛芬（5–10 mg/kg，间隔 ≥ 6–8 小时）。',
+        '禁用：阿司匹林（警惕瑞氏综合征）；6 岁以下不推荐复方感冒药与镇咳药。',
+        '物理降温：温水擦浴，不推荐酒精擦浴、冰敷。',
+        '看医生红线：① 任何 < 3 个月婴儿肛温 ≥ 38°C 立即就医；② 3–6 个月 ≥ 39°C；③ 6 个月以上 ≥ 39.4°C 或发热 > 3 天；④ 精神差、呕吐、皮疹、呼吸急促、抽搐。',
+      ],
+    },
+    {
+      key: 'cough',
+      title: '咳嗽',
+      icon: 'stethoscope',
+      points: [
+        '护理：充足液体、空气加湿、睡前抬高上半身。',
+        '不推荐：婴幼儿（尤其 < 6 岁）用非处方镇咳药，可能抑制排痰。',
+        '看医生：呼吸急促/喘息、犬吠样咳嗽（疑似喉炎）、锁骨上凹陷（三凹征）、口唇发青、咳嗽 > 2 周。',
+      ],
+    },
+    {
+      key: 'diarrhea',
+      title: '拉肚子（腹泻）',
+      icon: 'stethoscope',
+      points: [
+        '关键：口服补液盐（ORS）少量多次，继续母乳/正常饮食，避免果汁和甜饮。',
+        '观察脱水信号：尿量减少、无泪、口唇干、精神差、眼窝凹陷。',
+        '不随便用止泻药（婴幼儿慎用洛哌丁胺）；益生菌可辅助调理。',
+        '看医生：血便、高热、持续呕吐、6–8 小时无尿、嗜睡——警惕脱水与轮状病毒。',
+      ],
+    },
+    {
+      key: 'cold',
+      title: '感冒',
+      icon: 'stethoscope',
+      points: [
+        '护理：休息、补液、生理盐水滴鼻/吸鼻、空气加湿；发热按“发烧”处理。',
+        '抗生素对病毒无效，是否合并细菌感染（如中耳炎）由医生判断。',
+        '看医生：高热 > 3 天、耳痛、呼吸费力、精神差。',
+      ],
+    },
+  ],
+  redflags: [
+    '任何 < 3 个月婴儿出现发热（肛温 ≥ 38°C）',
+    '高热达到就医阈值且持续（见上方各病条）',
+    '精神萎靡、嗜睡、难以唤醒',
+    '呼吸急促或困难、口唇/指甲发青',
+    '抽搐（热性惊厥）或颈部僵硬',
+    '反复呕吐、无法进食进水',
+    '皮疹按压不褪色、眼窝明显凹陷',
+    '腹泻伴 6–8 小时无尿等脱水迹象',
+  ],
+};
+
+const CARE_ICONS = {
+  thermometer: Thermometer,
+  syringe: Syringe,
+  activity: Activity,
+  stethoscope: Stethoscope,
+};
 
 // 早教活动类型 → 图标
 const ACT_ICONS = {
@@ -379,6 +478,9 @@ export default function BabyAppFullStack() {
   const [nickModal, setNickModal] = useState({ open: false, nickname: '' });
   // 成长阶段详情弹窗
   const [stageModal, setStageModal] = useState(null); // { key,title,principle,signs,advice,sources } | null
+  // 生病护理指南折叠
+  const [careOpen, setCareOpen] = useState(false);
+  const [careItem, setCareItem] = useState(null); // 当前展开的条目 key
   // 喂养记录
   const [feedRecords, setFeedRecords] = useState([]);
   const [feedEval, setFeedEval] = useState(null);
@@ -1162,6 +1264,80 @@ export default function BabyAppFullStack() {
                   ? '宝宝当前正处于上方所列阶段，点击名字可查看原理、信号提醒与陪伴建议。'
                   : '宝宝已进入幼儿期，更多探索与成长的惊喜在路上，记得定期记录身高体重与日常哦。'}
               </p>
+            </div>
+          )}
+        </Reveal>
+
+        <Reveal className="section" delay={0.05}>
+          <button
+            type="button"
+            className={`care-toggle ${careOpen ? 'is-open' : ''}`}
+            onClick={() => setCareOpen(v => !v)}
+            aria-expanded={careOpen}
+          >
+            <span className="section__ico section__ico--rose"><Heart className="icon icon--sm" /></span>
+            <h2 className="section__title">宝宝生病护理指南</h2>
+            <span className="care-toggle__hint">{careOpen ? '收起' : '点击展开'}</span>
+            <ChevronDown className="icon icon--sm care-toggle__chev" />
+          </button>
+
+          {careOpen && (
+            <div className="care">
+              <div className="care__disclaimer">
+                <AlertCircle className="icon icon--xs" />
+                本指南为通用科普，<b>不能替代医生诊断</b>。用药前请遵医嘱，尤其 3 个月以下婴儿出现发热须立即就医。
+              </div>
+
+              <div className="care__block">
+                <h3 className="care__h">阶段相关发烧风险</h3>
+                {CARE_GUIDE.stageFever.map(it => {
+                  const Ico = CARE_ICONS[it.icon] || Thermometer;
+                  const open = careItem === it.key;
+                  return (
+                    <div className={`care-item ${open ? 'is-open' : ''}`} key={it.key}>
+                      <button type="button" className="care-item__head" onClick={() => setCareItem(open ? null : it.key)} aria-expanded={open}>
+                        <Ico className="icon icon--sm care-item__ico" />
+                        <span className="care-item__title">{it.title}</span>
+                        <ChevronDown className="icon icon--xs care-item__chev" />
+                      </button>
+                      {open && (
+                        <ul className="care-item__list">
+                          {it.points.map((p, i) => <li key={i}>{p}</li>)}
+                        </ul>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+
+              <div className="care__block">
+                <h3 className="care__h">常见不适护理</h3>
+                {CARE_GUIDE.illnesses.map(it => {
+                  const Ico = CARE_ICONS[it.icon] || Stethoscope;
+                  const open = careItem === it.key;
+                  return (
+                    <div className={`care-item ${open ? 'is-open' : ''}`} key={it.key}>
+                      <button type="button" className="care-item__head" onClick={() => setCareItem(open ? null : it.key)} aria-expanded={open}>
+                        <Ico className="icon icon--sm care-item__ico" />
+                        <span className="care-item__title">{it.title}</span>
+                        <ChevronDown className="icon icon--xs care-item__chev" />
+                      </button>
+                      {open && (
+                        <ul className="care-item__list">
+                          {it.points.map((p, i) => <li key={i}>{p}</li>)}
+                        </ul>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+
+              <div className="care__redflag">
+                <h3 className="care__h care__h--warn"><AlertCircle className="icon icon--xs" />必须立即就医的红线</h3>
+                <ul className="care__redlist">
+                  {CARE_GUIDE.redflags.map((r, i) => <li key={i}>{r}</li>)}
+                </ul>
+              </div>
             </div>
           )}
         </Reveal>
