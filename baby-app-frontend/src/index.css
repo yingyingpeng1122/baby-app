@@ -421,6 +421,16 @@ body { display: block; background: #eef3f1; }
 .cal-modal__title { display: flex; align-items: center; gap: 6px; font-family: var(--font-display); font-size: 17px; font-weight: 800; color: var(--ink); }
 .cal-modal__close { background: none; border: none; cursor: pointer; color: var(--muted); padding: 4px; border-radius: 8px; transition: color .15s; }
 .cal-modal__close:hover { color: var(--ink); }
+/* 标题+关闭按钮+月份导航吸顶锁定，不随弹窗内容滚动 */
+.cal-modal__sticky {
+  position: sticky;
+  top: 0;
+  z-index: 5;
+  margin: 0 -24px;
+  padding: 0 24px 10px;
+  background: #fff;
+  border-bottom: 1px solid var(--line);
+}
 
 .cal-month-nav { display: flex; align-items: center; justify-content: center; gap: 16px; margin-bottom: 12px; }
 .cal-month-nav__btn {
@@ -844,6 +854,7 @@ body { display: block; background: #eef3f1; }
   .checklist__item { padding: 10px 12px; gap: 10px; }
 
   .cal-modal { padding: 18px 16px; max-width: 100%; }
+  .cal-modal__sticky { margin: 0 -16px; padding: 0 16px 8px; }
   .cal-cell { font-size: 13px; }
   .cal-weekdays__day { font-size: 11px; }
   .cal-month-nav__label { font-size: 15px; }

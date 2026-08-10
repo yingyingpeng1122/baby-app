@@ -1524,8 +1524,9 @@ export default function BabyAppFullStack() {
         {calendarOpen && (
           <div className="cal-overlay" onClick={(e) => { if (e.target === e.currentTarget) setCalendarOpen(false); }}>
             <div className="cal-modal">
+              <div className="cal-modal__sticky">
               <div className="cal-modal__head">
-                <h3 className="cal-modal__title"><Calendar className="icon icon--sm" /> 照护日历回顾</h3>
+                <h3 className="cal-modal__title"><Calendar className="icon icon--sm" /> 照护日历</h3>
                 <button className="cal-modal__close" onClick={() => { setCalendarOpen(false); setCalendarDetail(null); }}><X className="icon icon--sm" /></button>
               </div>
               {/* 月份切换 */}
@@ -1533,6 +1534,7 @@ export default function BabyAppFullStack() {
                 <button className="cal-month-nav__btn" onClick={() => changeCalendarMonth(-1)}><ChevronLeft className="icon icon--sm" /></button>
                 <span className="cal-month-nav__label">{calendarDate.year}年{calendarDate.month}月</span>
                 <button className="cal-month-nav__btn" onClick={() => changeCalendarMonth(1)}><ChevronRight className="icon icon--sm" /></button>
+              </div>
               </div>
               {/* 星期头 */}
               <div className="cal-weekdays">
@@ -1602,6 +1604,7 @@ export default function BabyAppFullStack() {
         {feedingCalendarOpen && (
           <div className="cal-overlay" onClick={(e) => { if (e.target === e.currentTarget) setFeedingCalendarOpen(false); }}>
             <div className="cal-modal" style={{ maxWidth: '480px' }}>
+              <div className="cal-modal__sticky">
               <div className="cal-modal__head">
                 <h3 className="cal-modal__title"><Milk className="icon icon--sm" /> 喂养日历</h3>
                 <button className="cal-modal__close" onClick={() => setFeedingCalendarOpen(false)}><X className="icon icon--sm" /></button>
@@ -1610,6 +1613,7 @@ export default function BabyAppFullStack() {
                 <button className="cal-month-nav__btn" onClick={() => changeFeedingCalendarMonth(-1)}><ChevronLeft className="icon icon--sm" /></button>
                 <span className="cal-month-nav__label">{feedingCalendarDate.year}年{feedingCalendarDate.month}月</span>
                 <button className="cal-month-nav__btn" onClick={() => changeFeedingCalendarMonth(1)}><ChevronRight className="icon icon--sm" /></button>
+              </div>
               </div>
               <div className="cal-weekdays">
                 {['日','一','二','三','四','五','六'].map(d => <span key={d} className="cal-weekdays__day">{d}</span>)}
