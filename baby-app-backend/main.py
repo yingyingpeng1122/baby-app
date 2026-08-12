@@ -609,6 +609,18 @@ def _solids_displace_threshold(months: int) -> float:
         return 150.0
     return 200.0
 
+def _norm_feed_type(raw):
+    """把喂养记录里的 type 统一成规范值 'milk' / 'solids' / 'other'。
+    兼容历史数据（中文：母乳/配方奶/辅食）与当前前端写入的英文（milk/solids/diaper/sleep）。"""
+    if not raw:
+        return 'other'
+    t = str(raw).strip()
+    if t in ('milk', '母乳', '配方奶', 'breast', 'formula', 'breast_milk', 'formula_milk'):
+        return 'milk'
+    if t in ('solids', '辅食', 'solid', 'food'):
+        return 'solids'
+    return 'other'
+
 def _target_meals(months: int) -> int:
     if months < 8:
         return 2
@@ -1011,7 +1023,7 @@ async def get_feeding_records(request: Request, date_str: str = Query(default=No
     rs = db.execute(
         "SELECT id, time, amount, type, note, food_groups, duration, kind FROM feeding_records_v2 WHERE baby_id = ? AND date = ?",
         [bid, d]).fetchall()
-    return [FeedingRecord(id=r[0], time=r[1], amount=r[2], type=r[3], note=r[4] or '', foodGroups=r[5] or '', duration=r[6] or 0, kind=r[7] or '') for r in rs]
+    return [FeedingRecord(id=r[0], time=r[1], amount=r[2], type=_norm_feed_type(r[3]), note=r[4] or '', foodGroups=r[5] or '', duration=r[6] or 0, kind=r[7] or '') for r in rs]
 
 @app.put("/feeding-records/{record_id}", response_model=FeedingRecord)
 async def update_feeding_record(record_id: str, record: FeedingRecord, request: Request):
@@ -1136,7 +1148,7 @@ async def get_feeding_evaluation(request: Request, date_str: str = Query(default
     rs = db.execute(
         "SELECT id, time, amount, type, note, food_groups FROM feeding_records_v2 WHERE baby_id = ? AND date = ?",
         [bid, d]).fetchall()
-    records = [FeedingRecord(id=r[0], time=r[1], amount=r[2], type=r[3], note=r[4] or '', foodGroups=r[5] or '') for r in rs]
+    records = [FeedingRecord(id=r[0], time=r[1], amount=r[2], type=_norm_feed_type(r[3]), note=r[4] or '', foodGroups=r[5] or '') for r in rs]
 
     milk_records = [r for r in records if r.type == 'milk']
     solids_records = [r for r in records if r.type == 'solids']
@@ -1314,11 +1326,12 @@ async def get_feeding_calendar(request: Request, year: int = Query(...), month: 
     for r in rs:
         d = r[0]
         day_num = int(d.split('-')[2])
+        rtype = _norm_feed_type(r[2])
         if day_num not in day_map:
             day_map[day_num] = {"total_milk": 0, "total_solids": 0, "meal_count": 0, "feed_count": 0, "groups": set()}
-        if r[2] == 'milk':
+        if rtype == 'milk':
             day_map[day_num]["total_milk"] += (r[1] or 0)
-        elif r[2] == 'solids':
+        elif rtype == 'solids':
             day_map[day_num]["total_solids"] += (r[1] or 0)
             day_map[day_num]["meal_count"] += 1
         day_map[day_num]["feed_count"] += 1
@@ -1380,13 +1393,14 @@ async def get_feeding_stats_monthly(request: Request, year: int = Query(...), mo
     for r in rs:
         d = r[0]
         day_num = int(d.split('-')[2])
+        rtype = _norm_feed_type(r[2])
         days_with_data.add(d)
         if day_num not in day_map:
             day_map[day_num] = {"total_milk": 0, "total_solids": 0, "meal_count": 0, "groups": set()}
-        if r[2] == 'milk':
+        if rtype == 'milk':
             day_map[day_num]["total_milk"] += (r[1] or 0)
             total_milk += (r[1] or 0)
-        elif r[2] == 'solids':
+        elif rtype == 'solids':
             day_map[day_num]["total_solids"] += (r[1] or 0)
             day_map[day_num]["meal_count"] += 1
             total_solids += (r[1] or 0)

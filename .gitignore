@@ -58,3 +58,4 @@ debug.log
 # 历史临时源码副本
 baby-app-frontend/前端.txt
 baby-app-frontend/后端.txt
+db_backup_*.json

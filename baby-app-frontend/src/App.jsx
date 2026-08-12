@@ -1791,61 +1791,47 @@ export default function BabyAppFullStack() {
               </div>
             </div>
 
-            {/* 今日记录列表 */}
-            {feedRecords.some(r => r.type === 'milk' || r.type === 'solids') && (
-              <div className="feed__records">
-                <div className="feed__records-title">今日喂养记录</div>
-                <div className="feed__records-list">
-                  {feedRecords.filter(r => r.type === 'milk' || r.type === 'solids').map((r) => (
-                    <div key={r.id} className={`feed__record ${editingId === r.id ? 'feed__record--editing' : ''}`}>
-                      <span className="feed__record-time">{r.time}</span>
-                      <span className="feed__record-amount">{r.amount}{r.type === 'milk' ? 'ml' : 'g'}</span>
-                      <span className={`feed__record-type feed__record-type--${r.type}`}>{r.type === 'milk' ? '奶' : '辅食'}</span>
-                      {r.note && <span className="feed__record-note">{r.note}</span>}
-                      <button className="feed__record-edit" onClick={() => startEdit(r)} aria-label="编辑">
-                        <Pencil className="icon icon--xs" />
-                      </button>
-                      <button className="feed__record-del" onClick={() => deleteFeedRecord(r.id)} aria-label="删除">
-                        <Trash2 className="icon icon--xs" />
-                      </button>
+            {/* 喂养建议（仅选中「喂养」tab 时显示） */}
+            {recordTab === 'feed' && (
+              <div className="feed__advice">
+                <div className="feed__advice-title"><Sparkles className="icon icon--xs" /> 喂养建议</div>
+                <div className="feed__advice-card">
+                  {(f.stage || f.videoTip) && (
+                    <div className="feed__stage-row">
+                      {f.stage && (
+                        <div className="feed__block">
+                          <span className="feed__tile feed__tile--honey"><Sparkles className="icon" /></span>
+                          <div><div className="feed__k">所属阶段</div><div className="feed__v">{f.stage}</div></div>
+                        </div>
+                      )}
+                      {f.videoTip && (
+                        <div className="feed__tip-inline"><Lightbulb className="icon icon--xs" /> {f.videoTip}</div>
+                      )}
                     </div>
-                  ))}
+                  )}
+                  <div className="feed__body">
+                    <div className="feed__block">
+                      <span className="feed__tile feed__tile--sky"><Milk className="icon" /></span>
+                      <div><div className="feed__k">奶量建议</div><div className="feed__v">{f.milk}</div></div>
+                    </div>
+                    <div className="feed__block">
+                      <span className="feed__tile feed__tile--green"><Utensils className="icon" /></span>
+                      <div>
+                        <div className="feed__k">辅食安排</div>
+                        <div className="feed__v">{f.solids === '不需要' ? '暂未开始添加辅食' : `每餐约 ${f.solidAmount}`}</div>
+                        {f.solids !== '不需要' && <div className="feed__chips">{f.types.map((t, i) => <span key={i}>{t}</span>)}</div>}
+                      </div>
+                    </div>
+                  </div>
+                  <div className="feed__interval">
+                    <Clock className="icon icon--sm" />
+                    <span className="feed__interval-text">{f.feedingInterval}</span>
+                  </div>
+                  <div className="feed__foot">
+                    <button className="btn btn--coral btn--block" onClick={() => setModal({ open: true, title: `喂养演示 · ${f.stage}`, src: f.videoUrl || '' })}><Video className="icon icon--xs" />查看本阶段喂养演示视频</button>
+                  </div>
                 </div>
               </div>
-            )}
-
-            {/* 阶段喂养建议（仅选中「喂养」tab 时显示） */}
-            {recordTab === 'feed' && (
-              <>
-                <div className="feed__head">
-                  <span className="feed__stage"><span className="dot" />{f.stage}</span>
-                  <span className="feed__tip">{f.videoTip}</span>
-                </div>
-                <div className="feed__body">
-                  <div className="feed__block">
-                    <span className="feed__tile feed__tile--sky"><Milk className="icon" /></span>
-                    <div><div className="feed__k">奶量建议</div><div className="feed__v">{f.milk}</div></div>
-                  </div>
-                  <div className="feed__block">
-                    <span className="feed__tile feed__tile--green"><Utensils className="icon" /></span>
-                    <div>
-                      <div className="feed__k">辅食安排</div>
-                      <div className="feed__v">{f.solids === '不需要' ? '暂未开始添加辅食' : `每餐约 ${f.solidAmount}`}</div>
-                      {f.solids !== '不需要' && <div className="feed__chips">{f.types.map((t, i) => <span key={i}>{t}</span>)}</div>}
-                    </div>
-                  </div>
-                </div>
-
-                {/* 喂养间隔 */}
-                <div className="feed__interval">
-                  <Clock className="icon icon--sm" />
-                  <span className="feed__interval-text">{f.feedingInterval}</span>
-                </div>
-
-                <div className="feed__foot">
-                  <button className="btn btn--coral btn--block" onClick={() => setModal({ open: true, title: `喂养演示 · ${f.stage}`, src: f.videoUrl || '' })}><Video className="icon icon--xs" />查看本阶段喂养演示视频</button>
-                </div>
-              </>
             )}
 
             {/* 喂养评估 */}
@@ -1855,7 +1841,7 @@ export default function BabyAppFullStack() {
                   {feedEval.status === 'good' ? <Check className="icon icon--lg" /> : <TrendingUp className="icon icon--lg" />}
                 </div>
                 <div className="feed__eval-body">
-                  <div className="feed__eval-title">今日喂养评估</div>
+                  <div className="feed__eval-title">喂养评估</div>
                   <div className="feed__eval-msg">{feedEval.message}</div>
                   <div className="feed__eval-stats">
                     <span className={`feed__eval-stat feed__eval-stat--${feedEval.milkStatus}`}>
@@ -1930,40 +1916,41 @@ export default function BabyAppFullStack() {
           </div>
         </Reveal>
 
-        {/* 今日活动 · 时间轴 */}
+        {/* 宝宝的一天 · 可爱记录卡 */}
         <Reveal className="section" delay={0.05}>
           <div className="section__head">
-            <span className="section__ico section__ico--violet"><Clock className="icon icon--sm" /></span>
-            <h2 className="section__title">今日活动</h2>
+            <span className="section__ico section__ico--violet"><Sparkles className="icon icon--sm" /></span>
+            <h2 className="section__title">宝宝的一天</h2>
           </div>
-          <div className="timeline">
+          <div className="daylog">
             {(() => {
               const items = [...feedRecords].sort((a, b) => a.time.localeCompare(b.time));
               if (items.length === 0) {
-                return <div className="timeline__empty">今天还没有记录，添加一个喂养 / 换尿布 / 睡觉吧～</div>;
+                return <div className="daylog__empty">今天还没有记录，添加一个喂养 / 换尿布 / 睡觉吧～</div>;
               }
               return items.map((r) => {
                 const map = {
-                  milk: { ico: <Milk className="icon icon--xs" />, cls: 'milk', label: `喂奶 ${r.amount}ml` },
-                  solids: { ico: <Utensils className="icon icon--xs" />, cls: 'solids', label: `辅食 ${r.amount}g` },
-                  diaper: { ico: <Baby className="icon icon--xs" />, cls: 'diaper', label: `换尿布 · ${r.kind === 'poop' ? '💩' : r.kind === 'both' ? '💩💧' : '💧'}` },
-                  sleep: { ico: <Moon className="icon icon--xs" />, cls: 'sleep', label: r.duration ? `睡觉 ${fmtDur(r.duration)}` : '睡觉' },
+                  milk: { emoji: '🍼', cls: 'milk', typeLabel: '喝奶', amount: r.amount ? `${r.amount}ml` : '' },
+                  solids: { emoji: '🥣', cls: 'solids', typeLabel: '辅食', amount: r.amount ? `${r.amount}g` : '' },
+                  diaper: { emoji: r.kind === 'poop' ? '💩' : r.kind === 'both' ? '💩💧' : '💧', cls: 'diaper', typeLabel: '换尿布', amount: '' },
+                  sleep: { emoji: '😴', cls: 'sleep', typeLabel: '睡觉', amount: r.duration ? fmtDur(r.duration) : '' },
                 };
-                const meta = map[r.type] || { ico: <Clock className="icon icon--xs" />, cls: '', label: r.type };
+                const meta = map[r.type] || { emoji: '⏰', cls: '', typeLabel: r.type || '记录', amount: '' };
                 const sub = r.type === 'solids' && r.foodGroups ? r.foodGroups.split(',').filter(Boolean).join('、') : (r.note || '');
                 return (
-                  <div key={r.id} className={`timeline__item timeline__item--${meta.cls}`}>
-                    <div className="timeline__dot"><span className="timeline__ico">{meta.ico}</span></div>
-                    <div className="timeline__content">
-                      <div className="timeline__row">
-                        <span className="timeline__time">{r.time}</span>
-                        <span className="timeline__label">{meta.label}</span>
+                  <div key={r.id} className={`daylog__item daylog__item--${meta.cls}`}>
+                    <span className="daylog__emoji">{meta.emoji}</span>
+                    <div className="daylog__body">
+                      <div className="daylog__row">
+                        <span className="daylog__time">{r.time}</span>
+                        <span className={`daylog__type daylog__type--${meta.cls}`}>{meta.typeLabel}</span>
+                        {meta.amount && <span className="daylog__amount">{meta.amount}</span>}
                       </div>
-                      {sub && <div className="timeline__sub">{sub}</div>}
+                      {sub && <div className="daylog__sub">{sub}</div>}
                     </div>
-                    <div className="timeline__ops">
-                      <button className="timeline__op" onClick={() => startEdit(r)} aria-label="编辑"><Pencil className="icon icon--xs" /></button>
-                      <button className="timeline__op timeline__op--del" onClick={() => deleteFeedRecord(r.id)} aria-label="删除"><Trash2 className="icon icon--xs" /></button>
+                    <div className="daylog__ops">
+                      <button className="daylog__op" onClick={() => startEdit(r)} aria-label="编辑"><Pencil className="icon icon--xs" /></button>
+                      <button className="daylog__op daylog__op--del" onClick={() => deleteFeedRecord(r.id)} aria-label="删除"><Trash2 className="icon icon--xs" /></button>
                     </div>
                   </div>
                 );
@@ -1982,6 +1969,9 @@ export default function BabyAppFullStack() {
                 {checklist.filter(i => i.checked).length}/{checklist.length}
               </span>
             )}
+            <button className="btn btn--ghost btn--sm checklist__cal-btn" onClick={() => { setCalendarOpen(true); setCalendarDetail(null); }}>
+              <Calendar className="icon icon--xs" /> 查看照护日历
+            </button>
           </div>
           <div className="checklist">
             <div className="checklist__bar">
@@ -2014,10 +2004,6 @@ export default function BabyAppFullStack() {
               </div>
             )}
           </div>
-          {/* 打开日历按钮 */}
-          <button className="btn btn--ghost checklist__cal-btn" onClick={() => { setCalendarOpen(true); setCalendarDetail(null); }}>
-            <Calendar className="icon icon--xs" /> 查看照护日历
-          </button>
         </Reveal>
 
         {/* 生病模式：体温记录 + 动态就医建议 */}
