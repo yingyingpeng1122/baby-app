@@ -235,6 +235,17 @@ def init_db():
         baby_id TEXT, date TEXT, item_id TEXT, checked INTEGER,
         PRIMARY KEY (baby_id, date, item_id)
     )""")
+    # 身高体重成长记录（可录入历史与最新数据）
+    db.execute("""CREATE TABLE IF NOT EXISTS growth_records_v2 (
+        id TEXT, baby_id TEXT, date TEXT,
+        height REAL, weight REAL, note TEXT DEFAULT '',
+        PRIMARY KEY (baby_id, date, id)
+    )""")
+    # 生病模式：体温记录
+    db.execute("""CREATE TABLE IF NOT EXISTS temperature_records (
+        id TEXT PRIMARY KEY, baby_id TEXT NOT NULL,
+        datetime TEXT, temp REAL, note TEXT DEFAULT ''
+    )""")
     # 旧数据迁移：profiles → 家庭 + 宝宝
     _migrate_profiles()
 
@@ -949,6 +960,8 @@ async def delete_baby(baby_id: str, request: Request):
     db.execute("DELETE FROM babies WHERE baby_id = ? AND family_id = ?", [baby_id, fid])
     db.execute("DELETE FROM feeding_records_v2 WHERE baby_id = ?", [baby_id])
     db.execute("DELETE FROM checklist_items_v2 WHERE baby_id = ?", [baby_id])
+    db.execute("DELETE FROM growth_records_v2 WHERE baby_id = ?", [baby_id])
+    db.execute("DELETE FROM temperature_records WHERE baby_id = ?", [baby_id])
     db.sync()
     return {"ok": True}
 
@@ -1029,6 +1042,80 @@ async def delete_feeding_record(record_id: str, request: Request):
                [record_id, bid, today])
     db.sync()
     return {"status": "deleted", "id": record_id}
+
+# ---- 身高体重成长记录 ----
+class GrowthRecord(BaseModel):
+    id: str = ''
+    date: str
+    height: float = 0.0   # cm
+    weight: float = 0.0   # kg
+    note: str = ''
+
+
+@app.post("/growth-records", response_model=GrowthRecord)
+async def add_growth_record(record: GrowthRecord, request: Request):
+    bid = get_baby_id(request)
+    record.id = str(uuid.uuid4())[:8]
+    db.execute(
+        "INSERT INTO growth_records_v2 (id, baby_id, date, height, weight, note) VALUES (?, ?, ?, ?, ?, ?)",
+        [record.id, bid, record.date, record.height, record.weight, record.note])
+    db.sync()
+    return record
+
+
+@app.get("/growth-records", response_model=List[GrowthRecord])
+async def get_growth_records(request: Request):
+    bid = get_baby_id(request)
+    rs = db.execute(
+        "SELECT id, date, height, weight, note FROM growth_records_v2 WHERE baby_id = ? ORDER BY date ASC",
+        [bid]).fetchall()
+    return [GrowthRecord(id=r[0], date=r[1], height=r[2] or 0.0, weight=r[3] or 0.0, note=r[4] or '') for r in rs]
+
+
+@app.delete("/growth-records/{record_id}")
+async def delete_growth_record(record_id: str, request: Request):
+    bid = get_baby_id(request)
+    db.execute("DELETE FROM growth_records_v2 WHERE id = ? AND baby_id = ?", [record_id, bid])
+    db.sync()
+    return {"status": "deleted", "id": record_id}
+
+
+# ---- 生病模式：体温记录 ----
+class TemperatureRecord(BaseModel):
+    id: str = ''
+    datetime: str = ''
+    temp: float
+    note: str = ''
+
+
+@app.post("/temperature-records", response_model=TemperatureRecord)
+async def add_temperature_record(record: TemperatureRecord, request: Request):
+    bid = get_baby_id(request)
+    record.id = str(uuid.uuid4())[:8]
+    record.datetime = record.datetime or datetime.now().strftime("%Y-%m-%d %H:%M")
+    db.execute(
+        "INSERT INTO temperature_records (id, baby_id, datetime, temp, note) VALUES (?, ?, ?, ?, ?)",
+        [record.id, bid, record.datetime, record.temp, record.note])
+    db.sync()
+    return record
+
+
+@app.get("/temperature-records", response_model=List[TemperatureRecord])
+async def get_temperature_records(request: Request):
+    bid = get_baby_id(request)
+    rs = db.execute(
+        "SELECT id, datetime, temp, note FROM temperature_records WHERE baby_id = ? ORDER BY datetime DESC",
+        [bid]).fetchall()
+    return [TemperatureRecord(id=r[0], datetime=r[1], temp=r[2] or 0.0, note=r[3] or '') for r in rs]
+
+
+@app.delete("/temperature-records/{record_id}")
+async def delete_temperature_record(record_id: str, request: Request):
+    bid = get_baby_id(request)
+    db.execute("DELETE FROM temperature_records WHERE id = ? AND baby_id = ?", [record_id, bid])
+    db.sync()
+    return {"status": "deleted", "id": record_id}
+
 
 @app.get("/feeding-evaluation", response_model=FeedingEvaluation)
 async def get_feeding_evaluation(request: Request, date_str: str = Query(default=None, alias="date")):

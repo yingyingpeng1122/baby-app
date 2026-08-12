@@ -10,10 +10,206 @@ import {
 // WHO 最低食物种类（MDD）的 7 个食物组
 const FOOD_GROUPS = ['谷物根茎', '豆坚果', '奶制品', '肉禽鱼', '蛋', '富维A果蔬', '其他果蔬'];
 
+// ============ 身高体重参考曲线（中位数 P50，仅作趋势示意）============
+// 数据来源：WHO 儿童生长标准 2006（国际）；中国九市儿童体格发育调查（中国参考）。
+// 锚点按月，曲线内插。非精确百分位图，临床评估以医生 z 评分/百分位为准。
+const GROWTH_REF = {
+  boy: {
+    intl: { // WHO 国际标准
+      w: [[0,3.3],[1,4.5],[2,5.6],[3,6.4],[4,7.0],[5,7.5],[6,7.9],[9,8.9],[12,9.6],[15,10.3],[18,10.9],[21,11.5],[24,12.2],[30,13.3],[36,14.3]],
+      h: [[0,49.9],[1,54.7],[2,58.4],[3,61.4],[4,63.9],[5,65.9],[6,67.6],[9,72.0],[12,75.7],[15,79.6],[18,82.6],[21,85.1],[24,87.1],[30,90.7],[36,96.1]],
+    },
+    cn: { // 中国参考（城市，略高于 WHO）
+      w: [[0,3.3],[1,4.6],[2,5.7],[3,6.5],[4,7.1],[5,7.6],[6,8.0],[9,9.1],[12,9.8],[15,10.6],[18,11.2],[21,11.9],[24,12.6],[30,13.8],[36,14.8]],
+      h: [[0,50.0],[1,54.8],[2,58.6],[3,61.6],[4,64.2],[5,66.1],[6,67.9],[9,72.4],[12,76.2],[15,80.3],[18,83.4],[21,86.0],[24,88.1],[30,91.9],[36,97.3]],
+    },
+  },
+  girl: {
+    intl: {
+      w: [[0,3.2],[1,4.2],[2,5.1],[3,5.8],[4,6.4],[5,6.9],[6,7.3],[9,8.2],[12,8.9],[15,9.6],[18,10.2],[21,10.8],[24,11.5],[30,12.7],[36,13.9]],
+      h: [[0,49.1],[1,53.7],[2,57.1],[3,59.8],[4,62.1],[5,64.0],[6,65.7],[9,70.1],[12,74.0],[15,77.5],[18,80.7],[21,83.4],[24,85.7],[30,89.9],[36,95.1]],
+    },
+    cn: {
+      w: [[0,3.2],[1,4.3],[2,5.2],[3,5.9],[4,6.5],[5,7.0],[6,7.4],[9,8.4],[12,9.1],[15,9.9],[18,10.5],[21,11.2],[24,11.9],[30,13.1],[36,14.4]],
+      h: [[0,49.2],[1,53.8],[2,57.3],[3,60.0],[4,62.4],[5,64.3],[6,66.0],[9,70.6],[12,74.6],[15,78.2],[18,81.4],[21,84.2],[24,86.6],[30,90.8],[36,96.0]],
+    },
+  },
+};
+// 线性内插：给定锚点数组与月龄，返回参考值
+function refAt(anchors, age) {
+  if (age <= anchors[0][0]) return anchors[0][1];
+  const last = anchors[anchors.length - 1];
+  if (age >= last[0]) return last[1];
+  for (let i = 0; i < anchors.length - 1; i++) {
+    const [a0, v0] = anchors[i], [a1, v1] = anchors[i + 1];
+    if (age >= a0 && age <= a1) {
+      const t = (age - a0) / (a1 - a0);
+      return v0 + (v1 - v0) * t;
+    }
+  }
+  return last[1];
+}
+function monthsBetween(birthday, dateStr) {
+  const b = new Date(birthday), d = new Date(dateStr);
+  let m = (d.getFullYear() - b.getFullYear()) * 12 + (d.getMonth() - b.getMonth());
+  m += (d.getDate() - b.getDate()) / 30;
+  return Math.max(0, m);
+}
+function ageLabel(age) {
+  const whole = Math.floor(age);
+  const dec = Math.round((age - whole) * 10);
+  return dec ? `${whole}.${dec}月` : `${whole}月`;
+}
+
+// 生病模式：根据月龄与体温给出动态就医建议
+function sicknessAdvice(months, temp) {
+  if (!temp) return { level: 'none', title: '尚未记录体温', text: '记录体温后，会自动判断是否需要就医。', seeDoctor: false };
+  const m = Math.floor(months);
+  // 任何月龄的危急信号已在 note 中体现，此处给温度红线
+  const under3 = m < 3;
+  const under6 = m < 6;
+  if (under3) {
+    return temp >= 38
+      ? { level: 'red', title: '⚠️ 立即就医', text: '3 个月以下婴儿肛温 ≥ 38°C 属于急诊，请立即就医。', seeDoctor: true }
+      : { level: 'warn', title: '密切观察', text: '小婴儿体温异常波动需警惕，建议尽快咨询医生。', seeDoctor: false };
+  }
+  if (under6) {
+    return temp >= 39
+      ? { level: 'red', title: '⚠️ 建议就医', text: '3–6 个月体温 ≥ 39°C，建议尽快就医。', seeDoctor: true }
+      : { level: 'warn', title: '居家观察', text: '可先物理降温并每 4 小时记录体温，若持续升高或精神差请就医。', seeDoctor: false };
+  }
+  // ≥6 个月
+  if (temp >= 39.4) return { level: 'red', title: '⚠️ 建议就医', text: '6 个月以上体温 ≥ 39.4°C 建议就医；若发热超过 3 天也需就诊。', seeDoctor: true };
+  if (temp >= 38) return { level: 'warn', title: '居家观察', text: '低热，可居家护理，每 4 小时记录一次体温，关注精神状态。', seeDoctor: false };
+  return { level: 'ok', title: '体温正常', text: '体温在正常范围，继续观察即可。', seeDoctor: false };
+}
+// 下次记录体温的建议时间 = 上次 + 4 小时
+function nextTempTime(datetimeStr) {
+  if (!datetimeStr) return '';
+  const d = new Date(datetimeStr.replace(' ', 'T'));
+  if (isNaN(d)) return '';
+  d.setHours(d.getHours() + 4);
+  return `${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')} ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+}
+// 距上次记录的小时数
+function hoursSince(datetimeStr) {
+  if (!datetimeStr) return null;
+  const d = new Date(datetimeStr.replace(' ', 'T'));
+  if (isNaN(d)) return null;
+  return Math.max(0, (Date.now() - d.getTime()) / 3600000);
+}
+
+// ============ 身高体重曲线对比图（SVG）============
+function GrowthChart({ records, metric, gender, birthday }) {
+  const W = 680, H = 300;
+  const padL = 40, padR = 14, padT = 14, padB = 32;
+  const plotW = W - padL - padR, plotH = H - padT - padB;
+  const key = metric === 'weight' ? 'w' : 'h';
+  const ref = GROWTH_REF[gender] || GROWTH_REF.boy;
+  const cur = birthday ? monthsBetween(birthday, todayISO()) : 0;
+  const ageMax = Math.min(36, Math.max(12, Math.ceil(cur) + 2));
+
+  const pts = records
+    .map(r => ({ age: monthsBetween(birthday, r.date), v: metric === 'weight' ? r.weight : r.height, date: r.date }))
+    .filter(p => p.v > 0 && p.age <= ageMax + 0.5)
+    .sort((a, b) => a.age - b.age);
+
+  const sampleN = 36;
+  const intlLine = [], cnLine = [];
+  const vals = [...pts.map(p => p.v)];
+  for (let i = 0; i <= sampleN; i++) {
+    const a = (ageMax * i) / sampleN;
+    const iv = refAt(ref.intl[key], a), cv = refAt(ref.cn[key], a);
+    intlLine.push([a, iv]); cnLine.push([a, cv]); vals.push(iv, cv);
+  }
+  if (vals.length === 0) vals.push(0, 1);
+  const vMin = Math.max(0, Math.floor(Math.min(...vals) - 1));
+  const vMax = Math.ceil(Math.max(...vals) + 1);
+  const xOf = a => padL + (a / ageMax) * plotW;
+  const yOf = v => padT + plotH - ((v - vMin) / (vMax - vMin)) * plotH;
+  const linePath = arr => arr.map((p, i) => `${i ? 'L' : 'M'}${xOf(p[0]).toFixed(1)},${yOf(p[1]).toFixed(1)}`).join(' ');
+  const yTicks = [vMin, vMin + (vMax - vMin) / 2, vMax].map(v => Math.round(v * 10) / 10);
+
+  return (
+    <svg className="chart-svg" viewBox={`0 0 ${W} ${H}`} role="img" aria-label="身高体重曲线">
+      {yTicks.map((t, i) => (
+        <g key={i}>
+          <line x1={padL} y1={yOf(t)} x2={W - padR} y2={yOf(t)} stroke="var(--line)" strokeWidth="1" />
+          <text x={padL - 6} y={yOf(t) + 3} textAnchor="end" className="chart-axis">{t}</text>
+        </g>
+      ))}
+      {/* x 轴刻度 */}
+      {[0, 3, 6, 9, 12, 18, 24, 30, 36].filter(m => m <= ageMax).map(m => (
+        <text key={m} x={xOf(m)} y={H - 10} textAnchor="middle" className="chart-axis">{m}月</text>
+      ))}
+      {/* 参考曲线：国际(虚线灰) / 中国(虚线蓝) */}
+      <path d={linePath(intlLine)} fill="none" stroke="#9aa3b2" strokeWidth="2" strokeDasharray="5 4" />
+      <path d={linePath(cnLine)} fill="none" stroke="#3b82f6" strokeWidth="2" strokeDasharray="5 4" />
+      {/* 宝宝数据 */}
+      {pts.length > 1 && (
+        <path d={linePath(pts.map(p => [p.age, p.v]))} fill="none" stroke="var(--primary)" strokeWidth="2.5" />
+      )}
+      {pts.map((p, i) => (
+        <circle key={i} cx={xOf(p.age)} cy={yOf(p.v)} r="4" fill="var(--primary)" stroke="#fff" strokeWidth="1.5">
+          <title>{p.date} · {metric === 'weight' ? p.v + ' kg' : p.v + ' cm'}</title>
+        </circle>
+      ))}
+    </svg>
+  );
+}
+
+// ============ 体温曲线图（SVG）============
+function TempChart({ records }) {
+  const W = 680, H = 260;
+  const padL = 36, padR = 14, padT = 14, padB = 30;
+  const plotW = W - padL - padR, plotH = H - padT - padB;
+  const vMin = 35.5, vMax = 41;
+  const pts = [...records]
+    .map(r => ({ t: new Date(r.datetime.replace(' ', 'T')), v: r.temp, dt: r.datetime, note: r.note }))
+    .filter(p => !isNaN(p.t))
+    .sort((a, b) => a.t - b.t);
+  const n = pts.length;
+  const xOf = i => n <= 1 ? padL + plotW / 2 : padL + (i / (n - 1)) * plotW;
+  const yOf = v => padT + plotH - ((v - vMin) / (vMax - vMin)) * plotH;
+  const linePath = pts.map((p, i) => `${i ? 'L' : 'M'}${xOf(i).toFixed(1)},${yOf(p.v).toFixed(1)}`).join(' ');
+  const yTicks = [36, 37, 38, 39, 40];
+  return (
+    <svg className="chart-svg" viewBox={`0 0 ${W} ${H}`} role="img" aria-label="体温曲线">
+      {yTicks.map(t => (
+        <g key={t}>
+          <line x1={padL} y1={yOf(t)} x2={W - padR} y2={yOf(t)} stroke="var(--line)" strokeWidth="1" />
+          <text x={padL - 6} y={yOf(t) + 3} textAnchor="end" className="chart-axis">{t}</text>
+        </g>
+      ))}
+      {/* 发热线 38 / 就医线 39.4 */}
+      <line x1={padL} y1={yOf(38)} x2={W - padR} y2={yOf(38)} stroke="#f59e0b" strokeWidth="1.5" strokeDasharray="4 4" />
+      <line x1={padL} y1={yOf(39.4)} x2={W - padR} y2={yOf(39.4)} stroke="#ef4444" strokeWidth="1.5" strokeDasharray="4 4" />
+      <text x={W - padR} y={yOf(38) - 4} textAnchor="end" className="chart-thr chart-thr--warn">发热 38°C</text>
+      <text x={W - padR} y={yOf(39.4) - 4} textAnchor="end" className="chart-thr chart-thr--danger">就医 39.4°C</text>
+      {n > 0 && <path d={linePath} fill="none" stroke="#ef4444" strokeWidth="2.5" />}
+      {pts.map((p, i) => (
+        <circle key={i} cx={xOf(i)} cy={yOf(p.v)} r="4" fill={p.v >= 38 ? '#ef4444' : '#f59e0b'} stroke="#fff" strokeWidth="1.5">
+          <title>{p.dt} · {p.v}°C{p.note ? ' · ' + p.note : ''}</title>
+        </circle>
+      ))}
+    </svg>
+  );
+}
+
 // 当前时刻 HH:MM（录入默认时间）
 const nowHM = () => {
   const d = new Date();
   return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+};
+// 今天日期 YYYY-MM-DD
+const todayISO = () => {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+};
+// 现在日期时间 YYYY-MM-DD HH:MM
+const nowDateTime = () => {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')} ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
 };
 // 两个 HH:MM 相差分钟（跨午夜自动 +24h）
 const diffMinutes = (a, b) => {
@@ -530,6 +726,15 @@ export default function BabyAppFullStack() {
   const [feedingDetail, setFeedingDetail] = useState(null); // { date, records }
   const [feedingStats, setFeedingStats] = useState(null);
   const [devOpen, setDevOpen] = useState(false); // 发育概况折叠（必须放在提前 return 之前，遵守 hooks 规则）
+  // 成长记录（身高体重）
+  const [growthRecords, setGrowthRecords] = useState([]);
+  const [growthDraft, setGrowthDraft] = useState({ date: todayISO(), height: '', weight: '', note: '' });
+  const [growthMetric, setGrowthMetric] = useState('weight'); // weight | height
+  // 生病模式：体温记录
+  const [sickMode, setSickMode] = useState(false);
+  const [tempRecords, setTempRecords] = useState([]);
+  const [tempDraft, setTempDraft] = useState({ temp: '', note: '', datetime: '', symptoms: [] });
+  const TEMP_SYMPTOMS = ['咳嗽', '流涕', '呕吐', '腹泻', '精神差', '已用药'];
 
   // 同步 currentBabyId 到模块级变量
   useEffect(() => { _currentBabyId = currentBabyId; }, [currentBabyId]);
@@ -696,9 +901,11 @@ export default function BabyAppFullStack() {
       if (!res.ok) throw new Error('fetch failed');
       setData(await res.json());
       setView('dashboard');
-      // 同时拉取喂养数据和照护清单
+      // 同时拉取喂养数据、照护清单、成长记录、体温记录
       fetchFeedData();
       fetchChecklist();
+      loadGrowth();
+      loadTemps();
     } catch (e) {
       console.error(e);
       if (e.name === 'AbortError') {
@@ -730,6 +937,71 @@ export default function BabyAppFullStack() {
       const res = await apiFetch(`${API_BASE}/daily-checklist`);
       if (res.ok) setChecklist(await res.json());
     } catch (e) { console.error('fetch checklist failed', e); }
+  };
+
+  // ---- 成长记录（身高体重）----
+  const loadGrowth = async () => {
+    try {
+      const res = await apiFetch(`${API_BASE}/growth-records`);
+      if (res.ok) setGrowthRecords(await res.json());
+    } catch (e) { console.error('fetch growth failed', e); }
+  };
+  const addGrowth = async () => {
+    if (!growthDraft.height && !growthDraft.weight) return alert('请至少填写身高或体重');
+    try {
+      const res = await apiFetch(`${API_BASE}/growth-records`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          date: growthDraft.date || todayISO(),
+          height: growthDraft.height ? parseFloat(growthDraft.height) : 0,
+          weight: growthDraft.weight ? parseFloat(growthDraft.weight) : 0,
+          note: growthDraft.note || '',
+        }),
+      });
+      if (!res.ok) { const e = await res.json().catch(() => ({})); throw new Error(e.detail || '保存失败'); }
+      await loadGrowth();
+      setGrowthDraft({ date: todayISO(), height: '', weight: '', note: '' });
+    } catch (e) { alert('保存身高体重失败：' + (e.message || '')); }
+  };
+  const delGrowth = async (id) => {
+    if (!window.confirm('删除这条身高体重记录？')) return;
+    try {
+      const res = await apiFetch(`${API_BASE}/growth-records/${id}`, { method: 'DELETE' });
+      if (res.ok) setGrowthRecords(prev => prev.filter(r => r.id !== id));
+    } catch (e) { console.error('delete growth failed', e); }
+  };
+
+  // ---- 生病模式：体温记录 ----
+  const loadTemps = async () => {
+    try {
+      const res = await apiFetch(`${API_BASE}/temperature-records`);
+      if (res.ok) setTempRecords(await res.json());
+    } catch (e) { console.error('fetch temp failed', e); }
+  };
+  const addTemp = async () => {
+    const t = parseFloat(tempDraft.temp);
+    if (!t || t < 34 || t > 43) return alert('请输入有效体温（34–43°C）');
+    try {
+      const res = await apiFetch(`${API_BASE}/temperature-records`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          datetime: tempDraft.datetime || nowDateTime(),
+          temp: t,
+          note: tempDraft.note || '',
+        }),
+      });
+      if (!res.ok) { const e = await res.json().catch(() => ({})); throw new Error(e.detail || '保存失败'); }
+      await loadTemps();
+      setTempDraft({ temp: '', note: '', datetime: '' });
+    } catch (e) { alert('保存体温失败：' + (e.message || '')); }
+  };
+  const delTemp = async (id) => {
+    try {
+      const res = await apiFetch(`${API_BASE}/temperature-records/${id}`, { method: 'DELETE' });
+      if (res.ok) setTempRecords(prev => prev.filter(r => r.id !== id));
+    } catch (e) { console.error('delete temp failed', e); }
   };
 
   // 勾选 / 取消勾选
@@ -838,7 +1110,7 @@ export default function BabyAppFullStack() {
   const addFeedRecord = async () => {
     if (!feedForm.time) return alert('请选择时间');
     if ((feedForm.type === 'milk' || feedForm.type === 'solids') && !feedForm.amount) return alert('请填写喂养量');
-    if (feedForm.type === 'diaper' && !feedForm.kind) return alert('请选择换的是屎还是尿');
+    if (feedForm.type === 'diaper' && !feedForm.kind) return alert('请选择尿布类型（💧尿 / 💩屎 / 都有）');
     setFeedLoading(true);
     try {
       if (editingId) {
@@ -1252,6 +1524,87 @@ export default function BabyAppFullStack() {
           )}
         </Reveal>
 
+        {/* 成长记录：身高体重录入 + 与国际/中国参考曲线对比 */}
+        <Reveal className="section" delay={0.05}>
+          <div className="section__head">
+            <span className="section__ico section__ico--sky"><Ruler className="icon icon--sm" /></span>
+            <h2 className="section__title">成长记录</h2>
+          </div>
+
+          {/* 录入表单 */}
+          <div className="growth__form">
+            <div className="growth__form-row">
+              <div className="feed__log-field">
+                <label>日期</label>
+                <input type="date" className="input input--sm" value={growthDraft.date} onChange={(e) => setGrowthDraft({ ...growthDraft, date: e.target.value })} />
+              </div>
+              <div className="feed__log-field">
+                <label>身高(cm)</label>
+                <input type="number" step="0.1" className="input input--sm" placeholder="如 68.5" value={growthDraft.height} onChange={(e) => setGrowthDraft({ ...growthDraft, height: e.target.value })} />
+              </div>
+              <div className="feed__log-field">
+                <label>体重(kg)</label>
+                <input type="number" step="0.01" className="input input--sm" placeholder="如 8.2" value={growthDraft.weight} onChange={(e) => setGrowthDraft({ ...growthDraft, weight: e.target.value })} />
+              </div>
+            </div>
+            <div className="growth__form-row">
+              <div className="feed__log-field feed__log-field--note">
+                <label>备注（可选）</label>
+                <input type="text" className="input input--sm" placeholder="如：体检 / 在家测" value={growthDraft.note} onChange={(e) => setGrowthDraft({ ...growthDraft, note: e.target.value })} />
+              </div>
+              <button type="button" className="btn btn--primary btn--sm growth__add" onClick={addGrowth}><Plus className="icon icon--xs" />保存</button>
+            </div>
+          </div>
+
+          {/* 最新值 + 指标切换 */}
+          {(() => {
+            const sorted = [...growthRecords].sort((a, b) => a.date.localeCompare(b.date));
+            const latest = sorted[sorted.length - 1];
+            const hv = latest && latest.height ? latest.height : profile.height;
+            const wv = latest && latest.weight ? latest.weight : profile.weight;
+            return (
+              <div className="growth__latest">
+                <div className="growth__latest-item"><span className="growth__latest-k">最新身高</span><b>{hv || '—'}</b><span className="growth__latest-u">cm</span></div>
+                <div className="growth__latest-item"><span className="growth__latest-k">最新体重</span><b>{wv || '—'}</b><span className="growth__latest-u">kg</span></div>
+                {latest && <div className="growth__latest-date">记录于 {latest.date}{latest.note ? ' · ' + latest.note : ''}</div>}
+              </div>
+            );
+          })()}
+
+          {growthRecords.length > 0 ? (
+            <>
+              <div className="growth__metric">
+                <button type="button" className={`seg__btn ${growthMetric === 'weight' ? 'seg__btn--on' : ''}`} onClick={() => setGrowthMetric('weight')}>体重</button>
+                <button type="button" className={`seg__btn ${growthMetric === 'height' ? 'seg__btn--on' : ''}`} onClick={() => setGrowthMetric('height')}>身高</button>
+              </div>
+              <GrowthChart records={growthRecords} metric={growthMetric} gender={profile.gender} birthday={profile.birthday} />
+              <div className="growth__legend">
+                <span className="growth__lg growth__lg--baby"><i />宝宝 {growthMetric === 'weight' ? '体重' : '身高'}</span>
+                <span className="growth__lg growth__lg--intl"><i />国际参考 (WHO)</span>
+                <span className="growth__lg growth__lg--cn"><i />中国参考</span>
+              </div>
+              <p className="growth__note">曲线为参考中位数（P50）趋势线，仅作直观对比；临床评估请以医生百分位 / z 评分结论为准。</p>
+            </>
+          ) : (
+            <div className="growth__empty">还没有身高体重记录，添加一条就能看到成长曲线啦～</div>
+          )}
+
+          {/* 历史记录列表 */}
+          {growthRecords.length > 0 && (
+            <div className="growth__list">
+              {[...growthRecords].sort((a, b) => b.date.localeCompare(a.date)).map(r => (
+                <div key={r.id} className="growth__row">
+                  <span className="growth__row-date">{r.date}</span>
+                  <span className="growth__row-v">{r.height ? r.height + 'cm' : '—'}</span>
+                  <span className="growth__row-v">{r.weight ? r.weight + 'kg' : '—'}</span>
+                  {r.note && <span className="growth__row-note">{r.note}</span>}
+                  <button className="growth__row-del" onClick={() => delGrowth(r.id)} aria-label="删除"><Trash2 className="icon icon--xs" /></button>
+                </div>
+              ))}
+            </div>
+          )}
+        </Reveal>
+
         <Reveal className="section" delay={0.05}>
           <div className="section__head">
             <span className="section__ico section__ico--amber"><Sparkles className="icon icon--sm" /></span>
@@ -1408,9 +1761,9 @@ export default function BabyAppFullStack() {
                   <div className="feed__log-field feed__log-field--note">
                     <label>换的是</label>
                     <div className="feed__chips">
-                      {[{ v: 'pee', l: '尿' }, { v: 'poop', l: '屎' }, { v: 'both', l: '都有' }].map((o) => (
-                        <button key={o.v} type="button"
-                          className={`feed__chip ${feedForm.kind === o.v ? 'feed__chip--on' : ''}`}
+                      {[{ v: 'pee', l: '💧', t: '尿' }, { v: 'poop', l: '💩', t: '屎' }, { v: 'both', l: '💩💧', t: '都有' }].map((o) => (
+                        <button key={o.v} type="button" title={o.t}
+                          className={`feed__chip feed__chip--emoji ${feedForm.kind === o.v ? 'feed__chip--on' : ''}`}
                           onClick={() => setFeedForm({ ...feedForm, kind: o.v })}>{o.l}</button>
                       ))}
                     </div>
@@ -1564,7 +1917,7 @@ export default function BabyAppFullStack() {
                 const map = {
                   milk: { ico: <Milk className="icon icon--xs" />, cls: 'milk', label: `喂奶 ${r.amount}ml` },
                   solids: { ico: <Utensils className="icon icon--xs" />, cls: 'solids', label: `辅食 ${r.amount}g` },
-                  diaper: { ico: <Baby className="icon icon--xs" />, cls: 'diaper', label: `换尿布 · ${r.kind === 'poop' ? '屎' : r.kind === 'both' ? '屎+尿' : '尿'}` },
+                  diaper: { ico: <Baby className="icon icon--xs" />, cls: 'diaper', label: `换尿布 · ${r.kind === 'poop' ? '💩' : r.kind === 'both' ? '💩💧' : '💧'}` },
                   sleep: { ico: <Moon className="icon icon--xs" />, cls: 'sleep', label: r.duration ? `睡觉 ${fmtDur(r.duration)}` : '睡觉' },
                 };
                 const meta = map[r.type] || { ico: <Clock className="icon icon--xs" />, cls: '', label: r.type };
@@ -1636,6 +1989,113 @@ export default function BabyAppFullStack() {
           <button className="btn btn--ghost checklist__cal-btn" onClick={() => { setCalendarOpen(true); setCalendarDetail(null); }}>
             <Calendar className="icon icon--xs" /> 查看照护日历
           </button>
+        </Reveal>
+
+        {/* 生病模式：体温记录 + 动态就医建议 */}
+        <Reveal className="section" delay={0.05}>
+          <div className="section__head">
+            <span className="section__ico section__ico--rose"><Thermometer className="icon icon--sm" /></span>
+            <h2 className="section__title">生病模式</h2>
+            <button
+              type="button"
+              className={`sick-toggle ${sickMode ? 'is-on' : ''}`}
+              onClick={() => setSickMode(v => !v)}
+              aria-pressed={sickMode}
+            >
+              <span className="sick-toggle__track"><span className="sick-toggle__dot" /></span>
+              {sickMode ? '已开启' : '开启'}
+            </button>
+          </div>
+
+          {!sickMode ? (
+            <div className="sick__hint">
+              <p>宝宝不舒服时开启，记录体温变化、查看是否需要就医，并每隔 4 小时提醒复测。</p>
+              <button type="button" className="btn btn--ghost btn--sm" onClick={() => setSickMode(true)}>🤒 开启生病模式</button>
+            </div>
+          ) : (() => {
+            const latest = tempRecords[0]; // 因后端按时间倒序
+            const latestTemp = latest ? latest.temp : null;
+            const advice = sicknessAdvice(months, latestTemp);
+            const nextAt = nextTempTime(latest ? latest.datetime : '');
+            const sinceH = hoursSince(latest ? latest.datetime : '');
+            return (
+              <>
+                {/* 动态就医建议 */}
+                <div className={`sick__advice sick__advice--${advice.level}`}>
+                  <div className="sick__advice-title">{advice.title}</div>
+                  <div className="sick__advice-text">{advice.text}</div>
+                  {latest && (
+                    <div className="sick__advice-meta">
+                      最近一次 {latest.datetime}：{latestTemp}°C
+                      {sinceH !== null && <span> · 距现在 {sinceH < 1 ? Math.round(sinceH * 60) + ' 分钟' : sinceH.toFixed(1) + ' 小时'}</span>}
+                    </div>
+                  )}
+                  {nextAt && <div className="sick__advice-next">建议下次复测：约 {nextAt}</div>}
+                </div>
+
+                {/* 体温录入 */}
+                <div className="growth__form">
+                  <div className="growth__form-row">
+                    <div className="feed__log-field">
+                      <label>体温(°C)</label>
+                      <input type="number" step="0.1" className="input input--sm" placeholder="如 38.5" value={tempDraft.temp} onChange={(e) => setTempDraft({ ...tempDraft, temp: e.target.value })} />
+                    </div>
+                    <div className="feed__log-field">
+                      <label>时间</label>
+                      <input type="datetime-local" className="input input--sm" value={tempDraft.datetime} onChange={(e) => setTempDraft({ ...tempDraft, datetime: e.target.value.replace('T', ' ').slice(0, 16) })} />
+                    </div>
+                  </div>
+                  <div className="feed__log-field feed__log-field--note">
+                    <label>症状</label>
+                    <div className="feed__chips">
+                      {TEMP_SYMPTOMS.map(s => (
+                        <button key={s} type="button"
+                          className={`feed__chip ${tempDraft.symptoms.includes(s) ? 'feed__chip--on' : ''}`}
+                          onClick={() => setTempDraft({
+                            ...tempDraft,
+                            symptoms: tempDraft.symptoms.includes(s) ? tempDraft.symptoms.filter(x => x !== s) : [...tempDraft.symptoms, s],
+                          })}>{s}</button>
+                      ))}
+                    </div>
+                  </div>
+                  <div className="growth__form-row">
+                    <div className="feed__log-field feed__log-field--note">
+                      <label>备注（可选）</label>
+                      <input type="text" className="input input--sm" placeholder="如：已服美林" value={tempDraft.note} onChange={(e) => setTempDraft({ ...tempDraft, note: e.target.value })} />
+                    </div>
+                    <button type="button" className="btn btn--primary btn--sm growth__add" onClick={() => addTemp()}><Plus className="icon icon--xs" />记录体温</button>
+                  </div>
+                </div>
+
+                {/* 体温曲线 */}
+                {tempRecords.length > 0 ? (
+                  <>
+                    <TempChart records={tempRecords} />
+                    <div className="growth__legend">
+                      <span className="growth__lg growth__lg--intl"><i />发热线 38°C</span>
+                      <span className="growth__lg growth__lg--cn"><i />就医线 39.4°C</span>
+                    </div>
+                  </>
+                ) : (
+                  <div className="growth__empty">记录第一次体温后，这里会画出体温变化曲线。</div>
+                )}
+
+                {/* 体温记录列表 */}
+                {tempRecords.length > 0 && (
+                  <div className="growth__list">
+                    {tempRecords.map(r => (
+                      <div key={r.id} className="growth__row">
+                        <span className="growth__row-date">{r.datetime}</span>
+                        <span className={`growth__row-temp ${r.temp >= 38 ? 'is-high' : ''}`}>{r.temp}°C</span>
+                        {r.note && <span className="growth__row-note">{r.note}</span>}
+                        <button className="growth__row-del" onClick={() => delTemp(r.id)} aria-label="删除"><Trash2 className="icon icon--xs" /></button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </>
+            );
+          })()}
         </Reveal>
 
         {/* 照护日历弹窗 */}
