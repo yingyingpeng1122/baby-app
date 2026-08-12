@@ -135,7 +135,7 @@ body { display: block; background: #eef3f1; }
 
 /* ---------- 区块标题 ---------- */
 .section { position: relative; margin-bottom: 26px; }
-.section__head { display: flex; align-items: center; gap: 10px; margin: 0 0 14px 2px; }
+.section__head { display: flex; align-items: center; flex-wrap: wrap; gap: 10px; margin: 0 0 14px 2px; }
 .section__toggle { margin-left: auto; display: inline-flex; align-items: center; gap: 4px; font-size: 13px; font-weight: 800; color: var(--primary-600); background: var(--primary-soft); border: none; padding: 6px 13px; border-radius: 999px; cursor: pointer; }
 .section__toggle .icon { transition: transform .2s ease; }
 .section__toggle.is-open .icon { transform: rotate(180deg); }
@@ -220,6 +220,9 @@ body { display: block; background: #eef3f1; }
 .feed__log-field label { font-size: 11px; font-weight: 800; color: var(--muted); text-transform: uppercase; letter-spacing: .03em; }
 /* 录入类型 tab（喂养 / 换尿布 / 睡觉） */
 .feed__log-tabs { flex: 1 1 100%; display: flex; gap: 8px; }
+/* 睡觉时：开始时间 + 结束时间 同一行 */
+.feed__log-sleep { flex: 1 1 100%; display: flex; gap: 10px; flex-wrap: wrap; }
+.feed__log-sleep .feed__log-field { flex: 1 1 140px; min-width: 0; }
 .feed__log-tab {
   flex: 1; display: inline-flex; align-items: center; justify-content: center; gap: 5px;
   padding: 9px 0; font-size: 13px; font-weight: 700; color: var(--muted);
@@ -747,6 +750,7 @@ body { display: block; background: #eef3f1; }
 /* ---------- SVG 图表 ---------- */
 .chart-svg { width: 100%; height: auto; display: block; margin-top: 10px; }
 .chart-axis { font-size: 11px; fill: var(--muted); }
+.chart-axis--x { font-size: 10px; fill: var(--ink-soft); }
 .chart-axis-title { font-size: 11px; font-weight: 700; fill: var(--muted); }
 .chart-thr { font-size: 10px; font-weight: 700; }
 .chart-thr--warn { fill: #f59e0b; }
@@ -778,50 +782,67 @@ body { display: block; background: #eef3f1; }
 
 /* ---------- 今日活动 · 时间轴 ---------- */
 /* 宝宝的一天 · 可爱记录卡 */
-/* 宝宝的一天 · 横向时间轴 */
-.daytime { overflow-x: auto; padding: 4px 2px 10px; -webkit-overflow-scrolling: touch; }
-.daytime__inner { display: flex; width: max-content; gap: 14px; position: relative; padding: 18px 0 6px; }
-.daytime__inner::before {
-  content: ''; position: absolute; top: 25px; left: 84px; right: 84px;
-  height: 2px; background: var(--line); border-radius: 2px;
+/* 宝宝的一天 · 横向交替时间轴 */
+.daytime { overflow-x: auto; padding: 4px 2px 12px; -webkit-overflow-scrolling: touch; }
+.daytime-canvas {
+  margin-top: 4px; padding: 16px 12px 12px;
+  border-radius: var(--r-card); border: 1px solid var(--line);
+  background-color: var(--surface-2);
+  background-image: radial-gradient(rgba(17,24,39,.06) 1px, transparent 1.5px);
+  background-size: 16px 16px;
 }
-.daytime__item { position: relative; flex: none; width: 168px; display: flex; flex-direction: column; align-items: center; }
+.daytime__inner { display: flex; width: max-content; gap: 14px; position: relative; padding: 8px 0; }
+.daytime__inner::before {
+  content: ''; position: absolute; top: 50%; left: 0; right: 0; height: 2px;
+  background: var(--line); transform: translateY(-1px); border-radius: 2px;
+}
+.daytime__item { position: relative; flex: none; width: 128px; height: 260px; }
+.daytime__item--up::after, .daytime__item--down::after {
+  content: ''; position: absolute; left: 50%; width: 2px; background: var(--line);
+  transform: translateX(-1px); z-index: 1;
+}
+.daytime__item--up::after { bottom: 50%; height: 16px; }
+.daytime__item--down::after { top: 50%; height: 16px; }
 .daytime__dot {
+  position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
   width: 16px; height: 16px; border-radius: 50%; background: var(--primary);
-  border: 3px solid #fff; box-shadow: 0 0 0 1.5px var(--line); margin-bottom: 10px; z-index: 1;
+  border: 3px solid #fff; box-shadow: 0 0 0 1.5px var(--line); z-index: 2;
 }
 .daytime__item--milk   .daytime__dot { background: var(--sky); }
 .daytime__item--solids .daytime__dot { background: var(--green); }
 .daytime__item--diaper .daytime__dot { background: #0e7490; }
 .daytime__item--sleep  .daytime__dot { background: #6d28d9; }
 .daytime__card {
-  width: 100%; background: var(--surface); border: 1px solid var(--line);
-  border-radius: var(--r-mid); padding: 12px; display: flex; flex-direction: column; gap: 8px;
-  box-shadow: var(--sh-sm);
+  position: absolute; left: 0; right: 0;
+  background: var(--surface); border: 1px solid var(--line); border-radius: var(--r-mid);
+  padding: 10px; display: flex; flex-direction: column; gap: 8px; box-shadow: var(--sh-sm);
 }
-.daytime__top { display: flex; align-items: center; gap: 10px; }
+.daytime__item--up .daytime__card { bottom: calc(50% + 16px); }
+.daytime__item--down .daytime__card { top: calc(50% + 16px); }
+.daytime__top { display: flex; align-items: center; gap: 8px; }
 .daytime__icon {
-  width: 36px; height: 36px; border-radius: 10px; display: grid; place-items: center;
-  font-size: 18px; flex: none; background: var(--surface-2);
+  width: 32px; height: 32px; border-radius: 9px; display: grid; place-items: center;
+  font-size: 16px; flex: none; background: var(--surface-2);
 }
 .daytime__item--milk   .daytime__icon { background: var(--sky-soft); }
 .daytime__item--solids .daytime__icon { background: var(--green-soft); }
 .daytime__item--diaper .daytime__icon { background: #cffafe; }
 .daytime__item--sleep  .daytime__icon { background: #ede9fe; }
-.daytime__title { min-width: 0; }
-.daytime__time { font-size: 13px; font-weight: 800; color: var(--ink); }
-.daytime__amount { font-size: 12.5px; font-weight: 700; color: var(--muted); margin-top: 1px; line-height: 1.3; }
-.daytime__ops { margin-left: auto; display: flex; gap: 5px; flex: none; }
+.daytime__title { min-width: 0; flex: 1; }
+.daytime__time { font-size: 12.5px; font-weight: 800; color: var(--ink); }
+.daytime__amount { font-size: 12px; font-weight: 700; color: var(--muted); margin-top: 1px; line-height: 1.3; }
+.daytime__ops { display: flex; flex-direction: column; gap: 4px; flex: none; }
 .daytime__op {
-  width: 28px; height: 28px; border-radius: 8px; border: 1px solid var(--line);
+  width: 26px; height: 26px; border-radius: 7px; border: 1px solid var(--line);
   background: #fff; color: var(--muted); display: grid; place-items: center; cursor: pointer;
   transition: all .15s;
 }
 .daytime__op:hover { color: var(--ink); border-color: var(--primary-soft); }
 .daytime__op--del:hover { color: var(--coral); border-color: var(--coral); }
 .daytime__note {
-  font-size: 12px; color: var(--ink-soft); line-height: 1.5;
-  background: #fff; border-radius: 8px; padding: 6px 8px;
+  font-size: 11.5px; color: var(--ink-soft); line-height: 1.45;
+  background: #fff; border-radius: 7px; padding: 5px 7px;
+  display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden;
 }
 .daytime__empty {
   font-size: 13px; color: var(--muted); text-align: center;
@@ -1041,6 +1062,7 @@ body { display: block; background: #eef3f1; }
   .feed__log-field { flex: initial; min-width: 0; }
   .feed__log-field--note { grid-column: 1 / -1; }
   .feed__log-tabs { grid-column: 1 / -1; }
+  .feed__log-sleep { grid-column: 1 / -1; }
   .feed__log-field .input--sm,
   .feed__log-field .dropdown,
   .feed__log-field .timepicker { width: 100%; }

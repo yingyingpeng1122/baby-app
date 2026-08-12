@@ -167,10 +167,16 @@ function GrowthChart({ records, metric, gender, birthday }) {
 
 // ============ 体温曲线图（SVG）============
 function TempChart({ records }) {
-  const W = 680, H = 260;
-  const padL = 36, padR = 14, padT = 14, padB = 30;
+  const W = 680, H = 286;
+  const padL = 36, padR = 14, padT = 14, padB = 56;
   const plotW = W - padL - padR, plotH = H - padT - padB;
   const vMin = 35.5, vMax = 41;
+  // 横轴时间标签：月-日 时:分（跨天也能区分日期）
+  const fmtAxis = (dt) => {
+    const s = (dt || '').replace('T', ' ');
+    const m = s.match(/(\d{4})-(\d{2})-(\d{2})\s+(\d{2}):(\d{2})/);
+    return m ? `${m[2]}-${m[3]} ${m[4]}:${m[5]}` : s;
+  };
   const pts = [...records]
     .map(r => ({ t: new Date(r.datetime.replace(' ', 'T')), v: r.temp, dt: r.datetime, note: r.note }))
     .filter(p => !isNaN(p.t))
@@ -180,8 +186,10 @@ function TempChart({ records }) {
   const yOf = v => padT + plotH - ((v - vMin) / (vMax - vMin)) * plotH;
   const linePath = pts.map((p, i) => `${i ? 'L' : 'M'}${xOf(i).toFixed(1)},${yOf(p.v).toFixed(1)}`).join(' ');
   const yTicks = [36, 37, 38, 39, 40];
+  const axisY = padT + plotH;
   return (
     <svg className="chart-svg" viewBox={`0 0 ${W} ${H}`} role="img" aria-label="体温曲线">
+      {/* 横向网格 + Y 轴刻度（体温 °C） */}
       {yTicks.map(t => (
         <g key={t}>
           <line x1={padL} y1={yOf(t)} x2={W - padR} y2={yOf(t)} stroke="var(--line)" strokeWidth="1" />
@@ -194,10 +202,16 @@ function TempChart({ records }) {
       <text x={W - padR} y={yOf(38) - 4} textAnchor="end" className="chart-thr chart-thr--warn">发热 38°C</text>
       <text x={W - padR} y={yOf(39.4) - 4} textAnchor="end" className="chart-thr chart-thr--danger">就医 39.4°C</text>
       {n > 0 && <path d={linePath} fill="none" stroke="#ef4444" strokeWidth="2.5" />}
+      {/* X 轴基线 + 每个测量点的时间标签（体现时间轴） */}
+      <line x1={padL} y1={axisY} x2={W - padR} y2={axisY} stroke="var(--ink-soft)" strokeWidth="1.5" />
       {pts.map((p, i) => (
-        <circle key={i} cx={xOf(i)} cy={yOf(p.v)} r="4" fill={p.v >= 38 ? '#ef4444' : '#f59e0b'} stroke="#fff" strokeWidth="1.5">
-          <title>{p.dt} · {p.v}°C{p.note ? ' · ' + p.note : ''}</title>
-        </circle>
+        <g key={i}>
+          <line x1={xOf(i)} y1={axisY} x2={xOf(i)} y2={axisY + 4} stroke="var(--ink-soft)" strokeWidth="1" />
+          <text x={xOf(i)} y={axisY + 18} textAnchor="middle" className="chart-axis chart-axis--x">{fmtAxis(p.dt)}</text>
+          <circle cx={xOf(i)} cy={yOf(p.v)} r="4" fill={p.v >= 38 ? '#ef4444' : '#f59e0b'} stroke="#fff" strokeWidth="1.5">
+            <title>{p.dt} · {p.v}°C{p.note ? ' · ' + p.note : ''}</title>
+          </circle>
+        </g>
       ))}
     </svg>
   );
@@ -1016,14 +1030,14 @@ export default function BabyAppFullStack() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          datetime: tempDraft.datetime || nowDateTime(),
+          datetime: (tempDraft.datetime || nowDateTime()).replace('T', ' ').slice(0, 16),
           temp: t,
           note: tempDraft.note || '',
         }),
       });
       if (!res.ok) { const e = await res.json().catch(() => ({})); throw new Error(e.detail || '保存失败'); }
       await loadTemps();
-      setTempDraft({ temp: '', note: '', datetime: '' });
+      setTempDraft({ temp: '', note: '', datetime: nowDateTime().replace(' ', 'T') });
     } catch (e) { alert('保存体温失败：' + (e.message || '')); }
   };
   const delTemp = async (id) => {
@@ -1730,6 +1744,59 @@ export default function BabyAppFullStack() {
 
 
 
+        {/* 宝宝的一天 · 横向时间轴（置于今日记录上方） */}
+        <Reveal className="section" delay={0.05}>
+          <div className="section__head">
+            <span className="section__ico section__ico--violet"><Sparkles className="icon icon--sm" /></span>
+            <h2 className="section__title">宝宝的一天</h2>
+          </div>
+          <div className="daytime-canvas">
+            <div className="daytime">
+              {(() => {
+                const items = [...feedRecords].sort((a, b) => a.time.localeCompare(b.time));
+                if (items.length === 0) {
+                  return <div className="daytime__empty">今天还没有记录，添加一个喂养 / 换尿布 / 睡觉吧～</div>;
+                }
+                return (
+                  <div className="daytime__inner">
+                    {items.map((r, i) => {
+                      const map = {
+                        milk: { emoji: '🍼', cls: 'milk', typeLabel: '喝奶', amount: r.amount ? `${r.amount}ml` : '' },
+                        solids: { emoji: '🥣', cls: 'solids', typeLabel: '辅食', amount: r.amount ? `${r.amount}g` : '' },
+                        diaper: { emoji: r.kind === 'poop' ? '💩' : r.kind === 'both' ? '💩💧' : '💧', cls: 'diaper', typeLabel: '换尿布', amount: '' },
+                        sleep: { emoji: '😴', cls: 'sleep', typeLabel: '睡觉', amount: r.duration ? fmtDur(r.duration) : '' },
+                      };
+                      const meta = map[r.type] || { emoji: '⏰', cls: '', typeLabel: r.type || '记录', amount: '' };
+                      const sub = r.type === 'solids' && r.foodGroups ? r.foodGroups.split(',').filter(Boolean).join('、') : (r.note || '');
+                      const subTitle = meta.amount ? meta.amount : meta.typeLabel;
+                      const pos = i % 2 === 0 ? 'up' : 'down';
+                      return (
+                        <div key={r.id} className={`daytime__item daytime__item--${pos} daytime__item--${meta.cls}`}>
+                          <span className="daytime__dot" />
+                          <div className="daytime__card">
+                            <div className="daytime__top">
+                              <span className="daytime__icon">{meta.emoji}</span>
+                              <div className="daytime__title">
+                                <div className="daytime__time">{r.time}</div>
+                                <div className="daytime__amount">{subTitle}</div>
+                              </div>
+                              <div className="daytime__ops">
+                                <button className="daytime__op" onClick={() => startEdit(r)} aria-label="编辑"><Pencil className="icon icon--xs" /></button>
+                                <button className="daytime__op daytime__op--del" onClick={() => deleteFeedRecord(r.id)} aria-label="删除"><Trash2 className="icon icon--xs" /></button>
+                              </div>
+                            </div>
+                            {sub && <div className="daytime__note">{sub}</div>}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                );
+              })()}
+            </div>
+          </div>
+        </Reveal>
+
         <Reveal className="section" delay={0.05}>
           <div className="section__head">
             <span className="section__ico section__ico--honey"><Milk className="icon icon--sm" /></span>
@@ -1738,19 +1805,8 @@ export default function BabyAppFullStack() {
           <div className="feed">
             {/* 喂养记录录入 */}
             <div className="feed__log">
-              <div className="feed__log-title">{editingId ? '编辑喂养记录' : '记录今日喂养'}</div>
               <div className="feed__log-form">
-                <div className="feed__log-field">
-                  <label>{feedForm.type === 'sleep' ? '开始时间' : '时间'}</label>
-                  <TimePicker value={feedForm.time} onChange={(v) => setFeedForm({ ...feedForm, time: v })} />
-                </div>
-                {(feedForm.type === 'milk' || feedForm.type === 'solids') && (
-                  <div className="feed__log-field">
-                    <label>喂养量({feedForm.type === 'milk' ? 'ml' : 'g'})</label>
-                    <input type="number" className="input input--sm" placeholder="0" value={feedForm.amount} onChange={(e) => setFeedForm({ ...feedForm, amount: e.target.value })} />
-                  </div>
-                )}
-                {/* 类型 tab：喂养 / 换尿布 / 睡觉 */}
+                {/* 类型 tab：喂养 / 换尿布 / 睡觉，置于最上方 */}
                 <div className="feed__log-tabs">
                   <button type="button" className={`feed__log-tab ${recordTab === 'feed' ? 'feed__log-tab--on' : ''}`} onClick={() => { setRecordTab('feed'); if (feedForm.type !== 'milk' && feedForm.type !== 'solids') setFeedForm({ ...feedForm, type: 'milk' }); }}>
                     <Milk className="icon icon--xs" />喂养
@@ -1762,6 +1818,30 @@ export default function BabyAppFullStack() {
                     <Moon className="icon icon--xs" />睡觉
                   </button>
                 </div>
+                {feedForm.type !== 'sleep' && (
+                  <div className="feed__log-field">
+                    <label>时间</label>
+                    <TimePicker value={feedForm.time} onChange={(v) => setFeedForm({ ...feedForm, time: v })} />
+                  </div>
+                )}
+                {feedForm.type === 'sleep' && (
+                  <div className="feed__log-sleep">
+                    <div className="feed__log-field">
+                      <label>开始时间</label>
+                      <TimePicker value={feedForm.time} onChange={(v) => setFeedForm({ ...feedForm, time: v })} />
+                    </div>
+                    <div className="feed__log-field">
+                      <label>结束时间（可选）</label>
+                      <TimePicker value={feedForm.wakeTime || ''} onChange={(v) => setFeedForm({ ...feedForm, wakeTime: v })} />
+                    </div>
+                  </div>
+                )}
+                {(feedForm.type === 'milk' || feedForm.type === 'solids') && (
+                  <div className="feed__log-field">
+                    <label>喂养量({feedForm.type === 'milk' ? 'ml' : 'g'})</label>
+                    <input type="number" className="input input--sm" placeholder="0" value={feedForm.amount} onChange={(e) => setFeedForm({ ...feedForm, amount: e.target.value })} />
+                  </div>
+                )}
                 {/* 喂养 tab 内：奶 / 辅食 细分 */}
                 {recordTab === 'feed' && (
                   <div className="feed__log-field">
@@ -1800,12 +1880,6 @@ export default function BabyAppFullStack() {
                           onClick={() => setFeedForm({ ...feedForm, kind: o.v })}>{o.l}</button>
                       ))}
                     </div>
-                  </div>
-                )}
-                {feedForm.type === 'sleep' && (
-                  <div className="feed__log-field">
-                    <label>结束时间（可选）</label>
-                    <TimePicker value={feedForm.wakeTime || ''} onChange={(v) => setFeedForm({ ...feedForm, wakeTime: v })} />
                   </div>
                 )}
                 <div className="feed__log-field feed__log-field--note">
@@ -1957,56 +2031,6 @@ export default function BabyAppFullStack() {
           </div>
         </Reveal>
 
-        {/* 宝宝的一天 · 横向时间轴 */}
-        <Reveal className="section" delay={0.05}>
-          <div className="section__head">
-            <span className="section__ico section__ico--violet"><Sparkles className="icon icon--sm" /></span>
-            <h2 className="section__title">宝宝的一天</h2>
-          </div>
-          <div className="daytime">
-            {(() => {
-              const items = [...feedRecords].sort((a, b) => a.time.localeCompare(b.time));
-              if (items.length === 0) {
-                return <div className="daytime__empty">今天还没有记录，添加一个喂养 / 换尿布 / 睡觉吧～</div>;
-              }
-              return (
-                <div className="daytime__inner">
-                  {items.map((r) => {
-                    const map = {
-                      milk: { emoji: '🍼', cls: 'milk', typeLabel: '喝奶', amount: r.amount ? `${r.amount}ml` : '' },
-                      solids: { emoji: '🥣', cls: 'solids', typeLabel: '辅食', amount: r.amount ? `${r.amount}g` : '' },
-                      diaper: { emoji: r.kind === 'poop' ? '💩' : r.kind === 'both' ? '💩💧' : '💧', cls: 'diaper', typeLabel: '换尿布', amount: '' },
-                      sleep: { emoji: '😴', cls: 'sleep', typeLabel: '睡觉', amount: r.duration ? fmtDur(r.duration) : '' },
-                    };
-                    const meta = map[r.type] || { emoji: '⏰', cls: '', typeLabel: r.type || '记录', amount: '' };
-                    const sub = r.type === 'solids' && r.foodGroups ? r.foodGroups.split(',').filter(Boolean).join('、') : (r.note || '');
-                    const subTitle = meta.amount ? `${meta.typeLabel} · ${meta.amount}` : meta.typeLabel;
-                    return (
-                      <div key={r.id} className={`daytime__item daytime__item--${meta.cls}`}>
-                        <span className="daytime__dot" />
-                        <div className="daytime__card">
-                          <div className="daytime__top">
-                            <span className="daytime__icon">{meta.emoji}</span>
-                            <div className="daytime__title">
-                              <div className="daytime__time">{r.time}</div>
-                              <div className="daytime__amount">{subTitle}</div>
-                            </div>
-                            <div className="daytime__ops">
-                              <button className="daytime__op" onClick={() => startEdit(r)} aria-label="编辑"><Pencil className="icon icon--xs" /></button>
-                              <button className="daytime__op daytime__op--del" onClick={() => deleteFeedRecord(r.id)} aria-label="删除"><Trash2 className="icon icon--xs" /></button>
-                            </div>
-                          </div>
-                          {sub && <div className="daytime__note">{sub}</div>}
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              );
-            })()}
-          </div>
-        </Reveal>
-
         {/* 每日照护清单 */}
         <Reveal className="section" delay={0.05}>
           <div className="section__head">
@@ -2104,7 +2128,7 @@ export default function BabyAppFullStack() {
                   <div className="growth__form-row">
                     <div className="feed__log-field">
                       <label>时间</label>
-                      <input type="datetime-local" className="input input--sm" value={tempDraft.datetime} onChange={(e) => setTempDraft({ ...tempDraft, datetime: e.target.value.replace('T', ' ').slice(0, 16) })} />
+                      <input type="datetime-local" className="input input--sm" value={tempDraft.datetime} onChange={(e) => setTempDraft({ ...tempDraft, datetime: e.target.value })} />
                     </div>
                     <div className="feed__log-field">
                       <label>体温(°C)</label>
