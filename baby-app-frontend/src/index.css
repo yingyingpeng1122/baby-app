@@ -681,60 +681,6 @@ body { display: block; background: #eef3f1; }
 .timeline__item--diaper .timeline__label { color: #0e7490; }
 .timeline__item--sleep  .timeline__label { color: #6d28d9; }
 
-/* ===== 今日记录（tab 切换：喂养 / 换尿布 / 睡觉） ===== */
-.rec-tabs { display: flex; gap: 8px; margin: 12px 0 14px; }
-.rec-tab {
-  flex: 1; display: inline-flex; align-items: center; justify-content: center; gap: 5px;
-  padding: 9px 0; font-size: 13px; font-weight: 600; color: var(--muted);
-  background: var(--surface-2); border: 1px solid var(--line); border-radius: 12px;
-  cursor: pointer; transition: all .18s ease;
-}
-.rec-tab:hover { color: var(--ink); border-color: var(--primary); }
-.rec-tab--on {
-  color: #fff; background: var(--primary); border-color: var(--primary);
-  box-shadow: 0 6px 16px rgba(14,147,132,.26);
-}
-.rec-body { display: flex; flex-direction: column; gap: 10px; }
-.rec-empty {
-  padding: 26px 12px; text-align: center; color: var(--muted); font-size: 13px;
-  background: var(--surface-2); border: 1px dashed var(--line); border-radius: 14px;
-}
-.rec-item {
-  display: flex; align-items: flex-start; gap: 12px; padding: 12px;
-  background: #fff; border: 1px solid var(--line); border-radius: 14px;
-}
-.rec-item--editing { border-color: var(--primary); box-shadow: 0 0 0 3px var(--primary-soft); }
-.rec-item__ico { flex: 0 0 auto; }
-.rec-item__ico-bg {
-  display: inline-flex; align-items: center; justify-content: center;
-  width: 34px; height: 34px; border-radius: 10px; font-size: 16px;
-}
-.rec-item__ico-bg--milk, .rec-item__ico-bg--solids { color: var(--primary-600); background: var(--primary-soft); }
-.rec-item__ico-bg--diaper { color: #0e7490; background: #cffafe; }
-.rec-item__ico-bg--sleep  { color: #6d28d9; background: #ede9fe; }
-.rec-item__main { flex: 1 1 auto; min-width: 0; }
-.rec-item__row { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; }
-.rec-item__time { font-weight: 700; font-size: 15px; color: var(--ink); font-variant-numeric: tabular-nums; }
-.rec-item__amt { font-weight: 600; font-size: 14px; color: var(--ink); }
-.rec-item__tag {
-  font-size: 11px; font-weight: 600; padding: 2px 8px; border-radius: 999px;
-  color: var(--primary-600); background: var(--primary-soft);
-}
-.rec-item__tag--diaper { color: #0e7490; background: #cffafe; }
-.rec-item__tag--sleep  { color: #6d28d9; background: #ede9fe; }
-.rec-item__sub {
-  margin-top: 4px; font-size: 12.5px; color: var(--muted); line-height: 1.5;
-  overflow-wrap: break-word;
-}
-.rec-item__ops { flex: 0 0 auto; display: flex; flex-direction: column; gap: 6px; }
-.rec-item__op {
-  display: inline-flex; align-items: center; justify-content: center;
-  width: 30px; height: 30px; border-radius: 9px; color: var(--muted);
-  background: var(--surface-2); border: 1px solid var(--line); cursor: pointer; transition: all .15s;
-}
-.rec-item__op:hover { color: var(--primary); border-color: var(--primary); }
-.rec-item__op--del:hover { color: #fff; background: var(--coral); border-color: var(--coral); }
-
 /* ---------- 辅食三项评估（WHO 口径） ---------- */
 .feed__eval-solids {
   display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px;
@@ -1003,12 +949,6 @@ body { display: block; background: #eef3f1; }
   /* 月报数字在小屏略缩，避免三列拥挤 */
   .feed-monthly__num { font-size: 22px; }
   .feed-monthly__item { padding: 10px 4px; }
-
-  /* 今日记录 tab + 列表窄屏适配 */
-  .rec-tabs { margin: 10px 0 12px; }
-  .rec-tab { padding: 8px 0; font-size: 12px; gap: 4px; }
-  .rec-item { padding: 11px; gap: 10px; }
-  .rec-item__ico-bg { width: 32px; height: 32px; }
 }
 
 /* ---------- 阶段提醒 ---------- */

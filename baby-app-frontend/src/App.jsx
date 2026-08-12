@@ -514,8 +514,6 @@ export default function BabyAppFullStack() {
   const [feedForm, setFeedForm] = useState({ time: nowHM(), amount: '', type: 'milk', note: '', foodGroups: [], kind: '', duration: 0, wakeTime: '' });
   const [feedLoading, setFeedLoading] = useState(false);
   const [editingId, setEditingId] = useState(null);
-  // 今日记录 tab：feed / diaper / sleep
-  const [recordTab, setRecordTab] = useState('feed');
   // 每日照护清单
   const [checklist, setChecklist] = useState([]);
   // 照护日历
@@ -1433,6 +1431,29 @@ export default function BabyAppFullStack() {
               </div>
             </div>
 
+            {/* 今日记录列表 */}
+            {feedRecords.some(r => r.type === 'milk' || r.type === 'solids') && (
+              <div className="feed__records">
+                <div className="feed__records-title">今日喂养记录</div>
+                <div className="feed__records-list">
+                  {feedRecords.filter(r => r.type === 'milk' || r.type === 'solids').map((r) => (
+                    <div key={r.id} className={`feed__record ${editingId === r.id ? 'feed__record--editing' : ''}`}>
+                      <span className="feed__record-time">{r.time}</span>
+                      <span className="feed__record-amount">{r.amount}{r.type === 'milk' ? 'ml' : 'g'}</span>
+                      <span className={`feed__record-type feed__record-type--${r.type}`}>{r.type === 'milk' ? '奶' : '辅食'}</span>
+                      {r.note && <span className="feed__record-note">{r.note}</span>}
+                      <button className="feed__record-edit" onClick={() => startEdit(r)} aria-label="编辑">
+                        <Pencil className="icon icon--xs" />
+                      </button>
+                      <button className="feed__record-del" onClick={() => deleteFeedRecord(r.id)} aria-label="删除">
+                        <Trash2 className="icon icon--xs" />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
             {/* 喂养评估 */}
             {feedEval && (
               <div className={`feed__eval feed__eval--${feedEval.status}`}>
@@ -1515,87 +1536,44 @@ export default function BabyAppFullStack() {
           </div>
         </Reveal>
 
-        {/* 今日记录（tab 切换：喂养 / 换尿布 / 睡觉） */}
+        {/* 今日活动 · 时间轴 */}
         <Reveal className="section" delay={0.05}>
           <div className="section__head">
             <span className="section__ico section__ico--violet"><Clock className="icon icon--sm" /></span>
-            <h2 className="section__title">今日记录</h2>
+            <h2 className="section__title">今日活动</h2>
           </div>
-          <div className="rec-tabs">
-            <button className={`rec-tab ${recordTab === 'feed' ? 'rec-tab--on' : ''}`} onClick={() => setRecordTab('feed')}>
-              <Milk className="icon icon--xs" />喂养
-            </button>
-            <button className={`rec-tab ${recordTab === 'diaper' ? 'rec-tab--on' : ''}`} onClick={() => setRecordTab('diaper')}>
-              <Baby className="icon icon--xs" />换尿布
-            </button>
-            <button className={`rec-tab ${recordTab === 'sleep' ? 'rec-tab--on' : ''}`} onClick={() => setRecordTab('sleep')}>
-              <Moon className="icon icon--xs" />睡觉
-            </button>
-          </div>
-          <div className="rec-body">
-            {recordTab === 'feed' && (() => {
-              const list = feedRecords.filter(r => r.type === 'milk' || r.type === 'solids').sort((a, b) => a.time.localeCompare(b.time));
-              if (list.length === 0) return <div className="rec-empty">今天还没有喂养记录</div>;
-              return list.map((r) => (
-                <div key={r.id} className={`rec-item rec-item--${r.type} ${editingId === r.id ? 'rec-item--editing' : ''}`}>
-                  <div className="rec-item__ico"><span className={`rec-item__ico-bg rec-item__ico-bg--${r.type}`}>{r.type === 'milk' ? <Milk className="icon icon--xs" /> : <Utensils className="icon icon--xs" />}</span></div>
-                  <div className="rec-item__main">
-                    <div className="rec-item__row">
-                      <span className="rec-item__time">{r.time}</span>
-                      <span className="rec-item__amt">{r.amount}{r.type === 'milk' ? 'ml' : 'g'}</span>
-                      <span className={`rec-item__tag rec-item__tag--${r.type}`}>{r.type === 'milk' ? '奶' : '辅食'}</span>
+          <div className="timeline">
+            {(() => {
+              const items = [...feedRecords].sort((a, b) => a.time.localeCompare(b.time));
+              if (items.length === 0) {
+                return <div className="timeline__empty">今天还没有记录，添加一个喂养 / 换尿布 / 睡觉吧～</div>;
+              }
+              return items.map((r) => {
+                const map = {
+                  milk: { ico: <Milk className="icon icon--xs" />, cls: 'milk', label: `喂奶 ${r.amount}ml` },
+                  solids: { ico: <Utensils className="icon icon--xs" />, cls: 'solids', label: `辅食 ${r.amount}g` },
+                  diaper: { ico: <Baby className="icon icon--xs" />, cls: 'diaper', label: `换尿布 · ${r.kind === 'poop' ? '屎' : r.kind === 'both' ? '屎+尿' : '尿'}` },
+                  sleep: { ico: <Moon className="icon icon--xs" />, cls: 'sleep', label: r.duration ? `睡觉 ${fmtDur(r.duration)}` : '睡觉' },
+                };
+                const meta = map[r.type] || { ico: <Clock className="icon icon--xs" />, cls: '', label: r.type };
+                const sub = r.type === 'solids' && r.foodGroups ? r.foodGroups.split(',').filter(Boolean).join('、') : (r.note || '');
+                return (
+                  <div key={r.id} className={`timeline__item timeline__item--${meta.cls}`}>
+                    <div className="timeline__dot"><span className="timeline__ico">{meta.ico}</span></div>
+                    <div className="timeline__content">
+                      <div className="timeline__row">
+                        <span className="timeline__time">{r.time}</span>
+                        <span className="timeline__label">{meta.label}</span>
+                      </div>
+                      {sub && <div className="timeline__sub">{sub}</div>}
                     </div>
-                    {r.type === 'solids' && r.foodGroups && <div className="rec-item__sub">{r.foodGroups.split(',').filter(Boolean).join('、')}</div>}
-                    {r.note && <div className="rec-item__sub">{r.note}</div>}
-                  </div>
-                  <div className="rec-item__ops">
-                    <button className="rec-item__op" onClick={() => startEdit(r)} aria-label="编辑"><Pencil className="icon icon--xs" /></button>
-                    <button className="rec-item__op rec-item__op--del" onClick={() => deleteFeedRecord(r.id)} aria-label="删除"><Trash2 className="icon icon--xs" /></button>
-                  </div>
-                </div>
-              ));
-            })()}
-            {recordTab === 'diaper' && (() => {
-              const list = feedRecords.filter(r => r.type === 'diaper').sort((a, b) => a.time.localeCompare(b.time));
-              if (list.length === 0) return <div className="rec-empty">今天还没有换尿布记录</div>;
-              return list.map((r) => (
-                <div key={r.id} className={`rec-item rec-item--diaper ${editingId === r.id ? 'rec-item--editing' : ''}`}>
-                  <div className="rec-item__ico"><span className="rec-item__ico-bg rec-item__ico-bg--diaper"><Baby className="icon icon--xs" /></span></div>
-                  <div className="rec-item__main">
-                    <div className="rec-item__row">
-                      <span className="rec-item__time">{r.time}</span>
-                      <span className={`rec-item__tag rec-item__tag--diaper`}>换尿布</span>
-                      <span className="rec-item__amt">{r.kind === 'poop' ? '屎' : r.kind === 'both' ? '屎+尿' : '尿'}</span>
+                    <div className="timeline__ops">
+                      <button className="timeline__op" onClick={() => startEdit(r)} aria-label="编辑"><Pencil className="icon icon--xs" /></button>
+                      <button className="timeline__op timeline__op--del" onClick={() => deleteFeedRecord(r.id)} aria-label="删除"><Trash2 className="icon icon--xs" /></button>
                     </div>
-                    {r.note && <div className="rec-item__sub">{r.note}</div>}
                   </div>
-                  <div className="rec-item__ops">
-                    <button className="rec-item__op" onClick={() => startEdit(r)} aria-label="编辑"><Pencil className="icon icon--xs" /></button>
-                    <button className="rec-item__op rec-item__op--del" onClick={() => deleteFeedRecord(r.id)} aria-label="删除"><Trash2 className="icon icon--xs" /></button>
-                  </div>
-                </div>
-              ));
-            })()}
-            {recordTab === 'sleep' && (() => {
-              const list = feedRecords.filter(r => r.type === 'sleep').sort((a, b) => a.time.localeCompare(b.time));
-              if (list.length === 0) return <div className="rec-empty">今天还没有睡觉记录</div>;
-              return list.map((r) => (
-                <div key={r.id} className={`rec-item rec-item--sleep ${editingId === r.id ? 'rec-item--editing' : ''}`}>
-                  <div className="rec-item__ico"><span className="rec-item__ico-bg rec-item__ico-bg--sleep"><Moon className="icon icon--xs" /></span></div>
-                  <div className="rec-item__main">
-                    <div className="rec-item__row">
-                      <span className="rec-item__time">{r.time}</span>
-                      <span className={`rec-item__tag rec-item__tag--sleep`}>睡觉</span>
-                      {r.duration ? <span className="rec-item__amt">{fmtDur(r.duration)}</span> : null}
-                    </div>
-                    {r.note && <div className="rec-item__sub">{r.note}</div>}
-                  </div>
-                  <div className="rec-item__ops">
-                    <button className="rec-item__op" onClick={() => startEdit(r)} aria-label="编辑"><Pencil className="icon icon--xs" /></button>
-                    <button className="rec-item__op rec-item__op--del" onClick={() => deleteFeedRecord(r.id)} aria-label="删除"><Trash2 className="icon icon--xs" /></button>
-                  </div>
-                </div>
-              ));
+                );
+              });
             })()}
           </div>
         </Reveal>
