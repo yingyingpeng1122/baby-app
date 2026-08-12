@@ -731,6 +731,10 @@ export default function BabyAppFullStack() {
   const [feedingCalendarData, setFeedingCalendarData] = useState(null);
   const [feedingCalendarDate, setFeedingCalendarDate] = useState({ year: new Date().getFullYear(), month: new Date().getMonth() + 1 });
   const [feedingDetail, setFeedingDetail] = useState(null); // { date, records }
+  // 生病日历
+  const [sickCalendarOpen, setSickCalendarOpen] = useState(false);
+  const [sickCalendarData, setSickCalendarData] = useState(null);
+  const [sickCalendarDate, setSickCalendarDate] = useState({ year: new Date().getFullYear(), month: new Date().getMonth() + 1 });
   const [feedingStats, setFeedingStats] = useState(null);
   const [devOpen, setDevOpen] = useState(false); // 发育概况折叠（必须放在提前 return 之前，遵守 hooks 规则）
   // 成长记录（身高体重）
@@ -740,10 +744,17 @@ export default function BabyAppFullStack() {
   const [editingGrowthId, setEditingGrowthId] = useState(null);
   const [growthHistoryOpen, setGrowthHistoryOpen] = useState(false);
   // 生病模式：体温记录
-  const [sickMode, setSickMode] = useState(false);
+  const [sickMode, setSickMode] = useState(() => {
+    try { return localStorage.getItem('babyapp_sickmode') === '1'; } catch { return false; }
+  });
   const [tempRecords, setTempRecords] = useState([]);
-  const [tempDraft, setTempDraft] = useState({ temp: '', note: '', datetime: '', symptoms: [] });
+  const [tempDraft, setTempDraft] = useState({ temp: '', note: '', datetime: nowDateTime().replace(' ', 'T'), symptoms: [] });
   const TEMP_SYMPTOMS = ['咳嗽', '流涕', '呕吐', '腹泻', '精神差', '已用药'];
+  // 生病模式开关持久化：下次进入仍保持开启
+  const persistSickMode = (next) => {
+    setSickMode(next);
+    try { localStorage.setItem('babyapp_sickmode', next ? '1' : '0'); } catch {}
+  };
 
   // 同步 currentBabyId 到模块级变量
   useEffect(() => { _currentBabyId = currentBabyId; }, [currentBabyId]);
@@ -1093,6 +1104,33 @@ export default function BabyAppFullStack() {
         setFeedingDetail({ date: dateStr, records });
       }
     } catch (e) { console.error('fetch feeding detail failed', e); }
+  };
+
+  // 生病日历
+  const fetchSicknessCalendar = async (year, month) => {
+    try {
+      const res = await apiFetch(`${API_BASE}/sickness-calendar?year=${year}&month=${month}`);
+      if (res.ok) setSickCalendarData(await res.json());
+    } catch (e) { console.error('fetch sickness calendar failed', e); }
+  };
+
+  const openSicknessCalendar = () => {
+    const now = new Date();
+    const y = now.getFullYear(), m = now.getMonth() + 1;
+    setSickCalendarDate({ year: y, month: m });
+    fetchSicknessCalendar(y, m);
+    setSickCalendarOpen(true);
+  };
+
+  const changeSicknessCalendarMonth = (delta) => {
+    setSickCalendarDate(prev => {
+      let { year, month } = prev;
+      month += delta;
+      if (month < 1) { year--; month = 12; }
+      if (month > 12) { year++; month = 1; }
+      fetchSicknessCalendar(year, month);
+      return { year, month };
+    });
   };
 
   const openFeedingCalendar = () => {
@@ -1805,7 +1843,10 @@ export default function BabyAppFullStack() {
                         </div>
                       )}
                       {f.videoTip && (
-                        <div className="feed__tip-inline"><Lightbulb className="icon icon--xs" /> {f.videoTip}</div>
+                        <div className="feed__block">
+                          <span className="feed__tile feed__tile--honey"><Lightbulb className="icon" /></span>
+                          <div><div className="feed__k">提示</div><div className="feed__v">{f.videoTip}</div></div>
+                        </div>
                       )}
                     </div>
                   )}
@@ -2014,18 +2055,19 @@ export default function BabyAppFullStack() {
             <button
               type="button"
               className={`sick-toggle ${sickMode ? 'is-on' : ''}`}
-              onClick={() => setSickMode(v => !v)}
+              onClick={() => persistSickMode(!sickMode)}
               aria-pressed={sickMode}
             >
               <span className="sick-toggle__track"><span className="sick-toggle__dot" /></span>
               {sickMode ? '已开启' : '开启'}
             </button>
+            <button className="btn btn--ghost btn--sm sick-calendar-btn" onClick={openSicknessCalendar}><Calendar className="icon icon--xs" /> 查看生病日历</button>
           </div>
 
           {!sickMode ? (
             <div className="sick__hint">
               <p>宝宝不舒服时开启，记录体温变化、查看是否需要就医，并每隔 4 小时提醒复测。</p>
-              <button type="button" className="btn btn--ghost btn--sm" onClick={() => setSickMode(true)}>🤒 开启生病模式</button>
+              <button type="button" className="btn btn--ghost btn--sm" onClick={() => persistSickMode(true)}>🤒 开启生病模式</button>
             </div>
           ) : (() => {
             const latest = tempRecords[0]; // 因后端按时间倒序
@@ -2052,12 +2094,12 @@ export default function BabyAppFullStack() {
                 <div className="growth__form">
                   <div className="growth__form-row">
                     <div className="feed__log-field">
-                      <label>体温(°C)</label>
-                      <input type="number" step="0.1" className="input input--sm" placeholder="如 38.5" value={tempDraft.temp} onChange={(e) => setTempDraft({ ...tempDraft, temp: e.target.value })} />
-                    </div>
-                    <div className="feed__log-field">
                       <label>时间</label>
                       <input type="datetime-local" className="input input--sm" value={tempDraft.datetime} onChange={(e) => setTempDraft({ ...tempDraft, datetime: e.target.value.replace('T', ' ').slice(0, 16) })} />
+                    </div>
+                    <div className="feed__log-field">
+                      <label>体温(°C)</label>
+                      <input type="number" step="0.1" className="input input--sm" placeholder="如 38.5" value={tempDraft.temp} onChange={(e) => setTempDraft({ ...tempDraft, temp: e.target.value })} />
                     </div>
                   </div>
                   <div className="feed__log-field feed__log-field--note">
@@ -2208,6 +2250,28 @@ export default function BabyAppFullStack() {
                 <button className="cal-month-nav__btn" onClick={() => changeFeedingCalendarMonth(1)}><ChevronRight className="icon icon--sm" /></button>
               </div>
               </div>
+
+              {/* 月度统计（月报）放在最上面 */}
+              {feedingStats && (
+                <div className="feed-monthly">
+                  <div className="feed-monthly__title">📊 {feedingCalendarDate.year}年{feedingCalendarDate.month}月喂养月报</div>
+                  <div className="feed-monthly__grid">
+                    <div className="feed-monthly__item feed-monthly__item--good">
+                      <span className="feed-monthly__num">{feedingStats.goodDays}</span>
+                      <span className="feed-monthly__label">充足天数</span>
+                    </div>
+                    <div className="feed-monthly__item feed-monthly__item--low">
+                      <span className="feed-monthly__num">{feedingStats.lowDays}</span>
+                      <span className="feed-monthly__label">不足天数</span>
+                    </div>
+                    <div className="feed-monthly__item feed-monthly__item--high">
+                      <span className="feed-monthly__num">{feedingStats.highDays}</span>
+                      <span className="feed-monthly__label">超出天数</span>
+                    </div>
+                  </div>
+                </div>
+              )}
+
               <div className="cal-weekdays">
                 {['日','一','二','三','四','五','六'].map(d => <span key={d} className="cal-weekdays__day">{d}</span>)}
               </div>
@@ -2309,48 +2373,120 @@ export default function BabyAppFullStack() {
                 </div>
               )}
 
-              {/* 月度统计（精简：仅 充足 / 不足 / 超出 天数） */}
-              {feedingStats && (
-                <div className="feed-monthly">
-                  <div className="feed-monthly__title">📊 {feedingCalendarDate.year}年{feedingCalendarDate.month}月喂养月报</div>
-                  <div className="feed-monthly__grid">
-                    <div className="feed-monthly__item feed-monthly__item--good">
-                      <span className="feed-monthly__num">{feedingStats.goodDays}</span>
-                      <span className="feed-monthly__label">充足天数</span>
-                    </div>
-                    <div className="feed-monthly__item feed-monthly__item--low">
-                      <span className="feed-monthly__num">{feedingStats.lowDays}</span>
-                      <span className="feed-monthly__label">不足天数</span>
-                    </div>
-                    <div className="feed-monthly__item feed-monthly__item--high">
-                      <span className="feed-monthly__num">{feedingStats.highDays}</span>
-                      <span className="feed-monthly__label">超出天数</span>
+              {/* 本月每日奶量柱形图（放在最下方） */}
+              {feedingCalendarData?.dailyMilk && feedingCalendarData.dailyMilk.length > 0 && (() => {
+                const dm = feedingCalendarData.dailyMilk;
+                const maxMilk = Math.max(1, ...dm);
+                return (
+                  <div className="feed-chart">
+                    <div className="feed-chart__title">📈 本月每日奶量(ml)</div>
+                    <div className="feed-chart__bars">
+                      {dm.map((milk, i) => {
+                        const day = i + 1;
+                        const lvl = feedingCalendarData.days?.[String(day)]?.level || 'empty';
+                        const barH = Math.max(milk > 0 ? 4 : 2, Math.round((milk / maxMilk) * 96));
+                        return (
+                          <div key={day} className="feed-chart__col" title={`${day}日 ${milk}ml`}>
+                            {milk > 0 && <span className="feed-chart__val">{milk}</span>}
+                            <div className={`feed-chart__bar feed-chart__bar--${lvl}`} style={{ height: `${barH}px` }}></div>
+                            <span className="feed-chart__x">{day}</span>
+                          </div>
+                        );
+                      })}
                     </div>
                   </div>
-                  {/* 本月每日奶量柱形图 */}
-                  {feedingCalendarData?.dailyMilk && feedingCalendarData.dailyMilk.length > 0 && (() => {
-                    const dm = feedingCalendarData.dailyMilk;
-                    const maxMilk = Math.max(1, ...dm);
-                    return (
-                      <div className="feed-chart">
-                        <div className="feed-chart__title">📈 本月每日奶量(ml)</div>
-                        <div className="feed-chart__bars">
-                          {dm.map((milk, i) => {
-                            const day = i + 1;
-                            const lvl = feedingCalendarData.days?.[String(day)]?.level || 'empty';
-                            const barH = Math.max(milk > 0 ? 4 : 2, Math.round((milk / maxMilk) * 96));
-                            return (
-                              <div key={day} className="feed-chart__col" title={`${day}日 ${milk}ml`}>
-                                {milk > 0 && <span className="feed-chart__val">{milk}</span>}
-                                <div className={`feed-chart__bar feed-chart__bar--${lvl}`} style={{ height: `${barH}px` }}></div>
-                                <span className="feed-chart__x">{day}</span>
-                              </div>
-                            );
-                          })}
-                        </div>
+                );
+              })()}
+            </div>
+          </div>
+        )}
+
+        {/* 生病日历弹窗 */}
+        {sickCalendarOpen && (
+          <div className="cal-overlay" onClick={(e) => { if (e.target === e.currentTarget) setSickCalendarOpen(false); }}>
+            <div className="cal-modal" style={{ maxWidth: '480px' }}>
+              <div className="cal-modal__sticky">
+                <div className="cal-modal__head">
+                  <h3 className="cal-modal__title"><Thermometer className="icon icon--sm" /> 生病日历</h3>
+                  <button className="cal-modal__close" onClick={() => setSickCalendarOpen(false)}><X className="icon icon--sm" /></button>
+                </div>
+                <div className="cal-month-nav">
+                  <button className="cal-month-nav__btn" onClick={() => changeSicknessCalendarMonth(-1)}><ChevronLeft className="icon icon--sm" /></button>
+                  <span className="cal-month-nav__label">{sickCalendarDate.year}年{sickCalendarDate.month}月</span>
+                  <button className="cal-month-nav__btn" onClick={() => changeSicknessCalendarMonth(1)}><ChevronRight className="icon icon--sm" /></button>
+                </div>
+              </div>
+
+              {/* 月报（顶部） */}
+              {sickCalendarData && (
+                <div className="feed-monthly">
+                  <div className="feed-monthly__title">🌡️ {sickCalendarDate.year}年{sickCalendarDate.month}月生病月报</div>
+                  <div className="feed-monthly__grid">
+                    <div className="feed-monthly__item feed-monthly__item--sick">
+                      <span className="feed-monthly__num">{sickCalendarData.sickDays}</span>
+                      <span className="feed-monthly__label">生病天数</span>
+                    </div>
+                    <div className="feed-monthly__item feed-monthly__item--fever">
+                      <span className="feed-monthly__num">{sickCalendarData.feverDays}</span>
+                      <span className="feed-monthly__label">发烧天数</span>
+                    </div>
+                    <div className="feed-monthly__item feed-monthly__item--dur">
+                      <span className="feed-monthly__num">{sickCalendarData.currentDuration}</span>
+                      <span className="feed-monthly__label">本次持续(天)</span>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              <div className="cal-weekdays">
+                {['日','一','二','三','四','五','六'].map(d => <span key={d} className="cal-weekdays__day">{d}</span>)}
+              </div>
+              {(() => {
+                const { year, month } = sickCalendarDate;
+                const firstDay = new Date(year, month - 1, 1).getDay();
+                const daysInMonth = new Date(year, month, 0).getDate();
+                const today = new Date();
+                const todayStr = `${today.getFullYear()}-${String(today.getMonth()+1).padStart(2,'0')}-${String(today.getDate()).padStart(2,'0')}`;
+                const cells = [];
+                for (let i = 0; i < firstDay; i++) cells.push(<span key={`se${i}`} className="cal-cell cal-cell--empty" />);
+                for (let d = 1; d <= daysInMonth; d++) {
+                  const dateStr = `${year}-${String(month).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+                  const info = sickCalendarData?.days?.[String(d)];
+                  const isToday = dateStr === todayStr;
+                  const level = info?.level || 'empty';
+                  const hasData = level === 'fever' || level === 'normal';
+                  cells.push(
+                    <div key={d} className={`cal-cell ${isToday ? 'is-today' : ''} ${level === 'future' ? 'is-future' : ''} ${hasData ? 'has-data' : ''}`}
+                      title={level === 'fever' ? `发烧 ${info.maxTemp}°C` : level === 'normal' ? `记录体温 ${info.maxTemp}°C` : level === 'future' ? '未来日期' : '无记录'}>
+                      <span className="cal-cell__num">{d}</span>
+                      {level !== 'future' && level !== 'empty' && (
+                        <span className={`cal-cell__dot cal-cell__dot--sick-${level}`} />
+                      )}
+                      {level === 'empty' && <span className="cal-cell__dot cal-cell__dot--none" />}
+                    </div>
+                  );
+                }
+                return <div className="cal-grid">{cells}</div>;
+              })()}
+              <div className="cal-legend">
+                <span className="cal-legend__item"><span className="cal-cell__dot cal-cell__dot--sick-fever" /> 发烧</span>
+                <span className="cal-legend__item"><span className="cal-cell__dot cal-cell__dot--sick-normal" /> 记录体温</span>
+                <span className="cal-legend__item"><span className="cal-cell__dot cal-cell__dot--none" /> 无记录</span>
+              </div>
+
+              {/* 生病区间与持续时长 */}
+              {sickCalendarData?.episodes?.length > 0 && (
+                <div className="sick-episodes">
+                  <div className="sick-episodes__title">🩹 生病区间（持续时长）</div>
+                  <div className="sick-episodes__list">
+                    {sickCalendarData.episodes.map((ep, i) => (
+                      <div key={i} className="sick-episode">
+                        <span className="sick-episode__range">{sickCalendarDate.month}月{ep.start}日 – {ep.end}日</span>
+                        <span className="sick-episode__dur">共 {ep.days} 天</span>
+                        <span className="sick-episode__max">最高 {ep.maxTemp}°C</span>
                       </div>
-                    );
-                  })()}
+                    ))}
+                  </div>
                 </div>
               )}
             </div>

@@ -1442,6 +1442,82 @@ async def get_feeding_stats_monthly(request: Request, year: int = Query(...), mo
         "pastDays": past_days,
     }
 
+@app.get("/sickness-calendar")
+async def get_sickness_calendar(request: Request, year: int = Query(...), month: int = Query(...)):
+    """返回指定月份每天的体温/生病情况，以及生病区间（连续有记录的日期）与持续天数。"""
+    bid = get_baby_id(request)
+    _, num_days = _calendar.monthrange(year, month)
+    today = date.today()
+    rs = db.execute(
+        "SELECT datetime, temp FROM temperature_records WHERE baby_id = ? AND datetime LIKE ?",
+        [bid, f"{year:04d}-{month:02d}-%"]).fetchall()
+
+    day_map = {}
+    for r in rs:
+        dt = r[0] or ''
+        try:
+            d = int(dt[8:10])
+        except (ValueError, IndexError):
+            continue
+        t = r[1] or 0
+        if d not in day_map:
+            day_map[d] = {"max_temp": t, "count": 0}
+        day_map[d]["count"] += 1
+        if t > day_map[d]["max_temp"]:
+            day_map[d]["max_temp"] = t
+
+    days = {}
+    sick_days = 0
+    fever_days = 0
+    for d in range(1, num_days + 1):
+        dm = day_map.get(d, {})
+        count = dm.get("count", 0)
+        max_temp = dm.get("max_temp", 0)
+        is_future = date(year, month, d) > today
+        if is_future:
+            level = 'future'
+        elif count == 0:
+            level = 'empty'
+        elif max_temp >= 38:
+            level = 'fever'
+            sick_days += 1
+            fever_days += 1
+        else:
+            level = 'normal'
+            sick_days += 1
+        days[str(d)] = {"level": level, "maxTemp": round(max_temp, 1), "count": count}
+
+    # 计算生病区间：连续有记录的日期归为一个区间
+    sick_day_nums = sorted([d for d in range(1, num_days + 1) if day_map.get(d, {}).get("count", 0) > 0])
+    episodes = []
+    if sick_day_nums:
+        start = prev = sick_day_nums[0]
+        ep_max = day_map[start]["max_temp"]
+        for d in sick_day_nums[1:]:
+            if d - prev <= 1:
+                prev = d
+                ep_max = max(ep_max, day_map[d]["max_temp"])
+            else:
+                episodes.append({"start": start, "end": prev, "days": prev - start + 1, "maxTemp": round(ep_max, 1)})
+                start = prev = d
+                ep_max = day_map[d]["max_temp"]
+        episodes.append({"start": start, "end": prev, "days": prev - start + 1, "maxTemp": round(ep_max, 1)})
+
+    latest_ep = episodes[-1] if episodes else None
+    current_duration = latest_ep["days"] if latest_ep else 0
+    latest_temp = 0
+    if today.year == year and today.month == month and today.day in day_map:
+        latest_temp = round(day_map[today.day]["max_temp"], 1)
+
+    return {
+        "year": year, "month": month,
+        "days": days,
+        "sickDays": sick_days, "feverDays": fever_days,
+        "episodes": episodes,
+        "currentDuration": current_duration,
+        "latestTemp": latest_temp,
+    }
+
 # ---------------- 每日照护清单 ----------------
 def get_checklist_template(months: int) -> list:
     if months < 6:

@@ -354,14 +354,14 @@ body { display: block; background: #eef3f1; }
 .feed__eval-body { flex: 1; min-width: 0; }
 .feed__eval-title { font-size: 12px; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; color: var(--ink-soft); }
 .feed__advice { margin-top: 14px; }
-.feed__advice-title { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 800; letter-spacing: .04em; color: var(--honey); background: var(--honey-soft); padding: 4px 11px; border-radius: 999px; margin: 0 0 12px 2px; }
+.feed__advice-title { display: flex; align-items: center; gap: 7px; font-size: 15px; font-weight: 800; color: var(--ink); margin: 0 0 12px 2px; }
+.feed__advice-title .icon { color: var(--honey); }
 .feed__advice-card { background: var(--surface); border: 1px solid var(--line); border-radius: var(--r-card); padding: 14px 16px; display: flex; flex-direction: column; gap: 12px; }
 .feed__advice-card .feed__body { padding: 0; }
 .feed__advice-card .feed__interval { margin: 0; }
 .feed__advice-card .feed__foot { margin: 12px 0 0; }
-.feed__stage-row { display: flex; align-items: center; gap: 12px; }
-.feed__stage-row .feed__block { flex: 1 1 auto; }
-.feed__tip-inline { flex: none; max-width: 56%; display: inline-flex; align-items: center; gap: 4px; font-size: 12px; font-weight: 700; line-height: 1.4; color: var(--honey); text-align: right; }
+.feed__stage-row { display: flex; align-items: stretch; gap: 12px; }
+.feed__stage-row .feed__block { flex: 1 1 0; min-width: 0; }
 .feed__tile--honey { background: var(--honey-soft); color: var(--honey); }
 .feed__eval-msg { font-size: 14px; font-weight: 700; color: var(--ink); margin-top: 3px; line-height: 1.45; }
 .feed__eval-stats { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 8px; }
@@ -491,6 +491,8 @@ body { display: block; background: #eef3f1; }
 .cal-cell__dot--feed-low { background: var(--honey); }
 .cal-cell__dot--feed-high { background: var(--coral); }
 .cal-cell__dot--feed-empty { background: var(--line); }
+.cal-cell__dot--sick-fever { background: var(--coral); }
+.cal-cell__dot--sick-normal { background: var(--honey); }
 
 .cal-legend { display: flex; justify-content: center; gap: 16px; margin-top: 12px; padding-top: 10px; border-top: 1px solid var(--line); }
 .cal-legend__item { display: flex; align-items: center; gap: 5px; font-size: 11px; font-weight: 700; color: var(--muted); }
@@ -616,6 +618,22 @@ body { display: block; background: #eef3f1; }
 .feed-monthly__item--good .feed-monthly__num { color: var(--green); }
 .feed-monthly__item--low .feed-monthly__num { color: var(--honey); }
 .feed-monthly__item--high .feed-monthly__num { color: var(--coral); }
+.feed-monthly__item--sick { background: #fee2e2; }
+.feed-monthly__item--sick .feed-monthly__num { color: var(--coral); }
+.feed-monthly__item--fever { background: #ffedd5; }
+.feed-monthly__item--fever .feed-monthly__num { color: #c2410c; }
+.feed-monthly__item--dur { background: var(--honey-soft); }
+.feed-monthly__item--dur .feed-monthly__num { color: var(--honey); }
+
+/* 生病日历：区间与持续时长 */
+.sick-calendar-btn { margin-left: auto; flex: none; gap: 6px; }
+.sick-episodes { margin-top: 12px; background: var(--surface); border: 1px solid var(--line); border-radius: var(--r-card); padding: 12px 14px; }
+.sick-episodes__title { font-size: 13px; font-weight: 800; color: var(--coral); margin-bottom: 8px; }
+.sick-episodes__list { display: flex; flex-direction: column; gap: 6px; }
+.sick-episode { display: flex; align-items: center; gap: 8px; font-size: 12.5px; }
+.sick-episode__range { font-weight: 700; color: var(--ink); }
+.sick-episode__dur { color: var(--coral); font-weight: 800; }
+.sick-episode__max { color: var(--muted); margin-left: auto; }
 
 /* ===== 月报 · 每日奶量柱形图 ===== */
 .feed-chart { margin-top: 16px; }
