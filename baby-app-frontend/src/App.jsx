@@ -514,6 +514,8 @@ export default function BabyAppFullStack() {
   const [feedForm, setFeedForm] = useState({ time: nowHM(), amount: '', type: 'milk', note: '', foodGroups: [], kind: '', duration: 0, wakeTime: '' });
   const [feedLoading, setFeedLoading] = useState(false);
   const [editingId, setEditingId] = useState(null);
+  // 录入表单类型 tab：feed / diaper / sleep
+  const [recordTab, setRecordTab] = useState('feed');
   // 每日照护清单
   const [checklist, setChecklist] = useState([]);
   // 照护日历
@@ -889,6 +891,7 @@ export default function BabyAppFullStack() {
       duration: r.duration || 0,
       wakeTime: (r.type === 'sleep' && r.duration) ? addMinutesHM(r.time, r.duration) : '',
     });
+    setRecordTab(r.type === 'diaper' ? 'diaper' : r.type === 'sleep' ? 'sleep' : 'feed');
   };
 
   const cancelEdit = () => {
@@ -1361,19 +1364,28 @@ export default function BabyAppFullStack() {
                     <input type="number" className="input input--sm" placeholder="0" value={feedForm.amount} onChange={(e) => setFeedForm({ ...feedForm, amount: e.target.value })} />
                   </div>
                 )}
-                <div className="feed__log-field">
-                  <label>类型</label>
-                  <Dropdown
-                    value={feedForm.type}
-                    onChange={(v) => setFeedForm({ ...feedForm, type: v })}
-                    options={[
-                      { value: 'milk', label: '奶', icon: <Milk className="icon icon--xs" /> },
-                      { value: 'solids', label: '辅食', icon: <Utensils className="icon icon--xs" /> },
-                      { value: 'diaper', label: '换尿布', icon: <Baby className="icon icon--xs" /> },
-                      { value: 'sleep', label: '睡觉', icon: <Moon className="icon icon--xs" /> },
-                    ]}
-                  />
+                {/* 类型 tab：喂养 / 换尿布 / 睡觉 */}
+                <div className="feed__log-tabs">
+                  <button type="button" className={`feed__log-tab ${recordTab === 'feed' ? 'feed__log-tab--on' : ''}`} onClick={() => { setRecordTab('feed'); if (feedForm.type !== 'milk' && feedForm.type !== 'solids') setFeedForm({ ...feedForm, type: 'milk' }); }}>
+                    <Milk className="icon icon--xs" />喂养
+                  </button>
+                  <button type="button" className={`feed__log-tab ${recordTab === 'diaper' ? 'feed__log-tab--on' : ''}`} onClick={() => { setRecordTab('diaper'); setFeedForm({ ...feedForm, type: 'diaper' }); }}>
+                    <Baby className="icon icon--xs" />换尿布
+                  </button>
+                  <button type="button" className={`feed__log-tab ${recordTab === 'sleep' ? 'feed__log-tab--on' : ''}`} onClick={() => { setRecordTab('sleep'); setFeedForm({ ...feedForm, type: 'sleep' }); }}>
+                    <Moon className="icon icon--xs" />睡觉
+                  </button>
                 </div>
+                {/* 喂养 tab 内：奶 / 辅食 细分 */}
+                {recordTab === 'feed' && (
+                  <div className="feed__log-field">
+                    <label>喂养种类</label>
+                    <div className="feed__log-seg">
+                      <button type="button" className={`feed__log-seg-btn ${feedForm.type === 'milk' ? 'feed__log-seg-btn--on' : ''}`} onClick={() => setFeedForm({ ...feedForm, type: 'milk' })}>奶</button>
+                      <button type="button" className={`feed__log-seg-btn ${feedForm.type === 'solids' ? 'feed__log-seg-btn--on' : ''}`} onClick={() => setFeedForm({ ...feedForm, type: 'solids' })}>辅食</button>
+                    </div>
+                  </div>
+                )}
                 {feedForm.type === 'solids' && (
                   <div className="feed__log-field feed__log-field--note">
                     <label>食物种类（按 WHO 标准评估营养多样性）</label>
