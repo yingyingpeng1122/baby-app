@@ -353,15 +353,15 @@ body { display: block; background: #eef3f1; }
 .feed__eval--high .feed__eval-icon { color: var(--coral); }
 .feed__eval-body { flex: 1; min-width: 0; }
 .feed__eval-title { font-size: 12px; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; color: var(--ink-soft); }
-.feed__advice { margin-top: 14px; }
-.feed__advice-title { display: flex; align-items: center; gap: 7px; font-size: 15px; font-weight: 800; color: var(--ink); margin: 0 0 12px 2px; }
+.feed__advice { margin: 14px 22px 0; }
+.feed__advice-title { display: flex; align-items: center; gap: 7px; font-size: 15px; font-weight: 800; color: var(--ink); margin: 0 0 12px; }
 .feed__advice-title .icon { color: var(--honey); }
 .feed__advice-card { background: var(--surface); border: 1px solid var(--line); border-radius: var(--r-card); padding: 14px 16px; display: flex; flex-direction: column; gap: 12px; }
 .feed__advice-card .feed__body { padding: 0; }
 .feed__advice-card .feed__interval { margin: 0; }
 .feed__advice-card .feed__foot { margin: 12px 0 0; }
-.feed__stage-row { display: flex; align-items: stretch; gap: 12px; }
-.feed__stage-row .feed__block { flex: 1 1 0; min-width: 0; }
+.feed__stage-row { display: flex; align-items: stretch; gap: 12px; flex-wrap: wrap; }
+.feed__stage-row .feed__block { flex: 1 1 140px; min-width: 0; }
 .feed__tile--honey { background: var(--honey-soft); color: var(--honey); }
 .feed__eval-msg { font-size: 14px; font-weight: 700; color: var(--ink); margin-top: 3px; line-height: 1.45; }
 .feed__eval-stats { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 8px; }
@@ -431,7 +431,7 @@ body { display: block; background: #eef3f1; }
 }
 .cal-modal {
   background: #fff; border-radius: var(--r-card); box-shadow: var(--sh-lg);
-  width: 100%; max-width: 400px; max-height: 85vh; overflow-y: auto;
+  width: 100%; max-width: 400px; max-height: 85vh; overflow-y: auto; overflow-x: hidden;
   padding: 22px 24px; animation: slideUp .25s cubic-bezier(.2,.8,.3,1);
   /* 细窄自定义滚动条，避免默认滚动条突兀 */
   scrollbar-width: thin;
@@ -778,49 +778,55 @@ body { display: block; background: #eef3f1; }
 
 /* ---------- 今日活动 · 时间轴 ---------- */
 /* 宝宝的一天 · 可爱记录卡 */
-.daylog { display: flex; flex-direction: column; gap: 10px; margin-top: 4px; }
-.daylog__empty {
-  font-size: 13px; color: var(--muted); text-align: center;
-  padding: 18px 10px; background: var(--surface-2); border-radius: var(--r-mid);
+/* 宝宝的一天 · 横向时间轴 */
+.daytime { overflow-x: auto; padding: 4px 2px 10px; -webkit-overflow-scrolling: touch; }
+.daytime__inner { display: flex; width: max-content; gap: 14px; position: relative; padding: 18px 0 6px; }
+.daytime__inner::before {
+  content: ''; position: absolute; top: 25px; left: 84px; right: 84px;
+  height: 2px; background: var(--line); border-radius: 2px;
 }
-.daylog__item {
-  position: relative; display: flex; align-items: center; gap: 12px;
-  padding: 12px 14px; border-radius: var(--r-mid);
-  background: var(--surface); border: 1px solid var(--line);
-  transition: transform .15s ease, box-shadow .2s ease, border-color .2s ease;
+.daytime__item { position: relative; flex: none; width: 168px; display: flex; flex-direction: column; align-items: center; }
+.daytime__dot {
+  width: 16px; height: 16px; border-radius: 50%; background: var(--primary);
+  border: 3px solid #fff; box-shadow: 0 0 0 1.5px var(--line); margin-bottom: 10px; z-index: 1;
 }
-.daylog__item:hover { transform: translateY(-1px); box-shadow: 0 6px 16px rgba(17,24,39,.06); border-color: var(--primary-soft); }
-.daylog__emoji {
-  flex: none; width: 42px; height: 42px; border-radius: 14px;
-  display: grid; place-items: center; font-size: 22px; line-height: 1;
-  background: var(--surface-2);
+.daytime__item--milk   .daytime__dot { background: var(--sky); }
+.daytime__item--solids .daytime__dot { background: var(--green); }
+.daytime__item--diaper .daytime__dot { background: #0e7490; }
+.daytime__item--sleep  .daytime__dot { background: #6d28d9; }
+.daytime__card {
+  width: 100%; background: var(--surface); border: 1px solid var(--line);
+  border-radius: var(--r-mid); padding: 12px; display: flex; flex-direction: column; gap: 8px;
+  box-shadow: var(--sh-sm);
 }
-.daylog__item--milk   .daylog__emoji { background: var(--sky-soft); }
-.daylog__item--solids .daylog__emoji { background: var(--green-soft); }
-.daylog__item--diaper .daylog__emoji { background: #cffafe; }
-.daylog__item--sleep  .daylog__emoji { background: #ede9fe; }
-.daylog__body { flex: 1; min-width: 0; }
-.daylog__row { display: flex; align-items: center; gap: 8px; }
-.daylog__time {
-  font-family: var(--font-display); font-weight: 700; font-size: 14px; color: var(--ink-soft); flex: none;
+.daytime__top { display: flex; align-items: center; gap: 10px; }
+.daytime__icon {
+  width: 36px; height: 36px; border-radius: 10px; display: grid; place-items: center;
+  font-size: 18px; flex: none; background: var(--surface-2);
 }
-.daylog__type {
-  font-size: 11px; font-weight: 800; padding: 3px 9px; border-radius: 999px; flex: none;
-}
-.daylog__item--milk   .daylog__type { background: var(--sky-soft); color: var(--sky); }
-.daylog__item--solids .daylog__type { background: var(--green-soft); color: var(--green); }
-.daylog__item--diaper .daylog__type { background: #cffafe; color: #0e7490; }
-.daylog__item--sleep  .daylog__type { background: #ede9fe; color: #6d28d9; }
-.daylog__amount { font-size: 14px; font-weight: 800; color: var(--ink); }
-.daylog__sub { font-size: 12px; color: var(--muted); margin-top: 3px; line-height: 1.5; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.daylog__ops { display: flex; gap: 6px; flex: none; }
-.daylog__op {
-  width: 30px; height: 30px; border-radius: 9px; border: 1.5px solid var(--line);
+.daytime__item--milk   .daytime__icon { background: var(--sky-soft); }
+.daytime__item--solids .daytime__icon { background: var(--green-soft); }
+.daytime__item--diaper .daytime__icon { background: #cffafe; }
+.daytime__item--sleep  .daytime__icon { background: #ede9fe; }
+.daytime__title { min-width: 0; }
+.daytime__time { font-size: 13px; font-weight: 800; color: var(--ink); }
+.daytime__amount { font-size: 12.5px; font-weight: 700; color: var(--muted); margin-top: 1px; line-height: 1.3; }
+.daytime__ops { margin-left: auto; display: flex; gap: 5px; flex: none; }
+.daytime__op {
+  width: 28px; height: 28px; border-radius: 8px; border: 1px solid var(--line);
   background: #fff; color: var(--muted); display: grid; place-items: center; cursor: pointer;
   transition: all .15s;
 }
-.daylog__op:hover { color: var(--ink); border-color: var(--primary-soft); }
-.daylog__op--del:hover { color: var(--coral); border-color: var(--coral); }
+.daytime__op:hover { color: var(--ink); border-color: var(--primary-soft); }
+.daytime__op--del:hover { color: var(--coral); border-color: var(--coral); }
+.daytime__note {
+  font-size: 12px; color: var(--ink-soft); line-height: 1.5;
+  background: #fff; border-radius: 8px; padding: 6px 8px;
+}
+.daytime__empty {
+  font-size: 13px; color: var(--muted); text-align: center;
+  padding: 22px 10px; background: var(--surface-2); border-radius: var(--r-mid);
+}
 
 /* ---------- 辅食三项评估（WHO 口径） ---------- */
 .feed__eval-solids {
@@ -1027,6 +1033,7 @@ body { display: block; background: #eef3f1; }
   .feed__log { margin: 14px 16px 0; padding: 14px 16px; }
   .feed__records { margin: 14px 16px 0; }
   .feed__eval { margin: 14px 16px 20px; }
+  .feed__advice { margin: 14px 16px 0; }
   .feed__foot { margin: 12px 16px 0; }
 
   /* 录入表单：两列网格，整齐对齐 */
@@ -1076,6 +1083,7 @@ body { display: block; background: #eef3f1; }
   .feed__log { margin: 12px 14px 0; padding: 12px 14px; }
   .feed__records { margin: 12px 14px 0; }
   .feed__eval { margin: 12px 14px 18px; }
+  .feed__advice { margin: 12px 14px 0; }
   .feed__foot { margin: 10px 14px 0; }
   .feed__log-form { gap: 8px 10px; }
   .feed__record { gap: 5px 8px; }

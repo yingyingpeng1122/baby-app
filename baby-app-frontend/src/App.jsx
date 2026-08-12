@@ -1957,45 +1957,52 @@ export default function BabyAppFullStack() {
           </div>
         </Reveal>
 
-        {/* 宝宝的一天 · 可爱记录卡 */}
+        {/* 宝宝的一天 · 横向时间轴 */}
         <Reveal className="section" delay={0.05}>
           <div className="section__head">
             <span className="section__ico section__ico--violet"><Sparkles className="icon icon--sm" /></span>
             <h2 className="section__title">宝宝的一天</h2>
           </div>
-          <div className="daylog">
+          <div className="daytime">
             {(() => {
               const items = [...feedRecords].sort((a, b) => a.time.localeCompare(b.time));
               if (items.length === 0) {
-                return <div className="daylog__empty">今天还没有记录，添加一个喂养 / 换尿布 / 睡觉吧～</div>;
+                return <div className="daytime__empty">今天还没有记录，添加一个喂养 / 换尿布 / 睡觉吧～</div>;
               }
-              return items.map((r) => {
-                const map = {
-                  milk: { emoji: '🍼', cls: 'milk', typeLabel: '喝奶', amount: r.amount ? `${r.amount}ml` : '' },
-                  solids: { emoji: '🥣', cls: 'solids', typeLabel: '辅食', amount: r.amount ? `${r.amount}g` : '' },
-                  diaper: { emoji: r.kind === 'poop' ? '💩' : r.kind === 'both' ? '💩💧' : '💧', cls: 'diaper', typeLabel: '换尿布', amount: '' },
-                  sleep: { emoji: '😴', cls: 'sleep', typeLabel: '睡觉', amount: r.duration ? fmtDur(r.duration) : '' },
-                };
-                const meta = map[r.type] || { emoji: '⏰', cls: '', typeLabel: r.type || '记录', amount: '' };
-                const sub = r.type === 'solids' && r.foodGroups ? r.foodGroups.split(',').filter(Boolean).join('、') : (r.note || '');
-                return (
-                  <div key={r.id} className={`daylog__item daylog__item--${meta.cls}`}>
-                    <span className="daylog__emoji">{meta.emoji}</span>
-                    <div className="daylog__body">
-                      <div className="daylog__row">
-                        <span className="daylog__time">{r.time}</span>
-                        <span className={`daylog__type daylog__type--${meta.cls}`}>{meta.typeLabel}</span>
-                        {meta.amount && <span className="daylog__amount">{meta.amount}</span>}
+              return (
+                <div className="daytime__inner">
+                  {items.map((r) => {
+                    const map = {
+                      milk: { emoji: '🍼', cls: 'milk', typeLabel: '喝奶', amount: r.amount ? `${r.amount}ml` : '' },
+                      solids: { emoji: '🥣', cls: 'solids', typeLabel: '辅食', amount: r.amount ? `${r.amount}g` : '' },
+                      diaper: { emoji: r.kind === 'poop' ? '💩' : r.kind === 'both' ? '💩💧' : '💧', cls: 'diaper', typeLabel: '换尿布', amount: '' },
+                      sleep: { emoji: '😴', cls: 'sleep', typeLabel: '睡觉', amount: r.duration ? fmtDur(r.duration) : '' },
+                    };
+                    const meta = map[r.type] || { emoji: '⏰', cls: '', typeLabel: r.type || '记录', amount: '' };
+                    const sub = r.type === 'solids' && r.foodGroups ? r.foodGroups.split(',').filter(Boolean).join('、') : (r.note || '');
+                    const subTitle = meta.amount ? `${meta.typeLabel} · ${meta.amount}` : meta.typeLabel;
+                    return (
+                      <div key={r.id} className={`daytime__item daytime__item--${meta.cls}`}>
+                        <span className="daytime__dot" />
+                        <div className="daytime__card">
+                          <div className="daytime__top">
+                            <span className="daytime__icon">{meta.emoji}</span>
+                            <div className="daytime__title">
+                              <div className="daytime__time">{r.time}</div>
+                              <div className="daytime__amount">{subTitle}</div>
+                            </div>
+                            <div className="daytime__ops">
+                              <button className="daytime__op" onClick={() => startEdit(r)} aria-label="编辑"><Pencil className="icon icon--xs" /></button>
+                              <button className="daytime__op daytime__op--del" onClick={() => deleteFeedRecord(r.id)} aria-label="删除"><Trash2 className="icon icon--xs" /></button>
+                            </div>
+                          </div>
+                          {sub && <div className="daytime__note">{sub}</div>}
+                        </div>
                       </div>
-                      {sub && <div className="daylog__sub">{sub}</div>}
-                    </div>
-                    <div className="daylog__ops">
-                      <button className="daylog__op" onClick={() => startEdit(r)} aria-label="编辑"><Pencil className="icon icon--xs" /></button>
-                      <button className="daylog__op daylog__op--del" onClick={() => deleteFeedRecord(r.id)} aria-label="删除"><Trash2 className="icon icon--xs" /></button>
-                    </div>
-                  </div>
-                );
-              });
+                    );
+                  })}
+                </div>
+              );
             })()}
           </div>
         </Reveal>
@@ -2052,15 +2059,17 @@ export default function BabyAppFullStack() {
           <div className="section__head">
             <span className="section__ico section__ico--rose"><Thermometer className="icon icon--sm" /></span>
             <h2 className="section__title">生病模式</h2>
-            <button
-              type="button"
-              className={`sick-toggle ${sickMode ? 'is-on' : ''}`}
-              onClick={() => persistSickMode(!sickMode)}
-              aria-pressed={sickMode}
-            >
-              <span className="sick-toggle__track"><span className="sick-toggle__dot" /></span>
-              {sickMode ? '已开启' : '开启'}
-            </button>
+            {sickMode && (
+              <button
+                type="button"
+                className="sick-toggle is-on"
+                onClick={() => persistSickMode(!sickMode)}
+                aria-pressed={sickMode}
+              >
+                <span className="sick-toggle__track"><span className="sick-toggle__dot" /></span>
+                已开启
+              </button>
+            )}
             <button className="btn btn--ghost btn--sm sick-calendar-btn" onClick={openSicknessCalendar}><Calendar className="icon icon--xs" /> 查看生病日历</button>
           </div>
 
@@ -2164,12 +2173,12 @@ export default function BabyAppFullStack() {
                 <h3 className="cal-modal__title"><Calendar className="icon icon--sm" /> 照护日历</h3>
                 <button className="cal-modal__close" onClick={() => { setCalendarOpen(false); setCalendarDetail(null); }}><X className="icon icon--sm" /></button>
               </div>
-              {/* 月份切换 */}
+              </div>
+              {/* 月份切换（不固定，随内容滚动） */}
               <div className="cal-month-nav">
                 <button className="cal-month-nav__btn" onClick={() => changeCalendarMonth(-1)}><ChevronLeft className="icon icon--sm" /></button>
                 <span className="cal-month-nav__label">{calendarDate.year}年{calendarDate.month}月</span>
                 <button className="cal-month-nav__btn" onClick={() => changeCalendarMonth(1)}><ChevronRight className="icon icon--sm" /></button>
-              </div>
               </div>
               {/* 星期头 */}
               <div className="cal-weekdays">
@@ -2244,11 +2253,12 @@ export default function BabyAppFullStack() {
                 <h3 className="cal-modal__title"><Milk className="icon icon--sm" /> 喂养日历</h3>
                 <button className="cal-modal__close" onClick={() => setFeedingCalendarOpen(false)}><X className="icon icon--sm" /></button>
               </div>
+              </div>
+              {/* 月份切换（不固定，随内容滚动） */}
               <div className="cal-month-nav">
                 <button className="cal-month-nav__btn" onClick={() => changeFeedingCalendarMonth(-1)}><ChevronLeft className="icon icon--sm" /></button>
                 <span className="cal-month-nav__label">{feedingCalendarDate.year}年{feedingCalendarDate.month}月</span>
                 <button className="cal-month-nav__btn" onClick={() => changeFeedingCalendarMonth(1)}><ChevronRight className="icon icon--sm" /></button>
-              </div>
               </div>
 
               {/* 月度统计（月报）放在最上面 */}
@@ -2410,12 +2420,13 @@ export default function BabyAppFullStack() {
                   <h3 className="cal-modal__title"><Thermometer className="icon icon--sm" /> 生病日历</h3>
                   <button className="cal-modal__close" onClick={() => setSickCalendarOpen(false)}><X className="icon icon--sm" /></button>
                 </div>
+                </div>
+                {/* 月份切换（不固定，随内容滚动） */}
                 <div className="cal-month-nav">
                   <button className="cal-month-nav__btn" onClick={() => changeSicknessCalendarMonth(-1)}><ChevronLeft className="icon icon--sm" /></button>
                   <span className="cal-month-nav__label">{sickCalendarDate.year}年{sickCalendarDate.month}月</span>
                   <button className="cal-month-nav__btn" onClick={() => changeSicknessCalendarMonth(1)}><ChevronRight className="icon icon--sm" /></button>
                 </div>
-              </div>
 
               {/* 月报（顶部） */}
               {sickCalendarData && (
