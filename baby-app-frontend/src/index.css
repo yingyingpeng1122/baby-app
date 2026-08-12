@@ -668,17 +668,21 @@ body { display: block; background: #eef3f1; }
 .growth__form-row { display: flex; gap: 10px; align-items: flex-end; flex-wrap: wrap; }
 .growth__form-row .feed__log-field { flex: 1 1 120px; min-width: 96px; }
 .growth__add { flex: 0 0 auto; align-self: flex-end; height: 34px; }
-.growth__latest {
-  display: flex; flex-wrap: wrap; align-items: baseline; gap: 16px;
-  margin-top: 14px; padding: 12px 14px; background: var(--surface-2);
-  border-radius: 14px;
+.dev-detail { margin-top: 14px; display: flex; flex-direction: column; gap: 14px; }
+/* 发育概况内收起的身高体重卡片，尺寸略缩小 */
+.dev-grid2 { margin-top: 0; }
+.dev-grid2 .stat { padding: 10px 12px; }
+.dev-grid2 .stat__value { font-size: 20px; }
+.growth__metric { display: flex; gap: 6px; }
+.growth__metric-btn {
+  flex: 1; padding: 7px 0; border: 1px solid var(--line); background: var(--surface-2);
+  border-radius: 999px; font-size: 13px; font-weight: 700; color: var(--muted); cursor: pointer;
+  transition: all .15s;
 }
-.growth__latest-item { display: flex; align-items: baseline; gap: 4px; }
-.growth__latest-k { font-size: 12px; color: var(--muted); }
-.growth__latest-item b { font-size: 22px; color: var(--ink); }
-.growth__latest-u { font-size: 12px; color: var(--muted); }
-.growth__latest-date { width: 100%; font-size: 12px; color: var(--muted); }
-.growth__metric { display: flex; gap: 6px; margin-top: 14px; }
+.growth__metric-btn.is-on {
+  background: var(--primary); color: #fff; border-color: var(--primary);
+  box-shadow: 0 4px 12px rgba(14,147,132,.25);
+}
 .growth__legend { display: flex; flex-wrap: wrap; gap: 14px; margin-top: 8px; font-size: 12px; color: var(--muted); }
 .growth__lg { display: inline-flex; align-items: center; gap: 6px; }
 .growth__lg i { width: 16px; height: 0; border-top-width: 3px; border-top-style: solid; display: inline-block; }
@@ -686,23 +690,36 @@ body { display: block; background: #eef3f1; }
 .growth__lg--intl i { border-top-style: dashed; border-color: #9aa3b2; }
 .growth__lg--cn i { border-top-style: dashed; border-color: #3b82f6; }
 .growth__note { margin: 6px 0 0; font-size: 11px; color: var(--muted); line-height: 1.5; }
-.growth__empty { margin-top: 12px; padding: 18px; text-align: center; color: var(--muted); background: var(--surface-2); border-radius: 14px; font-size: 13px; }
-.growth__list { margin-top: 14px; display: flex; flex-direction: column; gap: 6px; }
+.growth__empty { padding: 18px; text-align: center; color: var(--muted); background: var(--surface-2); border-radius: 14px; font-size: 13px; }
+.growth__history { margin-top: 4px; }
+.growth__history-toggle {
+  display: flex; align-items: center; gap: 6px; width: 100%;
+  background: var(--surface-2); border: 1px solid var(--line); border-radius: 12px;
+  padding: 10px 14px; font-size: 13px; font-weight: 700; color: var(--ink); cursor: pointer;
+}
+.growth__history-hint { margin-left: auto; font-size: 12px; font-weight: 600; color: var(--muted); }
+.growth__history-chev { transition: transform .2s; }
+.growth__history-toggle.is-open .growth__history-chev { transform: rotate(180deg); }
+.growth__list { margin-top: 10px; display: flex; flex-direction: column; gap: 6px; }
 .growth__row {
   display: flex; align-items: center; gap: 10px; padding: 8px 12px;
   background: var(--surface-2); border-radius: 10px; font-size: 13px;
 }
+.growth__row.is-editing { outline: 2px solid var(--primary); }
 .growth__row-date { color: var(--muted); font-variant-numeric: tabular-nums; min-width: 92px; }
 .growth__row-v { font-weight: 700; color: var(--ink); }
 .growth__row-temp { font-weight: 700; color: #f59e0b; }
 .growth__row-temp.is-high { color: #ef4444; }
 .growth__row-note { color: var(--muted); flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.growth__row-del { margin-left: auto; background: none; border: none; color: var(--muted); cursor: pointer; padding: 4px; }
+.growth__row-edit { background: none; border: none; color: var(--muted); cursor: pointer; padding: 4px; }
+.growth__row-edit:hover { color: var(--primary); }
+.growth__row-del { background: none; border: none; color: var(--muted); cursor: pointer; padding: 4px; }
 .growth__row-del:hover { color: var(--coral); }
 
 /* ---------- SVG 图表 ---------- */
 .chart-svg { width: 100%; height: auto; display: block; margin-top: 10px; }
 .chart-axis { font-size: 11px; fill: var(--muted); }
+.chart-axis-title { font-size: 11px; font-weight: 700; fill: var(--muted); }
 .chart-thr { font-size: 10px; font-weight: 700; }
 .chart-thr--warn { fill: #f59e0b; }
 .chart-thr--danger { fill: #ef4444; }

@@ -101,8 +101,8 @@ function hoursSince(datetimeStr) {
 
 // ============ 身高体重曲线对比图（SVG）============
 function GrowthChart({ records, metric, gender, birthday }) {
-  const W = 680, H = 300;
-  const padL = 40, padR = 14, padT = 14, padB = 32;
+  const W = 680, H = 310;
+  const padL = 48, padR = 16, padT = 16, padB = 46;
   const plotW = W - padL - padR, plotH = H - padT - padB;
   const key = metric === 'weight' ? 'w' : 'h';
   const ref = GROWTH_REF[gender] || GROWTH_REF.boy;
@@ -128,20 +128,27 @@ function GrowthChart({ records, metric, gender, birthday }) {
   const xOf = a => padL + (a / ageMax) * plotW;
   const yOf = v => padT + plotH - ((v - vMin) / (vMax - vMin)) * plotH;
   const linePath = arr => arr.map((p, i) => `${i ? 'L' : 'M'}${xOf(p[0]).toFixed(1)},${yOf(p[1]).toFixed(1)}`).join(' ');
-  const yTicks = [vMin, vMin + (vMax - vMin) / 2, vMax].map(v => Math.round(v * 10) / 10);
+  const yTicks = [0, 0.25, 0.5, 0.75, 1].map(f => Math.round((vMin + (vMax - vMin) * f) * 10) / 10);
+  const yTitle = metric === 'weight' ? '体重 (kg)' : '身高 (cm)';
+  const cx = padL + plotW / 2;
 
   return (
     <svg className="chart-svg" viewBox={`0 0 ${W} ${H}`} role="img" aria-label="身高体重曲线">
+      {/* 网格 + Y 轴刻度 */}
       {yTicks.map((t, i) => (
         <g key={i}>
           <line x1={padL} y1={yOf(t)} x2={W - padR} y2={yOf(t)} stroke="var(--line)" strokeWidth="1" />
-          <text x={padL - 6} y={yOf(t) + 3} textAnchor="end" className="chart-axis">{t}</text>
+          <text x={padL - 8} y={yOf(t) + 3} textAnchor="end" className="chart-axis">{t}</text>
         </g>
       ))}
-      {/* x 轴刻度 */}
+      {/* Y 轴标题（单位） */}
+      <text x={14} y={padT + plotH / 2} textAnchor="middle" className="chart-axis-title" transform={`rotate(-90 14 ${padT + plotH / 2})`}>{yTitle}</text>
+      {/* X 轴刻度 */}
       {[0, 3, 6, 9, 12, 18, 24, 30, 36].filter(m => m <= ageMax).map(m => (
-        <text key={m} x={xOf(m)} y={H - 10} textAnchor="middle" className="chart-axis">{m}月</text>
+        <text key={m} x={xOf(m)} y={H - 26} textAnchor="middle" className="chart-axis">{m}</text>
       ))}
+      {/* X 轴标题 */}
+      <text x={cx} y={H - 6} textAnchor="middle" className="chart-axis-title">月龄</text>
       {/* 参考曲线：国际(虚线灰) / 中国(虚线蓝) */}
       <path d={linePath(intlLine)} fill="none" stroke="#9aa3b2" strokeWidth="2" strokeDasharray="5 4" />
       <path d={linePath(cnLine)} fill="none" stroke="#3b82f6" strokeWidth="2" strokeDasharray="5 4" />
@@ -730,6 +737,8 @@ export default function BabyAppFullStack() {
   const [growthRecords, setGrowthRecords] = useState([]);
   const [growthDraft, setGrowthDraft] = useState({ date: todayISO(), height: '', weight: '', note: '' });
   const [growthMetric, setGrowthMetric] = useState('weight'); // weight | height
+  const [editingGrowthId, setEditingGrowthId] = useState(null);
+  const [growthHistoryOpen, setGrowthHistoryOpen] = useState(false);
   // 生病模式：体温记录
   const [sickMode, setSickMode] = useState(false);
   const [tempRecords, setTempRecords] = useState([]);
@@ -949,20 +958,29 @@ export default function BabyAppFullStack() {
   const addGrowth = async () => {
     if (!growthDraft.height && !growthDraft.weight) return alert('请至少填写身高或体重');
     try {
-      const res = await apiFetch(`${API_BASE}/growth-records`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          date: growthDraft.date || todayISO(),
-          height: growthDraft.height ? parseFloat(growthDraft.height) : 0,
-          weight: growthDraft.weight ? parseFloat(growthDraft.weight) : 0,
-          note: growthDraft.note || '',
-        }),
-      });
+      const body = {
+        date: growthDraft.date || todayISO(),
+        height: growthDraft.height ? parseFloat(growthDraft.height) : 0,
+        weight: growthDraft.weight ? parseFloat(growthDraft.weight) : 0,
+        note: growthDraft.note || '',
+      };
+      const res = editingGrowthId
+        ? await apiFetch(`${API_BASE}/growth-records/${editingGrowthId}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
+        : await apiFetch(`${API_BASE}/growth-records`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
       if (!res.ok) { const e = await res.json().catch(() => ({})); throw new Error(e.detail || '保存失败'); }
       await loadGrowth();
       setGrowthDraft({ date: todayISO(), height: '', weight: '', note: '' });
+      setEditingGrowthId(null);
     } catch (e) { alert('保存身高体重失败：' + (e.message || '')); }
+  };
+  const editGrowth = (r) => {
+    setEditingGrowthId(r.id);
+    setGrowthDraft({ date: r.date, height: r.height ? String(r.height) : '', weight: r.weight ? String(r.weight) : '', note: r.note || '' });
+    setGrowthHistoryOpen(true);
+  };
+  const cancelEditGrowth = () => {
+    setEditingGrowthId(null);
+    setGrowthDraft({ date: todayISO(), height: '', weight: '', note: '' });
   };
   const delGrowth = async (id) => {
     if (!window.confirm('删除这条身高体重记录？')) return;
@@ -1506,103 +1524,109 @@ export default function BabyAppFullStack() {
             </div>
           </div>
 
-          {devOpen && (
-          <div className="grid2">
-            <div className="stat stat--teal">
-              <div className="stat__head"><span className="stat__label"><span className="stat__ico"><Ruler className="icon icon--sm" /></span>身高</span><Badge ok={growthOk(hStat)}>{HEIGHT_STATUS_TEXT[hStat]}</Badge></div>
-              <div><span className="stat__value">{profile.height}</span><span className="stat__unit">cm</span></div>
-              <div className="bar"><div className="bar__fill" style={{ '--w': `${hPct}%` }} /></div>
-              <div className="bar__scale"><span>{g.minH}</span><span>参考区间</span><span>{g.maxH}</span></div>
-            </div>
-            <div className="stat stat--sky">
-              <div className="stat__head"><span className="stat__label"><span className="stat__ico"><Scale className="icon icon--sm" /></span>体重</span><Badge ok={growthOk(wStat)}>{WEIGHT_STATUS_TEXT[wStat]}</Badge></div>
-              <div><span className="stat__value">{profile.weight}</span><span className="stat__unit">kg</span></div>
-              <div className="bar"><div className="bar__fill" style={{ '--w': `${wPct}%` }} /></div>
-              <div className="bar__scale"><span>{g.minW}</span><span>参考区间</span><span>{g.maxW}</span></div>
-            </div>
-          </div>
-          )}
-        </Reveal>
-
-        {/* 成长记录：身高体重录入 + 与国际/中国参考曲线对比 */}
-        <Reveal className="section" delay={0.05}>
-          <div className="section__head">
-            <span className="section__ico section__ico--sky"><Ruler className="icon icon--sm" /></span>
-            <h2 className="section__title">成长记录</h2>
-          </div>
-
-          {/* 录入表单 */}
-          <div className="growth__form">
-            <div className="growth__form-row">
-              <div className="feed__log-field">
-                <label>日期</label>
-                <input type="date" className="input input--sm" value={growthDraft.date} onChange={(e) => setGrowthDraft({ ...growthDraft, date: e.target.value })} />
-              </div>
-              <div className="feed__log-field">
-                <label>身高(cm)</label>
-                <input type="number" step="0.1" className="input input--sm" placeholder="如 68.5" value={growthDraft.height} onChange={(e) => setGrowthDraft({ ...growthDraft, height: e.target.value })} />
-              </div>
-              <div className="feed__log-field">
-                <label>体重(kg)</label>
-                <input type="number" step="0.01" className="input input--sm" placeholder="如 8.2" value={growthDraft.weight} onChange={(e) => setGrowthDraft({ ...growthDraft, weight: e.target.value })} />
-              </div>
-            </div>
-            <div className="growth__form-row">
-              <div className="feed__log-field feed__log-field--note">
-                <label>备注（可选）</label>
-                <input type="text" className="input input--sm" placeholder="如：体检 / 在家测" value={growthDraft.note} onChange={(e) => setGrowthDraft({ ...growthDraft, note: e.target.value })} />
-              </div>
-              <button type="button" className="btn btn--primary btn--sm growth__add" onClick={addGrowth}><Plus className="icon icon--xs" />保存</button>
-            </div>
-          </div>
-
-          {/* 最新值 + 指标切换 */}
-          {(() => {
-            const sorted = [...growthRecords].sort((a, b) => a.date.localeCompare(b.date));
-            const latest = sorted[sorted.length - 1];
-            const hv = latest && latest.height ? latest.height : profile.height;
-            const wv = latest && latest.weight ? latest.weight : profile.weight;
+          {devOpen && (() => {
+            const sortedG = [...growthRecords].sort((a, b) => a.date.localeCompare(b.date));
+            const latestG = sortedG[sortedG.length - 1];
+            const hv = (latestG && latestG.height) ? latestG.height : profile.height;
+            const wv = (latestG && latestG.weight) ? latestG.weight : profile.weight;
+            const hPct2 = pct(hv, g.minH, g.maxH);
+            const wPct2 = pct(wv, g.minW, g.maxW);
             return (
-              <div className="growth__latest">
-                <div className="growth__latest-item"><span className="growth__latest-k">最新身高</span><b>{hv || '—'}</b><span className="growth__latest-u">cm</span></div>
-                <div className="growth__latest-item"><span className="growth__latest-k">最新体重</span><b>{wv || '—'}</b><span className="growth__latest-u">kg</span></div>
-                {latest && <div className="growth__latest-date">记录于 {latest.date}{latest.note ? ' · ' + latest.note : ''}</div>}
+          <div className="dev-detail">
+            {/* 最新身高体重：复用收起的 stat 卡片，缩小 */}
+            <div className="grid2 dev-grid2">
+              <div className="stat stat--teal">
+                <div className="stat__head"><span className="stat__label"><span className="stat__ico"><Ruler className="icon icon--sm" /></span>身高</span><Badge ok={growthOk(hStat)}>{HEIGHT_STATUS_TEXT[hStat]}</Badge></div>
+                <div><span className="stat__value">{hv}</span><span className="stat__unit">cm</span></div>
+                <div className="bar"><div className="bar__fill" style={{ '--w': `${hPct2}%` }} /></div>
+                <div className="bar__scale"><span>{g.minH}</span><span>参考区间</span><span>{g.maxH}</span></div>
               </div>
+              <div className="stat stat--sky">
+                <div className="stat__head"><span className="stat__label"><span className="stat__ico"><Scale className="icon icon--sm" /></span>体重</span><Badge ok={growthOk(wStat)}>{WEIGHT_STATUS_TEXT[wStat]}</Badge></div>
+                <div><span className="stat__value">{wv}</span><span className="stat__unit">kg</span></div>
+                <div className="bar"><div className="bar__fill" style={{ '--w': `${wPct2}%` }} /></div>
+                <div className="bar__scale"><span>{g.minW}</span><span>参考区间</span><span>{g.maxW}</span></div>
+              </div>
+            </div>
+
+            {/* 录入 / 编辑表单 */}
+            <div className="growth__form">
+              <div className="growth__form-row">
+                <div className="feed__log-field">
+                  <label>日期</label>
+                  <input type="date" className="input input--sm" value={growthDraft.date} onChange={(e) => setGrowthDraft({ ...growthDraft, date: e.target.value })} />
+                </div>
+                <div className="feed__log-field">
+                  <label>身高(cm)</label>
+                  <input type="number" step="0.1" className="input input--sm" placeholder="如 68.5" value={growthDraft.height} onChange={(e) => setGrowthDraft({ ...growthDraft, height: e.target.value })} />
+                </div>
+                <div className="feed__log-field">
+                  <label>体重(kg)</label>
+                  <input type="number" step="0.01" className="input input--sm" placeholder="如 8.2" value={growthDraft.weight} onChange={(e) => setGrowthDraft({ ...growthDraft, weight: e.target.value })} />
+                </div>
+              </div>
+              <div className="growth__form-row">
+                <div className="feed__log-field feed__log-field--note">
+                  <label>备注（可选）</label>
+                  <input type="text" className="input input--sm" placeholder="如：体检 / 在家测" value={growthDraft.note} onChange={(e) => setGrowthDraft({ ...growthDraft, note: e.target.value })} />
+                </div>
+                {editingGrowthId ? (
+                  <>
+                    <button type="button" className="btn btn--primary btn--sm growth__add" onClick={addGrowth}><Save className="icon icon--xs" />更新</button>
+                    <button type="button" className="btn btn--ghost btn--sm growth__add" onClick={cancelEditGrowth}>取消</button>
+                  </>
+                ) : (
+                  <button type="button" className="btn btn--primary btn--sm growth__add" onClick={addGrowth}><Plus className="icon icon--xs" />保存</button>
+                )}
+              </div>
+            </div>
+
+            {/* 指标切换 + 曲线 */}
+            {growthRecords.length > 0 ? (
+              <>
+                <div className="growth__metric">
+                  <button type="button" className={`growth__metric-btn ${growthMetric === 'weight' ? 'is-on' : ''}`} onClick={() => setGrowthMetric('weight')}>体重</button>
+                  <button type="button" className={`growth__metric-btn ${growthMetric === 'height' ? 'is-on' : ''}`} onClick={() => setGrowthMetric('height')}>身高</button>
+                </div>
+                <GrowthChart records={growthRecords} metric={growthMetric} gender={profile.gender} birthday={profile.birthday} />
+                <div className="growth__legend">
+                  <span className="growth__lg growth__lg--baby"><i />宝宝 {growthMetric === 'weight' ? '体重' : '身高'}</span>
+                  <span className="growth__lg growth__lg--intl"><i />国际参考 (WHO)</span>
+                  <span className="growth__lg growth__lg--cn"><i />中国参考</span>
+                </div>
+                <p className="growth__note">曲线为参考中位数（P50）趋势线，仅作直观对比；临床评估请以医生百分位 / z 评分结论为准。</p>
+              </>
+            ) : (
+              <div className="growth__empty">还没有身高体重记录，添加一条就能看到成长曲线啦～</div>
+            )}
+
+            {/* 历史记录：默认收起，可展开 */}
+            {growthRecords.length > 0 && (
+              <div className="growth__history">
+                <button type="button" className={`growth__history-toggle ${growthHistoryOpen ? 'is-open' : ''}`} onClick={() => setGrowthHistoryOpen(v => !v)} aria-expanded={growthHistoryOpen}>
+                  历史记录（{growthRecords.length} 条）
+                  <span className="growth__history-hint">{growthHistoryOpen ? '收起' : '展开'}</span>
+                  <ChevronDown className="icon icon--xs growth__history-chev" />
+                </button>
+                {growthHistoryOpen && (
+                  <div className="growth__list">
+                    {[...growthRecords].sort((a, b) => b.date.localeCompare(a.date)).map(r => (
+                      <div key={r.id} className={`growth__row ${editingGrowthId === r.id ? 'is-editing' : ''}`}>
+                        <span className="growth__row-date">{r.date}</span>
+                        <span className="growth__row-v">{r.height ? r.height + 'cm' : '—'}</span>
+                        <span className="growth__row-v">{r.weight ? r.weight + 'kg' : '—'}</span>
+                        {r.note && <span className="growth__row-note">{r.note}</span>}
+                        <button className="growth__row-edit" onClick={() => editGrowth(r)} aria-label="编辑"><Pencil className="icon icon--xs" /></button>
+                        <button className="growth__row-del" onClick={() => delGrowth(r.id)} aria-label="删除"><Trash2 className="icon icon--xs" /></button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
             );
           })()}
-
-          {growthRecords.length > 0 ? (
-            <>
-              <div className="growth__metric">
-                <button type="button" className={`seg__btn ${growthMetric === 'weight' ? 'seg__btn--on' : ''}`} onClick={() => setGrowthMetric('weight')}>体重</button>
-                <button type="button" className={`seg__btn ${growthMetric === 'height' ? 'seg__btn--on' : ''}`} onClick={() => setGrowthMetric('height')}>身高</button>
-              </div>
-              <GrowthChart records={growthRecords} metric={growthMetric} gender={profile.gender} birthday={profile.birthday} />
-              <div className="growth__legend">
-                <span className="growth__lg growth__lg--baby"><i />宝宝 {growthMetric === 'weight' ? '体重' : '身高'}</span>
-                <span className="growth__lg growth__lg--intl"><i />国际参考 (WHO)</span>
-                <span className="growth__lg growth__lg--cn"><i />中国参考</span>
-              </div>
-              <p className="growth__note">曲线为参考中位数（P50）趋势线，仅作直观对比；临床评估请以医生百分位 / z 评分结论为准。</p>
-            </>
-          ) : (
-            <div className="growth__empty">还没有身高体重记录，添加一条就能看到成长曲线啦～</div>
-          )}
-
-          {/* 历史记录列表 */}
-          {growthRecords.length > 0 && (
-            <div className="growth__list">
-              {[...growthRecords].sort((a, b) => b.date.localeCompare(a.date)).map(r => (
-                <div key={r.id} className="growth__row">
-                  <span className="growth__row-date">{r.date}</span>
-                  <span className="growth__row-v">{r.height ? r.height + 'cm' : '—'}</span>
-                  <span className="growth__row-v">{r.weight ? r.weight + 'kg' : '—'}</span>
-                  {r.note && <span className="growth__row-note">{r.note}</span>}
-                  <button className="growth__row-del" onClick={() => delGrowth(r.id)} aria-label="删除"><Trash2 className="icon icon--xs" /></button>
-                </div>
-              ))}
-            </div>
-          )}
         </Reveal>
 
         <Reveal className="section" delay={0.05}>

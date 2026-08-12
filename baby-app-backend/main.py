@@ -1080,6 +1080,17 @@ async def delete_growth_record(record_id: str, request: Request):
     return {"status": "deleted", "id": record_id}
 
 
+@app.put("/growth-records/{record_id}", response_model=GrowthRecord)
+async def update_growth_record(record_id: str, record: GrowthRecord, request: Request):
+    bid = get_baby_id(request)
+    db.execute(
+        "UPDATE growth_records_v2 SET date=?, height=?, weight=?, note=? WHERE id=? AND baby_id=?",
+        [record.date, record.height, record.weight, record.note, record_id, bid])
+    db.sync()
+    record.id = record_id
+    return record
+
+
 # ---- 生病模式：体温记录 ----
 class TemperatureRecord(BaseModel):
     id: str = ''
