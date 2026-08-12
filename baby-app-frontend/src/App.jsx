@@ -1695,38 +1695,9 @@ export default function BabyAppFullStack() {
         <Reveal className="section" delay={0.05}>
           <div className="section__head">
             <span className="section__ico section__ico--honey"><Milk className="icon icon--sm" /></span>
-            <h2 className="section__title">今日喂养建议</h2>
+            <h2 className="section__title">今日记录</h2>
           </div>
           <div className="feed">
-            <div className="feed__head">
-              <span className="feed__stage"><span className="dot" />{f.stage}</span>
-              <span className="feed__tip">{f.videoTip}</span>
-            </div>
-            <div className="feed__body">
-              <div className="feed__block">
-                <span className="feed__tile feed__tile--sky"><Milk className="icon" /></span>
-                <div><div className="feed__k">奶量建议</div><div className="feed__v">{f.milk}</div></div>
-              </div>
-              <div className="feed__block">
-                <span className="feed__tile feed__tile--green"><Utensils className="icon" /></span>
-                <div>
-                  <div className="feed__k">辅食安排</div>
-                  <div className="feed__v">{f.solids === '不需要' ? '暂未开始添加辅食' : `每餐约 ${f.solidAmount}`}</div>
-                  {f.solids !== '不需要' && <div className="feed__chips">{f.types.map((t, i) => <span key={i}>{t}</span>)}</div>}
-                </div>
-              </div>
-            </div>
-
-            {/* 喂养间隔 */}
-            <div className="feed__interval">
-              <Clock className="icon icon--sm" />
-              <span className="feed__interval-text">{f.feedingInterval}</span>
-            </div>
-
-            <div className="feed__foot">
-              <button className="btn btn--coral btn--block" onClick={() => setModal({ open: true, title: `喂养演示 · ${f.stage}`, src: f.videoUrl || '' })}><Video className="icon icon--xs" />查看本阶段喂养演示视频</button>
-            </div>
-
             {/* 喂养记录录入 */}
             <div className="feed__log">
               <div className="feed__log-title">{editingId ? '编辑喂养记录' : '记录今日喂养'}</div>
@@ -1841,6 +1812,40 @@ export default function BabyAppFullStack() {
                   ))}
                 </div>
               </div>
+            )}
+
+            {/* 阶段喂养建议（仅选中「喂养」tab 时显示） */}
+            {recordTab === 'feed' && (
+              <>
+                <div className="feed__head">
+                  <span className="feed__stage"><span className="dot" />{f.stage}</span>
+                  <span className="feed__tip">{f.videoTip}</span>
+                </div>
+                <div className="feed__body">
+                  <div className="feed__block">
+                    <span className="feed__tile feed__tile--sky"><Milk className="icon" /></span>
+                    <div><div className="feed__k">奶量建议</div><div className="feed__v">{f.milk}</div></div>
+                  </div>
+                  <div className="feed__block">
+                    <span className="feed__tile feed__tile--green"><Utensils className="icon" /></span>
+                    <div>
+                      <div className="feed__k">辅食安排</div>
+                      <div className="feed__v">{f.solids === '不需要' ? '暂未开始添加辅食' : `每餐约 ${f.solidAmount}`}</div>
+                      {f.solids !== '不需要' && <div className="feed__chips">{f.types.map((t, i) => <span key={i}>{t}</span>)}</div>}
+                    </div>
+                  </div>
+                </div>
+
+                {/* 喂养间隔 */}
+                <div className="feed__interval">
+                  <Clock className="icon icon--sm" />
+                  <span className="feed__interval-text">{f.feedingInterval}</span>
+                </div>
+
+                <div className="feed__foot">
+                  <button className="btn btn--coral btn--block" onClick={() => setModal({ open: true, title: `喂养演示 · ${f.stage}`, src: f.videoUrl || '' })}><Video className="icon icon--xs" />查看本阶段喂养演示视频</button>
+                </div>
+              </>
             )}
 
             {/* 喂养评估 */}
