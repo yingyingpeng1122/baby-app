@@ -217,6 +217,15 @@ def init_db():
         db.execute("ALTER TABLE feeding_records_v2 ADD COLUMN food_groups TEXT DEFAULT ''")
     except Exception:
         pass
+    # 新增活动扩展列：duration(睡眠时长分钟) / kind(尿布类型 屎/尿/都有)
+    try:
+        db.execute("ALTER TABLE feeding_records_v2 ADD COLUMN duration INTEGER DEFAULT 0")
+    except Exception:
+        pass
+    try:
+        db.execute("ALTER TABLE feeding_records_v2 ADD COLUMN kind TEXT DEFAULT ''")
+    except Exception:
+        pass
     # 新增成员昵称列（兼容旧库，列已存在则忽略）
     try:
         db.execute("ALTER TABLE family_members ADD COLUMN nickname TEXT DEFAULT ''")
@@ -290,6 +299,8 @@ class FeedingRecord(BaseModel):
     type: str
     note: str = ''
     foodGroups: str = ''  # 逗号分隔的 WHO 食物组
+    duration: int = 0     # 睡眠时长（分钟），仅 type=sleep 使用
+    kind: str = ''        # 尿布类型：pee=尿 / poop=屎 / both=都有，仅 type=diaper 使用
 
 class FeedingEvaluation(BaseModel):
     totalMilk: float
@@ -975,8 +986,8 @@ async def add_feeding_record(record: FeedingRecord, request: Request):
     today = date.today().isoformat()
     record.id = str(uuid.uuid4())[:8]
     db.execute(
-        "INSERT INTO feeding_records_v2 (id, baby_id, date, time, amount, type, note, food_groups) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
-        [record.id, bid, today, record.time, record.amount, record.type, record.note, record.foodGroups])
+        "INSERT INTO feeding_records_v2 (id, baby_id, date, time, amount, type, note, food_groups, duration, kind) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+        [record.id, bid, today, record.time, record.amount, record.type, record.note, record.foodGroups, record.duration, record.kind])
     db.sync()
     return record
 
@@ -985,9 +996,9 @@ async def get_feeding_records(request: Request, date_str: str = Query(default=No
     bid = get_baby_id(request)
     d = date_str or date.today().isoformat()
     rs = db.execute(
-        "SELECT id, time, amount, type, note, food_groups FROM feeding_records_v2 WHERE baby_id = ? AND date = ?",
+        "SELECT id, time, amount, type, note, food_groups, duration, kind FROM feeding_records_v2 WHERE baby_id = ? AND date = ?",
         [bid, d]).fetchall()
-    return [FeedingRecord(id=r[0], time=r[1], amount=r[2], type=r[3], note=r[4] or '', foodGroups=r[5] or '') for r in rs]
+    return [FeedingRecord(id=r[0], time=r[1], amount=r[2], type=r[3], note=r[4] or '', foodGroups=r[5] or '', duration=r[6] or 0, kind=r[7] or '') for r in rs]
 
 @app.put("/feeding-records/{record_id}", response_model=FeedingRecord)
 async def update_feeding_record(record_id: str, record: FeedingRecord, request: Request):
@@ -999,8 +1010,8 @@ async def update_feeding_record(record_id: str, record: FeedingRecord, request: 
     if not rs:
         raise HTTPException(status_code=404, detail="Record not found")
     db.execute(
-        "UPDATE feeding_records_v2 SET time=?, amount=?, type=?, note=?, food_groups=? WHERE id=? AND baby_id=? AND date=?",
-        [record.time, record.amount, record.type, record.note, record.foodGroups, record_id, bid, today])
+        "UPDATE feeding_records_v2 SET time=?, amount=?, type=?, note=?, food_groups=?, duration=?, kind=? WHERE id=? AND baby_id=? AND date=?",
+        [record.time, record.amount, record.type, record.note, record.foodGroups, record.duration, record.kind, record_id, bid, today])
     db.sync()
     record.id = record_id
     return record

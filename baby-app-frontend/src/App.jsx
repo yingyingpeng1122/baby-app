@@ -10,6 +10,33 @@ import {
 // WHO 最低食物种类（MDD）的 7 个食物组
 const FOOD_GROUPS = ['谷物根茎', '豆坚果', '奶制品', '肉禽鱼', '蛋', '富维A果蔬', '其他果蔬'];
 
+// 当前时刻 HH:MM（录入默认时间）
+const nowHM = () => {
+  const d = new Date();
+  return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+};
+// 两个 HH:MM 相差分钟（跨午夜自动 +24h）
+const diffMinutes = (a, b) => {
+  const [ah, am] = a.split(':').map(Number);
+  const [bh, bm] = b.split(':').map(Number);
+  let d = (bh * 60 + bm) - (ah * 60 + am);
+  if (d <= 0) d += 24 * 60;
+  return d;
+};
+// HH:MM 加分钟数，返回 HH:MM（处理跨午夜）
+const addMinutesHM = (hm, mins) => {
+  const [h, m] = hm.split(':').map(Number);
+  const t = (((h * 60 + m) + mins) % (24 * 60) + 24 * 60) % (24 * 60);
+  return `${String(Math.floor(t / 60)).padStart(2, '0')}:${String(t % 60).padStart(2, '0')}`;
+};
+// 分钟数转中文时长
+const fmtDur = (m) => {
+  const h = Math.floor(m / 60), mm = m % 60;
+  if (h && mm) return `${h} 小时 ${mm} 分`;
+  if (h) return `${h} 小时`;
+  return `${mm} 分`;
+};
+
 // 宝宝生病护理指南（通用科普，不能替代医生诊断）
 const CARE_GUIDE = {
   stageFever: [
@@ -484,7 +511,7 @@ export default function BabyAppFullStack() {
   // 喂养记录
   const [feedRecords, setFeedRecords] = useState([]);
   const [feedEval, setFeedEval] = useState(null);
-  const [feedForm, setFeedForm] = useState({ time: '', amount: '', type: 'milk', note: '', foodGroups: [] });
+  const [feedForm, setFeedForm] = useState({ time: nowHM(), amount: '', type: 'milk', note: '', foodGroups: [], kind: '', duration: 0, wakeTime: '' });
   const [feedLoading, setFeedLoading] = useState(false);
   const [editingId, setEditingId] = useState(null);
   // 每日照护清单
@@ -807,7 +834,9 @@ export default function BabyAppFullStack() {
   }, [calendarOpen, calendarDate]);
 
   const addFeedRecord = async () => {
-    if (!feedForm.time || !feedForm.amount) return alert('请填写喂养时间和喂养量');
+    if (!feedForm.time) return alert('请选择时间');
+    if ((feedForm.type === 'milk' || feedForm.type === 'solids') && !feedForm.amount) return alert('请填写喂养量');
+    if (feedForm.type === 'diaper' && !feedForm.kind) return alert('请选择换的是屎还是尿');
     setFeedLoading(true);
     try {
       if (editingId) {
@@ -817,10 +846,12 @@ export default function BabyAppFullStack() {
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             time: feedForm.time,
-            amount: parseFloat(feedForm.amount),
+            amount: (feedForm.type === 'milk' || feedForm.type === 'solids') ? (parseFloat(feedForm.amount) || 0) : 0,
             type: feedForm.type,
             note: feedForm.note,
             foodGroups: feedForm.foodGroups.join(','),
+            duration: (feedForm.type === 'sleep' && feedForm.wakeTime) ? diffMinutes(feedForm.time, feedForm.wakeTime) : (feedForm.duration || 0),
+            kind: feedForm.type === 'diaper' ? (feedForm.kind || '') : '',
           }),
         });
         setEditingId(null);
@@ -831,14 +862,16 @@ export default function BabyAppFullStack() {
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             time: feedForm.time,
-            amount: parseFloat(feedForm.amount),
+            amount: (feedForm.type === 'milk' || feedForm.type === 'solids') ? (parseFloat(feedForm.amount) || 0) : 0,
             type: feedForm.type,
             note: feedForm.note,
             foodGroups: feedForm.foodGroups.join(','),
+            duration: (feedForm.type === 'sleep' && feedForm.wakeTime) ? diffMinutes(feedForm.time, feedForm.wakeTime) : (feedForm.duration || 0),
+            kind: feedForm.type === 'diaper' ? (feedForm.kind || '') : '',
           }),
         });
       }
-      setFeedForm({ time: '', amount: '', type: 'milk', note: '', foodGroups: [] });
+      setFeedForm({ time: nowHM(), amount: '', type: 'milk', note: '', foodGroups: [], kind: '', duration: 0, wakeTime: '' });
       await fetchFeedData();
     } catch (e) { alert('操作失败：' + e.message); }
     setFeedLoading(false);
@@ -846,12 +879,21 @@ export default function BabyAppFullStack() {
 
   const startEdit = (r) => {
     setEditingId(r.id);
-    setFeedForm({ time: r.time, amount: String(r.amount), type: r.type, note: r.note || '', foodGroups: r.foodGroups ? r.foodGroups.split(',').filter(Boolean) : [] });
+    setFeedForm({
+      time: r.time,
+      amount: String(r.amount),
+      type: r.type,
+      note: r.note || '',
+      foodGroups: r.foodGroups ? r.foodGroups.split(',').filter(Boolean) : [],
+      kind: r.kind || '',
+      duration: r.duration || 0,
+      wakeTime: (r.type === 'sleep' && r.duration) ? addMinutesHM(r.time, r.duration) : '',
+    });
   };
 
   const cancelEdit = () => {
     setEditingId(null);
-    setFeedForm({ time: '', amount: '', type: 'milk', note: '', foodGroups: [] });
+    setFeedForm({ time: nowHM(), amount: '', type: 'milk', note: '', foodGroups: [], kind: '', duration: 0, wakeTime: '' });
   };
 
   const toggleFoodGroup = (g) => {
@@ -1313,10 +1355,12 @@ export default function BabyAppFullStack() {
                   <label>时间</label>
                   <TimePicker value={feedForm.time} onChange={(v) => setFeedForm({ ...feedForm, time: v })} />
                 </div>
-                <div className="feed__log-field">
-                  <label>喂养量(ml)</label>
-                  <input type="number" className="input input--sm" placeholder="0" value={feedForm.amount} onChange={(e) => setFeedForm({ ...feedForm, amount: e.target.value })} />
-                </div>
+                {(feedForm.type === 'milk' || feedForm.type === 'solids') && (
+                  <div className="feed__log-field">
+                    <label>喂养量({feedForm.type === 'milk' ? 'ml' : 'g'})</label>
+                    <input type="number" className="input input--sm" placeholder="0" value={feedForm.amount} onChange={(e) => setFeedForm({ ...feedForm, amount: e.target.value })} />
+                  </div>
+                )}
                 <div className="feed__log-field">
                   <label>类型</label>
                   <Dropdown
@@ -1325,6 +1369,8 @@ export default function BabyAppFullStack() {
                     options={[
                       { value: 'milk', label: '奶', icon: <Milk className="icon icon--xs" /> },
                       { value: 'solids', label: '辅食', icon: <Utensils className="icon icon--xs" /> },
+                      { value: 'diaper', label: '换尿布', icon: <Baby className="icon icon--xs" /> },
+                      { value: 'sleep', label: '睡觉', icon: <Moon className="icon icon--xs" /> },
                     ]}
                   />
                 </div>
@@ -1344,6 +1390,24 @@ export default function BabyAppFullStack() {
                         </button>
                       ))}
                     </div>
+                  </div>
+                )}
+                {feedForm.type === 'diaper' && (
+                  <div className="feed__log-field feed__log-field--note">
+                    <label>换的是</label>
+                    <div className="feed__chips">
+                      {[{ v: 'pee', l: '尿' }, { v: 'poop', l: '屎' }, { v: 'both', l: '都有' }].map((o) => (
+                        <button key={o.v} type="button"
+                          className={`feed__chip ${feedForm.kind === o.v ? 'feed__chip--on' : ''}`}
+                          onClick={() => setFeedForm({ ...feedForm, kind: o.v })}>{o.l}</button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+                {feedForm.type === 'sleep' && (
+                  <div className="feed__log-field">
+                    <label>醒来时间（可选）</label>
+                    <TimePicker value={feedForm.wakeTime || ''} onChange={(v) => setFeedForm({ ...feedForm, wakeTime: v })} />
                   </div>
                 )}
                 <div className="feed__log-field feed__log-field--note">
@@ -1368,14 +1432,14 @@ export default function BabyAppFullStack() {
             </div>
 
             {/* 今日记录列表 */}
-            {feedRecords.length > 0 && (
+            {feedRecords.some(r => r.type === 'milk' || r.type === 'solids') && (
               <div className="feed__records">
                 <div className="feed__records-title">今日喂养记录</div>
                 <div className="feed__records-list">
-                  {feedRecords.map((r) => (
+                  {feedRecords.filter(r => r.type === 'milk' || r.type === 'solids').map((r) => (
                     <div key={r.id} className={`feed__record ${editingId === r.id ? 'feed__record--editing' : ''}`}>
                       <span className="feed__record-time">{r.time}</span>
-                      <span className="feed__record-amount">{r.amount}ml</span>
+                      <span className="feed__record-amount">{r.amount}{r.type === 'milk' ? 'ml' : 'g'}</span>
                       <span className={`feed__record-type feed__record-type--${r.type}`}>{r.type === 'milk' ? '奶' : '辅食'}</span>
                       {r.note && <span className="feed__record-note">{r.note}</span>}
                       <button className="feed__record-edit" onClick={() => startEdit(r)} aria-label="编辑">
@@ -1469,6 +1533,48 @@ export default function BabyAppFullStack() {
               </div>
             )}
 
+          </div>
+        </Reveal>
+
+        {/* 今日活动 · 时间轴 */}
+        <Reveal className="section" delay={0.05}>
+          <div className="section__head">
+            <span className="section__ico section__ico--violet"><Clock className="icon icon--sm" /></span>
+            <h2 className="section__title">今日活动</h2>
+          </div>
+          <div className="timeline">
+            {(() => {
+              const items = [...feedRecords].sort((a, b) => a.time.localeCompare(b.time));
+              if (items.length === 0) {
+                return <div className="timeline__empty">今天还没有记录，添加一个喂养 / 换尿布 / 睡觉吧～</div>;
+              }
+              return items.map((r) => {
+                const map = {
+                  milk: { ico: <Milk className="icon icon--xs" />, cls: 'milk', label: `喂奶 ${r.amount}ml` },
+                  solids: { ico: <Utensils className="icon icon--xs" />, cls: 'solids', label: `辅食 ${r.amount}g` },
+                  diaper: { ico: <Baby className="icon icon--xs" />, cls: 'diaper', label: `换尿布 · ${r.kind === 'poop' ? '屎' : r.kind === 'both' ? '屎+尿' : '尿'}` },
+                  sleep: { ico: <Moon className="icon icon--xs" />, cls: 'sleep', label: r.duration ? `睡觉 ${fmtDur(r.duration)}` : '睡觉' },
+                };
+                const meta = map[r.type] || { ico: <Clock className="icon icon--xs" />, cls: '', label: r.type };
+                const sub = r.type === 'solids' && r.foodGroups ? r.foodGroups.split(',').filter(Boolean).join('、') : (r.note || '');
+                return (
+                  <div key={r.id} className={`timeline__item timeline__item--${meta.cls}`}>
+                    <div className="timeline__dot"><span className="timeline__ico">{meta.ico}</span></div>
+                    <div className="timeline__content">
+                      <div className="timeline__row">
+                        <span className="timeline__time">{r.time}</span>
+                        <span className="timeline__label">{meta.label}</span>
+                      </div>
+                      {sub && <div className="timeline__sub">{sub}</div>}
+                    </div>
+                    <div className="timeline__ops">
+                      <button className="timeline__op" onClick={() => startEdit(r)} aria-label="编辑"><Pencil className="icon icon--xs" /></button>
+                      <button className="timeline__op timeline__op--del" onClick={() => deleteFeedRecord(r.id)} aria-label="删除"><Trash2 className="icon icon--xs" /></button>
+                    </div>
+                  </div>
+                );
+              });
+            })()}
           </div>
         </Reveal>
 

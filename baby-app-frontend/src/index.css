@@ -628,6 +628,59 @@ body { display: block; background: #eef3f1; }
   box-shadow: 0 4px 12px rgba(14,147,132,.28);
 }
 
+/* ---------- 今日活动 · 时间轴 ---------- */
+.timeline { position: relative; margin-top: 4px; padding-left: 8px; }
+.timeline__empty {
+  font-size: 13px; color: var(--muted); text-align: center;
+  padding: 18px 10px; background: var(--surface-2); border-radius: var(--r-mid);
+}
+.timeline__item {
+  position: relative; display: flex; align-items: flex-start; gap: 12px;
+  padding: 0 0 16px 22px;
+}
+/* 竖线 */
+.timeline__item::before {
+  content: ''; position: absolute; left: 11px; top: 6px; bottom: -6px;
+  width: 2px; background: var(--line);
+}
+.timeline__item:last-child::before { display: none; }
+.timeline__dot {
+  position: absolute; left: 0; top: 2px;
+  width: 24px; height: 24px; border-radius: 50%;
+  display: grid; place-items: center; z-index: 1;
+  background: var(--surface-2); border: 2px solid var(--line); color: var(--muted);
+}
+.timeline__ico { display: inline-flex; }
+.timeline__ico .icon { width: 13px; height: 13px; }
+.timeline__content {
+  flex: 1; min-width: 0; background: var(--surface-2); border: 1px solid var(--line);
+  border-radius: var(--r-mid); padding: 9px 12px;
+}
+.timeline__row { display: flex; align-items: baseline; gap: 8px; }
+.timeline__time {
+  font-family: var(--font-display); font-size: 13px; font-weight: 800; color: var(--ink-soft);
+  flex: none;
+}
+.timeline__label { font-size: 13.5px; font-weight: 800; color: var(--ink); }
+.timeline__sub { font-size: 12px; color: var(--muted); margin-top: 3px; line-height: 1.5; }
+.timeline__ops { display: flex; flex-direction: column; gap: 6px; }
+.timeline__op {
+  width: 28px; height: 28px; border-radius: 8px; border: 1.5px solid var(--line);
+  background: #fff; color: var(--muted); display: grid; place-items: center; cursor: pointer;
+  transition: all .15s;
+}
+.timeline__op:hover { color: var(--ink); border-color: var(--primary-soft); }
+.timeline__op--del:hover { color: var(--coral); border-color: var(--coral); }
+/* 各类型配色（圆点 + 标签） */
+.timeline__item--milk   .timeline__dot { color: var(--primary-600); border-color: var(--primary); background: var(--primary-soft); }
+.timeline__item--solids .timeline__dot { color: #c2410c; border-color: #fdba74; background: #ffedd5; }
+.timeline__item--diaper .timeline__dot { color: #0e7490; border-color: #67e8f9; background: #cffafe; }
+.timeline__item--sleep  .timeline__dot { color: #6d28d9; border-color: #c4b5fd; background: #ede9fe; }
+.timeline__item--milk   .timeline__label { color: var(--primary-600); }
+.timeline__item--solids .timeline__label { color: #c2410c; }
+.timeline__item--diaper .timeline__label { color: #0e7490; }
+.timeline__item--sleep  .timeline__label { color: #6d28d9; }
+
 /* ---------- 辅食三项评估（WHO 口径） ---------- */
 .feed__eval-solids {
   display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px;
