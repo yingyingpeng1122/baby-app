@@ -606,6 +606,26 @@ body { display: block; background: #eef3f1; }
 .feed-monthly__item--good .feed-monthly__num { color: var(--green); }
 .feed-monthly__item--low .feed-monthly__num { color: var(--honey); }
 .feed-monthly__item--high .feed-monthly__num { color: var(--coral); }
+
+/* ===== 月报 · 每日奶量柱形图 ===== */
+.feed-chart { margin-top: 16px; }
+.feed-chart__title { font-size: 13px; font-weight: 800; color: var(--ink-soft); margin-bottom: 10px; }
+.feed-chart__bars {
+  display: flex; align-items: flex-end; gap: 2px;
+  height: 134px; overflow-x: auto; padding-bottom: 2px;
+}
+.feed-chart__col {
+  flex: 0 0 auto; width: 16px; height: 100%;
+  display: flex; flex-direction: column; align-items: center; justify-content: flex-end;
+}
+.feed-chart__val { font-size: 8px; line-height: 1; color: var(--muted); margin-bottom: 2px; white-space: nowrap; }
+.feed-chart__bar { width: 100%; min-height: 2px; border-radius: 3px 3px 0 0; }
+.feed-chart__bar--good { background: var(--green); }
+.feed-chart__bar--low { background: var(--honey); }
+.feed-chart__bar--high { background: var(--coral); }
+.feed-chart__bar--empty,
+.feed-chart__bar--future { background: var(--line); }
+.feed-chart__x { font-size: 9px; line-height: 1; color: var(--muted); margin-top: 4px; }
 .feed-monthly__label { font-size: 12px; font-weight: 800; color: var(--ink-soft); }
 
 /* ---------- 早教列表 ---------- */

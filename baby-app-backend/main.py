@@ -1251,7 +1251,9 @@ async def get_feeding_calendar(request: Request, year: int = Query(...), month: 
             "isFuture": is_future,
         }
 
-    return {"year": year, "month": month, "targetMilk": target_milk, "days": days}
+    daily_milk = [day_map.get(d, {}).get("total_milk", 0) for d in range(1, num_days + 1)]
+
+    return {"year": year, "month": month, "targetMilk": target_milk, "days": days, "dailyMilk": daily_milk}
 
 @app.get("/feeding-stats-monthly")
 async def get_feeding_stats_monthly(request: Request, year: int = Query(...), month: int = Query(...)):

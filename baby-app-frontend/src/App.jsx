@@ -1355,7 +1355,7 @@ export default function BabyAppFullStack() {
               <div className="feed__log-title">{editingId ? '编辑喂养记录' : '记录今日喂养'}</div>
               <div className="feed__log-form">
                 <div className="feed__log-field">
-                  <label>时间</label>
+                  <label>{feedForm.type === 'sleep' ? '开始时间' : '时间'}</label>
                   <TimePicker value={feedForm.time} onChange={(v) => setFeedForm({ ...feedForm, time: v })} />
                 </div>
                 {(feedForm.type === 'milk' || feedForm.type === 'solids') && (
@@ -1418,7 +1418,7 @@ export default function BabyAppFullStack() {
                 )}
                 {feedForm.type === 'sleep' && (
                   <div className="feed__log-field">
-                    <label>醒来时间（可选）</label>
+                    <label>结束时间（可选）</label>
                     <TimePicker value={feedForm.wakeTime || ''} onChange={(v) => setFeedForm({ ...feedForm, wakeTime: v })} />
                   </div>
                 )}
@@ -1467,7 +1467,7 @@ export default function BabyAppFullStack() {
             )}
 
             {/* 喂养评估 */}
-            {feedEval && (
+            {feedEval && recordTab === 'feed' && (
               <div className={`feed__eval feed__eval--${feedEval.status}`}>
                 <div className="feed__eval-icon">
                   {feedEval.status === 'good' ? <Check className="icon icon--lg" /> : <TrendingUp className="icon icon--lg" />}
@@ -1852,6 +1852,30 @@ export default function BabyAppFullStack() {
                       <span className="feed-monthly__label">超出天数</span>
                     </div>
                   </div>
+                  {/* 本月每日奶量柱形图 */}
+                  {feedingCalendarData?.dailyMilk && feedingCalendarData.dailyMilk.length > 0 && (() => {
+                    const dm = feedingCalendarData.dailyMilk;
+                    const maxMilk = Math.max(1, ...dm);
+                    return (
+                      <div className="feed-chart">
+                        <div className="feed-chart__title">📈 本月每日奶量(ml)</div>
+                        <div className="feed-chart__bars">
+                          {dm.map((milk, i) => {
+                            const day = i + 1;
+                            const lvl = feedingCalendarData.days?.[String(day)]?.level || 'empty';
+                            const barH = Math.max(milk > 0 ? 4 : 2, Math.round((milk / maxMilk) * 96));
+                            return (
+                              <div key={day} className="feed-chart__col" title={`${day}日 ${milk}ml`}>
+                                {milk > 0 && <span className="feed-chart__val">{milk}</span>}
+                                <div className={`feed-chart__bar feed-chart__bar--${lvl}`} style={{ height: `${barH}px` }}></div>
+                                <span className="feed-chart__x">{day}</span>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    );
+                  })()}
                 </div>
               )}
             </div>
