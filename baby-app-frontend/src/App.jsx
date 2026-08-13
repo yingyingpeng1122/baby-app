@@ -1785,12 +1785,12 @@ export default function BabyAppFullStack() {
                                 <div className="daytime__time">{r.time}</div>
                                 <div className="daytime__amount">{subTitle}</div>
                               </div>
-                              <div className="daytime__ops">
-                                <button className="daytime__op" onClick={(e) => { e.stopPropagation(); startEdit(r); }} aria-label="编辑"><Pencil className="icon icon--xs" /></button>
-                                <button className="daytime__op daytime__op--del" onClick={(e) => { e.stopPropagation(); deleteFeedRecord(r.id); }} aria-label="删除"><Trash2 className="icon icon--xs" /></button>
-                              </div>
                             </div>
                             {sub && <div className="daytime__note">{sub}</div>}
+                            <div className="daytime__ops">
+                              <button className="daytime__op" onClick={(e) => { e.stopPropagation(); startEdit(r); }} aria-label="编辑"><Pencil className="icon icon--xs" /></button>
+                              <button className="daytime__op daytime__op--del" onClick={(e) => { e.stopPropagation(); deleteFeedRecord(r.id); }} aria-label="删除"><Trash2 className="icon icon--xs" /></button>
+                            </div>
                           </div>
                         </div>
                       );

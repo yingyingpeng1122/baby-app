@@ -631,15 +631,19 @@ def _solids_displace_threshold(months: int) -> float:
     return 200.0
 
 def _norm_feed_type(raw):
-    """把喂养记录里的 type 统一成规范值 'milk' / 'solids' / 'other'。
+    """把喂养记录里的 type 统一成规范值 'milk' / 'solids' / 'diaper' / 'sleep' / 'other'。
     兼容历史数据（中文：母乳/配方奶/辅食）与当前前端写入的英文（milk/solids/diaper/sleep）。"""
     if not raw:
         return 'other'
-    t = str(raw).strip()
+    t = str(raw).strip().lower()
     if t in ('milk', '母乳', '配方奶', 'breast', 'formula', 'breast_milk', 'formula_milk'):
         return 'milk'
     if t in ('solids', '辅食', 'solid', 'food'):
         return 'solids'
+    if t in ('diaper', '换尿布', '尿布', '尿不湿'):
+        return 'diaper'
+    if t in ('sleep', '睡觉', '睡眠'):
+        return 'sleep'
     return 'other'
 
 def _target_meals(months: int) -> int:

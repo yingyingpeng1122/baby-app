@@ -837,10 +837,10 @@ body { display: block; background: #eef3f1; }
 .daytime__title { min-width: 0; flex: 1; }
 .daytime__time { font-size: 12.5px; font-weight: 800; color: var(--ink); }
 .daytime__amount { font-size: 12px; font-weight: 700; color: var(--muted); margin-top: 1px; line-height: 1.3; }
-.daytime__ops { display: flex; flex-direction: column; gap: 4px; flex: none; opacity: 0; pointer-events: none; transition: opacity .15s ease; }
-/* 默认隐藏编辑/删除；桌面悬浮、或方格被点击（手机无 hover）时显示 */
+.daytime__ops { display: none; justify-content: center; gap: 10px; margin-top: 2px; }
+/* 默认隐藏编辑/删除；桌面悬浮、或方格被点击（手机无 hover）时显示；居中于卡片底部，不遮挡内容 */
 .daytime__item:hover .daytime__ops,
-.daytime__item.is-open .daytime__ops { opacity: 1; pointer-events: auto; }
+.daytime__item.is-open .daytime__ops { display: flex; }
 .daytime__op {
   width: 26px; height: 26px; border-radius: 7px; border: 1px solid var(--line);
   background: #fff; color: var(--muted); display: grid; place-items: center; cursor: pointer;
