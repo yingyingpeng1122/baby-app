@@ -435,10 +435,13 @@ body { display: block; background: #eef3f1; }
 .cal-modal {
   background: #fff; border-radius: var(--r-card); box-shadow: var(--sh-lg);
   width: 100%; max-width: 400px; max-height: 85vh; overflow-y: auto; overflow-x: hidden;
-  padding: 22px 24px; animation: slideUp .25s cubic-bezier(.2,.8,.3,1);
+  padding: 0 24px 22px; /* 顶部留白移入 sticky 头部，使头部与滚动视口顶部齐平，避免滚动后顶部镂空 */
+  animation: slideUp .25s cubic-bezier(.2,.8,.3,1);
   /* 细窄自定义滚动条，避免默认滚动条突兀 */
   scrollbar-width: thin;
   scrollbar-color: var(--line) transparent;
+  -webkit-overflow-scrolling: touch;
+  transform: translateZ(0); /* 隔离合成层：修复 iOS 滚动时内容穿透/镂空（与 backdrop-filter 叠加导致的渲染缝隙） */
 }
 .cal-modal::-webkit-scrollbar { width: 6px; }
 .cal-modal::-webkit-scrollbar-track { background: transparent; }
@@ -452,9 +455,9 @@ body { display: block; background: #eef3f1; }
 .cal-modal__sticky {
   position: sticky;
   top: 0;
-  z-index: 5;
+  z-index: 6;
   margin: 0 -24px;
-  padding: 0 24px 10px;
+  padding: 22px 24px 12px; /* 顶部留白在此提供，使头部与滚动视口顶部齐平 */
   background: #fff;
   border-bottom: 1px solid var(--line);
 }
@@ -758,7 +761,7 @@ body { display: block; background: #eef3f1; }
 
 /* ---------- 生病模式 ---------- */
 .sick-toggle {
-  margin-left: auto; display: inline-flex; align-items: center; gap: 8px;
+  display: inline-flex; align-items: center; gap: 8px;
   background: var(--surface-2); border: 1px solid var(--line); border-radius: 999px;
   padding: 5px 12px; font-size: 12px; font-weight: 700; color: var(--muted); cursor: pointer;
 }
@@ -831,7 +834,10 @@ body { display: block; background: #eef3f1; }
 .daytime__title { min-width: 0; flex: 1; }
 .daytime__time { font-size: 12.5px; font-weight: 800; color: var(--ink); }
 .daytime__amount { font-size: 12px; font-weight: 700; color: var(--muted); margin-top: 1px; line-height: 1.3; }
-.daytime__ops { display: flex; flex-direction: column; gap: 4px; flex: none; }
+.daytime__ops { display: flex; flex-direction: column; gap: 4px; flex: none; opacity: 0; pointer-events: none; transition: opacity .15s ease; }
+/* 默认隐藏编辑/删除；桌面悬浮、或方格被点击（手机无 hover）时显示 */
+.daytime__item:hover .daytime__ops,
+.daytime__item.is-open .daytime__ops { opacity: 1; pointer-events: auto; }
 .daytime__op {
   width: 26px; height: 26px; border-radius: 7px; border: 1px solid var(--line);
   background: #fff; color: var(--muted); display: grid; place-items: center; cursor: pointer;
@@ -1040,8 +1046,8 @@ body { display: block; background: #eef3f1; }
   .baby-switcher { flex-wrap: nowrap; max-width: 46vw; overflow-x: auto; scrollbar-width: none; }
   .baby-switcher::-webkit-scrollbar { display: none; }
 
-  /* 概览横幅 */
-  .hero { grid-template-columns: 1fr; text-align: left; padding: 20px 18px; }
+  /* 概览横幅：hero 是 flex 容器，用 flex-wrap 让其内容在窄屏自动换行堆叠 */
+  .hero { flex-wrap: wrap; text-align: left; padding: 20px 18px; }
   .ring { justify-self: center; width: 140px; height: 140px; }
   .ring__num { font-size: 36px; }
   .hero__sub { max-width: none; }
@@ -1077,8 +1083,8 @@ body { display: block; background: #eef3f1; }
   .checklist { padding: 14px 16px; }
   .checklist__item { padding: 10px 12px; gap: 10px; }
 
-  .cal-modal { padding: 18px 16px; max-width: 100%; }
-  .cal-modal__sticky { margin: 0 -16px; padding: 0 16px 8px; }
+  .cal-modal { padding: 0 16px 18px; max-width: 100%; }
+  .cal-modal__sticky { margin: 0 -16px; padding: 18px 16px 10px; }
   .cal-cell { font-size: 13px; }
   .cal-weekdays__day { font-size: 11px; }
   .cal-month-nav__label { font-size: 15px; }
@@ -1107,7 +1113,13 @@ body { display: block; background: #eef3f1; }
   .feed__eval { margin: 12px 14px 18px; }
   .feed__advice { margin: 12px 14px 0; }
   .feed__foot { margin: 10px 14px 0; }
-  .feed__log-form { gap: 8px 10px; }
+  /* 录入表单：窄屏单列（覆盖 720 的双列网格，避免两列拥挤/溢出） */
+  .feed__log-form { grid-template-columns: 1fr; gap: 10px; }
+  /* 双列网格在手机上改为单列 */
+  .field__row, .seg { grid-template-columns: 1fr; }
+  /* 宝宝的一天：方格收窄，更多内容可见 */
+  .daytime__item { width: 112px; }
+  .daytime__card { padding: 8px; }
   .feed__record { gap: 5px 8px; }
   .feed__record-edit,
   .feed__record-del { width: 32px; height: 32px; }

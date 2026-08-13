@@ -14,6 +14,7 @@ import re
 import os
 import uuid
 import random
+import html as _html
 
 # ---------------- 应用 & 跨域 ----------------
 app = FastAPI(title="Baby Growth Assistant API")
@@ -433,12 +434,32 @@ def search_bilibili(keyword):
         return _video_cache[keyword]
     try:
         url = "https://search.bilibili.com/all?" + urllib.parse.urlencode({"keyword": keyword})
-        html = _http_get(url, {"User-Agent": UA, "Referer": "https://www.bilibili.com/"})
-        bvs = re.findall(r'href="//www\.bilibili\.com/video/(BV[0-9A-Za-z]{10})"', html)
-        if not bvs:
-            bvs = re.findall(r'BV[0-9A-Za-z]{10}', html)
-        if bvs:
-            bvid = bvs[0]
+        page = _http_get(url, {"User-Agent": UA, "Referer": "https://www.bilibili.com/"})
+        # 抽取所有视频结果锚点，并尽量取到标题，用于“按标题相关度挑选”，
+        # 避免取到的第一个结果标题与卡片名称（关键词）对不上。
+        anchors = re.findall(r'<a\b[^>]*?href="//www\.bilibili\.com/video/BV[0-9A-Za-z]{10}"[^>]*>', page)
+        cand = []
+        for a in anchors:
+            bv = re.search(r'BV[0-9A-Za-z]{10}', a)
+            if not bv:
+                continue
+            tm = re.search(r'title="([^"]*)"', a)
+            title = _html.unescape(tm.group(1)) if tm else ''
+            cand.append((bv.group(0), title))
+        if not cand:
+            # 退化：仅按 BV 号
+            bvs = re.findall(r'BV[0-9A-Za-z]{10}', page)
+            cand = [(b, '') for b in bvs]
+        if cand:
+            kw = re.sub(r'\s+', '', keyword).lower()
+            tokens = [t for t in re.split(r'[，,。、\s]+', kw) if t]
+            def _score(t):
+                if not t:
+                    return 0
+                t2 = re.sub(r'\s+', '', t).lower()
+                return sum(1 for tok in tokens if tok and tok in t2)
+            cand.sort(key=lambda x: _score(x[1]), reverse=True)
+            bvid = cand[0][0]
             player = f"https://player.bilibili.com/player.html?bvid={bvid}&page=1&high_quality=1&danmaku=0"
             _video_cache[keyword] = player
             _save_cache()

@@ -178,8 +178,12 @@ function TempChart({ records }) {
     return m ? `${m[2]}-${m[3]} ${m[4]}:${m[5]}` : s;
   };
   const pts = [...records]
-    .map(r => ({ t: new Date(r.datetime.replace(' ', 'T')), v: r.temp, dt: r.datetime, note: r.note }))
-    .filter(p => !isNaN(p.t))
+    .map(r => {
+      const dt = r.datetime || '';
+      const t = new Date(dt.replace(' ', 'T'));
+      return { t: isNaN(t) ? null : t, v: Number(r.temp) || 0, dt, note: r.note || '' };
+    })
+    .filter(p => p.t !== null)
     .sort((a, b) => a.t - b.t);
   const n = pts.length;
   const xOf = i => n <= 1 ? padL + plotW / 2 : padL + (i / (n - 1)) * plotW;
@@ -727,6 +731,7 @@ export default function BabyAppFullStack() {
   const [careItem, setCareItem] = useState(null); // 当前展开的条目 key
   // 喂养记录
   const [feedRecords, setFeedRecords] = useState([]);
+  const [openDayId, setOpenDayId] = useState(null); // 宝宝的一天：当前展开编辑/删除的方格（手机点击切换）
   const [feedEval, setFeedEval] = useState(null);
   const [feedForm, setFeedForm] = useState({ time: nowHM(), amount: '', type: 'milk', note: '', foodGroups: [], kind: '', duration: 0, wakeTime: '' });
   const [feedLoading, setFeedLoading] = useState(false);
@@ -1037,7 +1042,7 @@ export default function BabyAppFullStack() {
       });
       if (!res.ok) { const e = await res.json().catch(() => ({})); throw new Error(e.detail || '保存失败'); }
       await loadTemps();
-      setTempDraft({ temp: '', note: '', datetime: nowDateTime().replace(' ', 'T') });
+      setTempDraft({ temp: '', note: '', datetime: nowDateTime().replace(' ', 'T'), symptoms: [] });
     } catch (e) { alert('保存体温失败：' + (e.message || '')); }
   };
   const delTemp = async (id) => {
@@ -1771,9 +1776,9 @@ export default function BabyAppFullStack() {
                       const subTitle = meta.amount ? meta.amount : meta.typeLabel;
                       const pos = i % 2 === 0 ? 'up' : 'down';
                       return (
-                        <div key={r.id} className={`daytime__item daytime__item--${pos} daytime__item--${meta.cls}`}>
+                        <div key={r.id} className={`daytime__item daytime__item--${pos} daytime__item--${meta.cls} ${openDayId === r.id ? 'is-open' : ''}`}>
                           <span className="daytime__dot" />
-                          <div className="daytime__card">
+                          <div className="daytime__card" onClick={() => setOpenDayId(openDayId === r.id ? null : r.id)}>
                             <div className="daytime__top">
                               <span className="daytime__icon">{meta.emoji}</span>
                               <div className="daytime__title">
@@ -1781,8 +1786,8 @@ export default function BabyAppFullStack() {
                                 <div className="daytime__amount">{subTitle}</div>
                               </div>
                               <div className="daytime__ops">
-                                <button className="daytime__op" onClick={() => startEdit(r)} aria-label="编辑"><Pencil className="icon icon--xs" /></button>
-                                <button className="daytime__op daytime__op--del" onClick={() => deleteFeedRecord(r.id)} aria-label="删除"><Trash2 className="icon icon--xs" /></button>
+                                <button className="daytime__op" onClick={(e) => { e.stopPropagation(); startEdit(r); }} aria-label="编辑"><Pencil className="icon icon--xs" /></button>
+                                <button className="daytime__op daytime__op--del" onClick={(e) => { e.stopPropagation(); deleteFeedRecord(r.id); }} aria-label="删除"><Trash2 className="icon icon--xs" /></button>
                               </div>
                             </div>
                             {sub && <div className="daytime__note">{sub}</div>}
@@ -2116,7 +2121,7 @@ export default function BabyAppFullStack() {
                   <div className="sick__advice-text">{advice.text}</div>
                   {latest && (
                     <div className="sick__advice-meta">
-                      最近一次 {latest.datetime}：{latestTemp}°C
+                      最近一次 {latest.datetime || '—'}：{latestTemp}°C
                       {sinceH !== null && <span> · 距现在 {sinceH < 1 ? Math.round(sinceH * 60) + ' 分钟' : sinceH.toFixed(1) + ' 小时'}</span>}
                     </div>
                   )}
@@ -2140,10 +2145,10 @@ export default function BabyAppFullStack() {
                     <div className="feed__chips">
                       {TEMP_SYMPTOMS.map(s => (
                         <button key={s} type="button"
-                          className={`feed__chip ${tempDraft.symptoms.includes(s) ? 'feed__chip--on' : ''}`}
+                          className={`feed__chip ${(tempDraft.symptoms || []).includes(s) ? 'feed__chip--on' : ''}`}
                           onClick={() => setTempDraft({
                             ...tempDraft,
-                            symptoms: tempDraft.symptoms.includes(s) ? tempDraft.symptoms.filter(x => x !== s) : [...tempDraft.symptoms, s],
+                            symptoms: (tempDraft.symptoms || []).includes(s) ? (tempDraft.symptoms || []).filter(x => x !== s) : [...(tempDraft.symptoms || []), s],
                           })}>{s}</button>
                       ))}
                     </div>
@@ -2175,7 +2180,7 @@ export default function BabyAppFullStack() {
                   <div className="growth__list">
                     {tempRecords.map(r => (
                       <div key={r.id} className="growth__row">
-                        <span className="growth__row-date">{r.datetime}</span>
+                        <span className="growth__row-date">{r.datetime || '—'}</span>
                         <span className={`growth__row-temp ${r.temp >= 38 ? 'is-high' : ''}`}>{r.temp}°C</span>
                         {r.note && <span className="growth__row-note">{r.note}</span>}
                         <button className="growth__row-del" onClick={() => delTemp(r.id)} aria-label="删除"><Trash2 className="icon icon--xs" /></button>
