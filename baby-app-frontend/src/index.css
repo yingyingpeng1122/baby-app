@@ -802,12 +802,12 @@ body { display: block; background: #eef3f1; }
   background-image: radial-gradient(rgba(17,24,39,.06) 1px, transparent 1.5px);
   background-size: 16px 16px;
 }
-.daytime__inner { display: flex; width: max-content; gap: 14px; position: relative; padding: 4px 0; }
+.daytime__inner { position: relative; width: max-content; padding: 4px 0; }
 .daytime__inner::before {
   content: ''; position: absolute; top: 50%; left: 0; right: 0; height: 2px;
   background: var(--line); transform: translateY(-1px); border-radius: 2px;
 }
-.daytime__item { position: relative; flex: none; width: 96px; height: 280px; }
+.daytime__item { position: absolute; width: 96px; height: 280px; }
 /* 宽度恒定；编辑/删除按钮常显于卡片底部，不横向挤动其它方块 */
 .daytime__item--up::after, .daytime__item--down::after {
   content: ''; position: absolute; left: 50%; width: 2px; background: var(--line);
@@ -1162,8 +1162,8 @@ body { display: block; background: #eef3f1; }
   .feed__log-form { grid-template-columns: 1fr; gap: 10px; }
   /* 双列网格在手机上改为单列 */
   .field__row, .seg { grid-template-columns: 1fr; }
-  /* 宝宝的一天：手机端宽度自适应（不再固定 84px 偏窄），随屏宽在 96~124px 间伸缩；展开只增高度不横向挤动 */
-  .daytime__item { width: clamp(96px, 27vw, 124px); height: 256px; }
+  /* 宝宝的一天：手机端方格宽度固定 96px（与桌面一致），与 left 偏移计算基准匹配，避免重叠 */
+  .daytime__item { width: 96px; height: 256px; }
   /* 手机端方块内备注限 1 行：避免带 2 行备注的 down 卡片超出方块高度，触发竖向滚动 */
   .daytime__note { -webkit-line-clamp: 1; }
   .daytime__card { padding: 8px; }

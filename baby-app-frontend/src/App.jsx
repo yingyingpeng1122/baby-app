@@ -1854,8 +1854,28 @@ export default function BabyAppFullStack() {
                   return <div className="daytime__empty">今天还没有记录，添加一个喂养 / 换尿布 / 睡觉吧～</div>;
                 }
                 return (
-                  <div className="daytime__inner">
-                    {items.map((r, i) => {
+                  (() => {
+                    // 真实时间轴：按 HH:MM 算当天分钟数，相邻间距按真实时间差比例排布
+                    const toMin = (hm) => { const [h, m] = hm.split(':').map(Number); return h * 60 + m; };
+                    const ITEM_W = 96;          // 方格宽度（与 CSS 一致）
+                    const PX_PER_MIN = 0.7;      // 每分钟对应的像素，控制整体疏密
+                    const MIN_GAP = ITEM_W + 8;  // 相邻方格最小净间距（防重叠）
+                    let cursor = 0;             // 累计 left 偏移
+                    const placed = items.map((r, i) => {
+                      const t = toMin(r.time);
+                      if (i === 0) { cursor = 0; }
+                      else {
+                        const prevT = toMin(items[i - 1].time);
+                        let delta = t - prevT;
+                        if (delta < 0) delta += 24 * 60; // 跨午夜
+                        cursor += Math.max(MIN_GAP, delta * PX_PER_MIN);
+                      }
+                      return { r, left: cursor };
+                    });
+                    const totalW = (placed[placed.length - 1].left) + ITEM_W + 20;
+                    return (
+                  <div className="daytime__inner" style={{ width: totalW }}>
+                    {placed.map(({ r, left }, i) => {
                       const map = {
                         milk: { emoji: '🍼', cls: 'milk', typeLabel: '喝奶', amount: r.amount ? `${r.amount}ml` : '' },
                         solids: { emoji: '🥣', cls: 'solids', typeLabel: '辅食', amount: r.amount ? `${r.amount}g` : '' },
@@ -1869,7 +1889,7 @@ export default function BabyAppFullStack() {
                       const sleepEnd = r.type === 'sleep' && r.duration > 0 ? addMinutesHM(r.time, r.duration) : '';
                       const sleepBarW = sleepEnd ? Math.max(36, Math.min(r.duration * 1.2, 320)) : 0;
                       return (
-                        <div key={r.id} className={`daytime__item daytime__item--${pos} daytime__item--${meta.cls}${sleepEnd ? ' daytime__item--sleep-range' : ''}`} style={sleepEnd ? { '--shift': `${sleepBarW / 2}px` } : undefined}>
+                        <div key={r.id} className={`daytime__item daytime__item--${pos} daytime__item--${meta.cls}${sleepEnd ? ' daytime__item--sleep-range' : ''}`} style={{ left: `${left}px`, ...(sleepEnd ? { '--shift': `${sleepBarW / 2}px` } : {}) }}>
                           {sleepEnd && (
                             <div className="daytime__sleep-range" style={{ width: `${sleepBarW}px` }}>
                               <span className="daytime__sleep-end">{sleepEnd}</span>
@@ -1894,6 +1914,8 @@ export default function BabyAppFullStack() {
                       );
                     })}
                   </div>
+                    );
+                  })()
                 );
               })()}
             </div>
