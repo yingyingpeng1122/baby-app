@@ -2021,9 +2021,6 @@ export default function BabyAppFullStack() {
             {/* 喂养评估 */}
             {feedEval && recordTab === 'feed' && (
               <div className={`feed__eval feed__eval--${feedEval.status}`}>
-                <div className="feed__eval-icon">
-                  {feedEval.status === 'good' ? <Check className="icon icon--lg" /> : <TrendingUp className="icon icon--lg" />}
-                </div>
                 <div className="feed__eval-body">
                   <div className="feed__eval-title">喂养评估</div>
                   <div className="feed__eval-msg">{feedEval.message}</div>
