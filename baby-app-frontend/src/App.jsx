@@ -2209,34 +2209,39 @@ export default function BabyAppFullStack() {
                 {/* 体温录入 */}
                 <h3 className="sick__h">记录体温</h3>
                 <div className="growth__form" id="temp-form">
-                  <div className="growth__form-row">
-                    <div className="feed__log-field">
+                  {/* 时间 + 体温：宽度收窄 */}
+                  <div className="growth__form-row growth__form-row--temp">
+                    <div className="feed__log-field feed__log-field--time">
                       <label>时间</label>
                       <input type="datetime-local" className="input input--sm" value={tempDraft.datetime} onChange={(e) => setTempDraft({ ...tempDraft, datetime: e.target.value })} />
                     </div>
-                    <div className="feed__log-field">
+                    <div className="feed__log-field feed__log-field--temp">
                       <label>体温(°C)</label>
                       <input type="number" step="0.1" className="input input--sm" placeholder="如 38.5" value={tempDraft.temp} onChange={(e) => setTempDraft({ ...tempDraft, temp: e.target.value })} />
                     </div>
                   </div>
-                  <div className="feed__log-field feed__log-field--note">
-                    <label>症状</label>
-                    <div className="feed__chips">
-                      {TEMP_SYMPTOMS.map(s => (
-                        <button key={s} type="button"
-                          className={`feed__chip ${(tempDraft.symptoms || []).includes(s) ? 'feed__chip--on' : ''}`}
-                          onClick={() => setTempDraft({
-                            ...tempDraft,
-                            symptoms: (tempDraft.symptoms || []).includes(s) ? (tempDraft.symptoms || []).filter(x => x !== s) : [...(tempDraft.symptoms || []), s],
-                          })}>{s}</button>
-                      ))}
+                  {/* 症状 + 备注：同一行（手机端自动换行/堆叠） */}
+                  <div className="growth__form-row growth__form-row--symp-note">
+                    <div className="feed__log-field feed__log-field--symp">
+                      <label>症状</label>
+                      <div className="feed__chips">
+                        {TEMP_SYMPTOMS.map(s => (
+                          <button key={s} type="button"
+                            className={`feed__chip ${(tempDraft.symptoms || []).includes(s) ? 'feed__chip--on' : ''}`}
+                            onClick={() => setTempDraft({
+                              ...tempDraft,
+                              symptoms: (tempDraft.symptoms || []).includes(s) ? (tempDraft.symptoms || []).filter(x => x !== s) : [...(tempDraft.symptoms || []), s],
+                            })}>{s}</button>
+                        ))}
+                      </div>
                     </div>
-                  </div>
-                  <div className="growth__form-row">
                     <div className="feed__log-field feed__log-field--note">
                       <label>备注（可选）</label>
                       <input type="text" className="input input--sm" placeholder="如：已服美林" value={tempDraft.note} onChange={(e) => setTempDraft({ ...tempDraft, note: e.target.value })} />
                     </div>
+                  </div>
+                  {/* 操作按钮 */}
+                  <div className="growth__form-row growth__form-row--actions">
                     <button type="button" className="btn btn--primary btn--sm growth__add" onClick={() => editingTempId ? updateTemp() : addTemp()}>
                       {editingTempId ? <><Check className="icon icon--xs" />保存修改</> : <><Plus className="icon icon--xs" />记录体温</>}
                     </button>

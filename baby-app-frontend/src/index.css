@@ -699,6 +699,14 @@ body { display: block; background: #eef3f1; }
 .growth__form-row { display: flex; gap: 10px; align-items: flex-end; flex-wrap: wrap; }
 .growth__form-row .feed__log-field { flex: 1 1 120px; min-width: 96px; }
 .growth__add { flex: 0 0 auto; align-self: flex-end; height: 34px; }
+/* 记录体温：时间/体温宽度收窄；症状与备注同处一行（窄屏自动堆叠） */
+.growth__form-row--temp { align-items: flex-end; }
+.growth__form-row--temp .feed__log-field--time { flex: 0 0 auto; width: 188px; max-width: 100%; }
+.growth__form-row--temp .feed__log-field--temp { flex: 0 0 auto; width: 116px; max-width: 100%; }
+.growth__form-row--symp-note { align-items: flex-end; }
+.growth__form-row--symp-note .feed__log-field--symp { flex: 1 1 260px; min-width: 0; }
+.growth__form-row--symp-note .feed__log-field--note { flex: 1 1 200px; min-width: 0; max-width: none; }
+.growth__form-row--actions { justify-content: flex-start; }
 .dev-detail { margin-top: 14px; display: flex; flex-direction: column; gap: 14px; }
 /* 发育概况内收起的身高体重卡片，尺寸略缩小 */
 .dev-grid2 { margin-top: 0; }
@@ -1259,6 +1267,9 @@ body { display: block; background: #eef3f1; }
   /* 成长记录 / 生病模式：窄屏表单纵向堆叠，并收紧行距避免间距过大 */
   .growth__form-row { flex-direction: column; align-items: stretch; gap: 6px; }
   .growth__form-row .feed__log-field { min-width: 0; }
+  /* 体温表单：窄屏下时间/体温/症状/备注均纵向堆叠并占满宽度 */
+  .growth__form-row--temp .feed__log-field,
+  .growth__form-row--symp-note .feed__log-field { flex: 1 1 auto; width: auto; max-width: none; }
   .growth__add { width: 100%; }
   .growth__form { gap: 6px; margin-top: 10px; }
   .feed__chips { margin-top: 6px; }
