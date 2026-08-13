@@ -447,7 +447,7 @@ body { display: block; background: #eef3f1; }
 .cal-modal::-webkit-scrollbar-track { background: transparent; }
 .cal-modal::-webkit-scrollbar-thumb { background: var(--line); border-radius: 3px; }
 .cal-modal::-webkit-scrollbar-thumb:hover { background: var(--muted); }
-.cal-modal__head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px; }
+.cal-modal__head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
 .cal-modal__title { display: flex; align-items: center; gap: 6px; font-family: var(--font-display); font-size: 17px; font-weight: 800; color: var(--ink); }
 .cal-modal__close { background: none; border: none; cursor: pointer; color: var(--muted); padding: 4px; border-radius: 8px; transition: color .15s; }
 .cal-modal__close:hover { color: var(--ink); }
@@ -457,12 +457,12 @@ body { display: block; background: #eef3f1; }
   top: 0;
   z-index: 6;
   margin: 0 -24px;
-  padding: 22px 24px 12px; /* 顶部留白在此提供，使头部与滚动视口顶部齐平 */
+  padding: 14px 24px 10px; /* 顶/底留白压缩，标题块更紧凑；白底仍从 top:0 起覆盖，避免滚动镂空 */
   background: #fff;
   border-bottom: 1px solid var(--line);
 }
 
-.cal-month-nav { display: flex; align-items: center; justify-content: center; gap: 16px; margin-bottom: 12px; }
+.cal-month-nav { display: flex; align-items: center; justify-content: center; gap: 16px; margin-top: 14px; margin-bottom: 12px; }
 .cal-month-nav__btn {
   width: 32px; height: 32px; border-radius: 50%; border: 1.5px solid var(--line);
   background: #fff; display: grid; place-items: center; cursor: pointer;
@@ -799,7 +799,10 @@ body { display: block; background: #eef3f1; }
   content: ''; position: absolute; top: 50%; left: 0; right: 0; height: 2px;
   background: var(--line); transform: translateY(-1px); border-radius: 2px;
 }
-.daytime__item { position: relative; flex: none; width: 128px; height: 260px; }
+.daytime__item { position: relative; flex: none; width: 96px; height: 260px; transition: width .2s ease; }
+/* 默认宽度收窄，悬浮或被点击（手机）时展开到完整宽度以露出编辑/删除按钮 */
+.daytime__item:hover,
+.daytime__item.is-open { width: 128px; }
 .daytime__item--up::after, .daytime__item--down::after {
   content: ''; position: absolute; left: 50%; width: 2px; background: var(--line);
   transform: translateX(-1px); z-index: 1;
@@ -843,8 +846,8 @@ body { display: block; background: #eef3f1; }
   background: #fff; color: var(--muted); display: grid; place-items: center; cursor: pointer;
   transition: all .15s;
 }
-.daytime__op:hover { color: var(--ink); border-color: var(--primary-soft); }
-.daytime__op--del:hover { color: var(--coral); border-color: var(--coral); }
+.daytime__op:hover { color: var(--ink); border-color: var(--primary); background: var(--primary-soft); }
+.daytime__op--del:hover { color: var(--coral); border-color: var(--coral); background: var(--coral-soft); }
 .daytime__note {
   font-size: 11.5px; color: var(--ink-soft); line-height: 1.45;
   background: #fff; border-radius: 7px; padding: 5px 7px;
@@ -1084,7 +1087,7 @@ body { display: block; background: #eef3f1; }
   .checklist__item { padding: 10px 12px; gap: 10px; }
 
   .cal-modal { padding: 0 16px 18px; max-width: 100%; }
-  .cal-modal__sticky { margin: 0 -16px; padding: 18px 16px 10px; }
+  .cal-modal__sticky { margin: 0 -16px; padding: 14px 16px 8px; }
   .cal-cell { font-size: 13px; }
   .cal-weekdays__day { font-size: 11px; }
   .cal-month-nav__label { font-size: 15px; }
@@ -1117,8 +1120,10 @@ body { display: block; background: #eef3f1; }
   .feed__log-form { grid-template-columns: 1fr; gap: 10px; }
   /* 双列网格在手机上改为单列 */
   .field__row, .seg { grid-template-columns: 1fr; }
-  /* 宝宝的一天：方格收窄，更多内容可见 */
-  .daytime__item { width: 112px; }
+  /* 宝宝的一天：默认收窄，悬浮/点击展开到 112px 以露出按钮 */
+  .daytime__item { width: 84px; }
+  .daytime__item:hover,
+  .daytime__item.is-open { width: 112px; }
   .daytime__card { padding: 8px; }
   .feed__record { gap: 5px 8px; }
   .feed__record-edit,
