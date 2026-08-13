@@ -724,6 +724,8 @@ export default function BabyAppFullStack() {
   const [joinFamilyId, setJoinFamilyId] = useState('');
   // 成员昵称编辑
   const [nickModal, setNickModal] = useState({ open: false, nickname: '' });
+  // 家庭成员「+x」下拉展开
+  const [membersOpen, setMembersOpen] = useState(false);
   // 成长阶段详情弹窗
   const [stageModal, setStageModal] = useState(null); // { key,title,principle,signs,advice,sources } | null
   // 生病护理指南折叠
@@ -1530,23 +1532,52 @@ export default function BabyAppFullStack() {
                 ID: <b>{family.family_id}</b>
               </span>
               <div className="family-bar__members">
-                {family.members?.map((m) => {
-                  const isMe = m.user_id === USER_ID;
-                  const name = m.nickname || (m.role === 'creator' ? '创建者' : '成员');
+                {(() => {
+                  const me = family.members?.find((m) => m.user_id === USER_ID);
+                  const others = (family.members || []).filter((m) => m.user_id !== USER_ID);
+                  const meName = me ? (me.nickname || (me.role === 'creator' ? '创建者' : '成员')) : '我';
                   return (
-                    <button
-                      key={m.user_id}
-                      type="button"
-                      className={`member-chip ${isMe ? 'member-chip--me' : ''}`}
-                      title={isMe ? '点击修改我的昵称' : name}
-                      onClick={isMe ? () => setNickModal({ open: true, nickname: m.nickname || '' }) : undefined}
-                    >
-                      {isMe && <span className="member-chip__me">我</span>}
-                      <span className="member-chip__name">{name}</span>
-                      {isMe && <Pencil className="icon icon--xs" />}
-                    </button>
+                    <>
+                      {/* 自己（带编辑按钮） */}
+                      <button
+                        type="button"
+                        className="member-chip member-chip--me"
+                        title="点击修改我的昵称"
+                        onClick={() => me && setNickModal({ open: true, nickname: me.nickname || '' })}
+                      >
+                        <span className="member-chip__me">自己</span>
+                        <span className="member-chip__name">{meName}</span>
+                        <Pencil className="icon icon--xs" />
+                      </button>
+                      {/* +x 展开其他成员 */}
+                      <div className="member-more">
+                        <button
+                          type="button"
+                          className="member-chip member-chip--more"
+                          onClick={() => setMembersOpen((v) => !v)}
+                          aria-expanded={membersOpen}
+                          title="查看其他家庭成员"
+                        >
+                          +{others.length}
+                        </button>
+                        {membersOpen && (
+                          <div className="member-more__menu">
+                            {family.members?.map((m) => {
+                              const name = m.nickname || (m.role === 'creator' ? '创建者' : '成员');
+                              const isMe = m.user_id === USER_ID;
+                              return (
+                                <div key={m.user_id} className={`member-more__item ${isMe ? 'is-me' : ''}`}>
+                                  {isMe && <span className="member-more__tag">我</span>}
+                                  {name}
+                                </div>
+                              );
+                            })}
+                          </div>
+                        )}
+                      </div>
+                    </>
                   );
-                })}
+                })()}
               </div>
               <button className="family-bar__leave" onClick={leaveFamily} title="退出当前家庭">退出</button>
             </div>
