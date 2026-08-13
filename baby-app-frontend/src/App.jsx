@@ -894,6 +894,8 @@ export default function BabyAppFullStack() {
   // 历史身份认领
   const [claimableList, setClaimableList] = useState([]);
   const [claimModal, setClaimModal] = useState(false);
+  const claimCheckingRef = useRef(false); // 防止 initFamily 反复触发 checkClaimable 导致认领后弹窗反复弹
+  const [claimDismissed, setClaimDismissed] = useState(false); // 用户关闭认领弹窗后本次会话不再自动弹
   // 成长记录（身高体重）
   const [growthRecords, setGrowthRecords] = useState([]);
   const [growthDraft, setGrowthDraft] = useState({ date: todayISO(), height: '', weight: '', note: '' });
@@ -1071,6 +1073,11 @@ export default function BabyAppFullStack() {
 
   // ---- 历史身份认领：检查并认领家庭中残留的旧 user_id ----
   const checkClaimable = async () => {
+    // 用户已关闭认领弹窗，本次会话不再自动弹
+    if (claimDismissed) return;
+    // 防止 initFamily 在认领流程中反复触发本函数导致弹窗反复弹
+    if (claimCheckingRef.current) return;
+    claimCheckingRef.current = true;
     try {
       const res = await apiFetch(`${API_BASE}/auth/claimable`);
       if (!res.ok) return;
@@ -1078,8 +1085,13 @@ export default function BabyAppFullStack() {
       if (data.members && data.members.length > 0) {
         setClaimableList(data.members);
         setClaimModal(true);
+      } else {
+        // 后端确认无可认领，关窗
+        setClaimableList([]);
+        setClaimModal(false);
       }
     } catch (e) { /* 静默 */ }
+    finally { claimCheckingRef.current = false; }
   };
 
   const claimIdentity = async (oldUserId) => {
@@ -1090,12 +1102,25 @@ export default function BabyAppFullStack() {
         body: JSON.stringify({ old_user_id: oldUserId, family_id: family.family_id }),
       });
       if (!res.ok) { const e = await res.json(); throw new Error(e.detail || '认领失败'); }
-      // 认领后刷新家庭信息
-      const rest = data => data;
+      // 认领成功后：刷新家庭信息，initFamily 末尾的 checkClaimable 会重新拉取可认领列表
+      // （checkClaimable 有 ref 防重入，不会因 initFamily 反复触发而弹窗）
       setClaimableList(prev => prev.filter(m => m.old_user_id !== oldUserId));
-      if (claimableList.length <= 1) setClaimModal(false);
       await initFamily();
     } catch (e) { alert('认领失败：' + (e.message || '')); }
+  };
+
+  // 清理家庭里无人认领的幽灵成员（认领弹窗"都不是我"时用）
+  const clearGhosts = async () => {
+    if (!confirm('确认清理这些未认领的成员吗？清理后不影响宝宝数据（宝宝数据按 baby_id 隔离）。')) return;
+    try {
+      const res = await apiFetch(`${API_BASE}/auth/clear-ghosts`, { method: 'POST' });
+      if (!res.ok) { const e = await res.json(); throw new Error(e.detail || '清理失败'); }
+      const data = await res.json();
+      setClaimableList([]);
+      setClaimModal(false);
+      setClaimDismissed(true); // 本次会话不再自动弹
+      await initFamily();
+    } catch (e) { alert('清理失败：' + (e.message || '')); }
   };
 
   // ---- 更新我的成员昵称 ----
@@ -1872,8 +1897,8 @@ export default function BabyAppFullStack() {
               </div>
               <button className="family-bar__leave" onClick={leaveFamily} title="退出当前家庭">退出</button>
               {currentUser && (
-                <button className="family-bar__leave" onClick={logout} title="退出登录">
-                  {currentUser.nickname || currentUser.phone}
+                <button className="family-bar__leave" onClick={logout} title={`退出登录（${currentUser.nickname || currentUser.phone}）`}>
+                  退出登录
                 </button>
               )}
             </div>
@@ -3004,16 +3029,16 @@ export default function BabyAppFullStack() {
       {/* 历史身份认领弹窗 */}
       {claimModal && claimableList.length > 0 && (
         <div className="modal" role="dialog" aria-modal="true">
-          <div className="modal__backdrop" onClick={() => setClaimModal(false)} />
+          <div className="modal__backdrop" onClick={() => { setClaimModal(false); setClaimDismissed(true); }} />
           <div className="modal__card modal__card--form">
             <div className="modal__head">
               <h3 className="modal__title">认领你的历史身份</h3>
-              <button className="modal__close" onClick={() => setClaimModal(false)} aria-label="关闭">✕</button>
+              <button className="modal__close" onClick={() => { setClaimModal(false); setClaimDismissed(true); }} aria-label="关闭">✕</button>
             </div>
             <div className="modal__body">
               <p className="modal__hint">
-                这个家庭里还有以下未绑定账号的成员，如果其中有你之前的身份，请点击「这是我」把记录合并过来。
-                如果都不是你，可关闭此弹窗。
+                这个家庭里还有以下未绑定账号的成员。如果其中有你之前的身份，请点击「这是我」把记录合并过来。
+                如果都不是你，可点击下方「这些都不是我」直接清理掉。
               </p>
               <ul className="claim-list">
                 {claimableList.map((m) => (
@@ -3023,6 +3048,10 @@ export default function BabyAppFullStack() {
                   </li>
                 ))}
               </ul>
+              <div className="claim-list__footer">
+                <button className="btn btn--ghost btn--sm" onClick={() => { setClaimModal(false); setClaimDismissed(true); }}>稍后再说</button>
+                <button className="btn btn--ghost btn--sm" style={{ color: 'var(--red)' }} onClick={clearGhosts}>这些都不是我，清理掉</button>
+              </div>
             </div>
           </div>
         </div>

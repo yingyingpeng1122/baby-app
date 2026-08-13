@@ -1072,6 +1072,33 @@ async def auth_claim_identity(req: ClaimIdentityRequest, request: Request):
     db.execute("DELETE FROM family_members WHERE user_id = ? AND family_id = ?", [old, fid])
     return {"ok": True, "claimed_user_id": old, "merged_into": uid}
 
+@app.post("/auth/clear-ghosts")
+async def auth_clear_ghosts(request: Request):
+    """清理当前登录用户家庭中、未绑定到 users 表的幽灵成员（认领弹窗里"都不是我"时用）。
+    保留所有已绑定到 users 表的成员。返回被清理的 user_id 列表。"""
+    uid = _resolve_token(request)
+    if not uid:
+        raise HTTPException(401, "未登录")
+    fm = db.execute("SELECT family_id FROM family_members WHERE user_id = ?", [uid]).fetchall()
+    if not fm:
+        return {"deleted": []}
+    fid = fm[0][0]
+    members = db.execute(
+        "SELECT user_id FROM family_members WHERE family_id = ? AND user_id != ?", [fid, uid]
+    ).fetchall()
+    if not members:
+        return {"deleted": []}
+    ids = [m[0] for m in members]
+    placeholders = ",".join(["?"] * len(ids))
+    # 已绑定到 users 表的（即已认领/已注册），保留
+    claimed = db.execute(f"SELECT user_id FROM users WHERE user_id IN ({placeholders})", ids).fetchall()
+    claimed_set = {r[0] for r in claimed}
+    ghosts = [i for i in ids if i not in claimed_set]
+    if ghosts:
+        ph = ",".join(["?"] * len(ghosts))
+        db.execute(f"DELETE FROM family_members WHERE family_id = ? AND user_id IN ({ph})", [fid, *ghosts])
+    return {"deleted": ghosts}
+
 # ---------------- 家庭系统 API ----------------
 class FamilyCreateRequest(BaseModel):
     family_name: str

@@ -1550,6 +1550,7 @@ body { display: block; background: #eef3f1; }
   border-radius: 10px;
 }
 .claim-list__name { font-size: 15px; font-weight: 500; color: var(--text, #1f2937); }
+.claim-list__footer { display: flex; gap: 8px; justify-content: space-between; margin-top: 14px; flex-wrap: wrap; }
 .btn--sm { height: 32px; padding: 0 14px; font-size: 13px; }
 
 /* ---------- 无障碍：尊重减少动效 ---------- */
