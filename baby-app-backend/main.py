@@ -1547,6 +1547,7 @@ def get_checklist_template(months: int) -> list:
             {"id": "sunlight",   "label": "晒太阳 / 户外透气", "desc": "避开正午，15-30 分钟", "icon": "sun"},
             {"id": "tummy_time", "label": "趴着练习 (Tummy Time)", "desc": "清醒时趴 3-5 分钟，每日数次", "icon": "baby"},
             {"id": "interact",   "label": "亲子互动 / 说话", "desc": "面对面聊天、微笑回应", "icon": "heart"},
+            {"id": "oral_care",  "label": "清洁口腔", "desc": "湿纱布或硅胶指套擦拭牙龈，出牙前不用牙膏", "icon": "smile"},
         ]
     elif months < 12:
         return [
