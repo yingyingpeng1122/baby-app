@@ -1839,14 +1839,21 @@ export default function BabyAppFullStack() {
                       const sub = r.type === 'solids' && r.foodGroups ? r.foodGroups.split(',').filter(Boolean).join('、') : (r.note || '');
                       const subTitle = meta.amount ? meta.amount : meta.typeLabel;
                       const pos = i % 2 === 0 ? 'up' : 'down';
+                      const sleepEnd = r.type === 'sleep' && r.duration > 0 ? addMinutesHM(r.time, r.duration) : '';
+                      const sleepBarW = sleepEnd ? Math.max(36, Math.min(r.duration * 1.2, 320)) : 0;
                       return (
                         <div key={r.id} className={`daytime__item daytime__item--${pos} daytime__item--${meta.cls}`}>
+                          {sleepEnd && (
+                            <div className="daytime__sleep-range" style={{ width: `${sleepBarW}px` }}>
+                              <span className="daytime__sleep-end">{sleepEnd}</span>
+                            </div>
+                          )}
                           <span className="daytime__dot" />
                           <div className="daytime__card">
                             <div className="daytime__top">
                               <span className="daytime__icon">{meta.emoji}</span>
                               <div className="daytime__title">
-                                <div className="daytime__time">{r.time}</div>
+                                <div className="daytime__time">{sleepEnd ? `${r.time} → ${sleepEnd}` : r.time}</div>
                                 <div className="daytime__amount">{subTitle}</div>
                               </div>
                             </div>

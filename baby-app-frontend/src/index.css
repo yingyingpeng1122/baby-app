@@ -860,6 +860,19 @@ body { display: block; background: #eef3f1; }
   background: #fff; border-radius: 7px; padding: 5px 7px;
   display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden;
 }
+/* 睡觉时间段范围条（从开始点向右延伸，体现睡觉持续区间） */
+.daytime__sleep-range {
+  position: absolute; top: 50%; left: 50%; transform: translateY(-50%);
+  height: 10px; border-radius: 5px; z-index: 0; pointer-events: none;
+  background: rgba(109, 40, 217, 0.15);
+  border: 1.5px solid rgba(109, 40, 217, 0.3);
+}
+.daytime__sleep-end {
+  position: absolute; right: 0; top: 50%; transform: translate(50%, -50%);
+  background: #6d28d9; color: #fff; font-size: 10px; font-weight: 700;
+  padding: 1px 6px; border-radius: 8px; white-space: nowrap;
+  box-shadow: 0 1px 3px rgba(109, 40, 217, 0.25);
+}
 .daytime__empty {
   font-size: 13px; color: var(--muted); text-align: center;
   padding: 22px 10px; background: var(--surface-2); border-radius: var(--r-mid);
