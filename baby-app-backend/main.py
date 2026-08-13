@@ -232,6 +232,11 @@ def init_db():
         db.execute("ALTER TABLE family_members ADD COLUMN nickname TEXT DEFAULT ''")
     except Exception:
         pass
+    # 新增生病模式开关列（按宝宝同步，兼容旧库，列已存在则忽略）
+    try:
+        db.execute("ALTER TABLE babies ADD COLUMN sick_mode INTEGER DEFAULT 0")
+    except Exception:
+        pass
     db.execute("""CREATE TABLE IF NOT EXISTS checklist_items_v2 (
         baby_id TEXT, date TEXT, item_id TEXT, checked INTEGER,
         PRIMARY KEY (baby_id, date, item_id)
@@ -864,6 +869,7 @@ class BabyUpdateRequest(BaseModel):
     birthday: str = None
     height: float = None
     weight: float = None
+    sick_mode: int = None
 
 @app.post("/family")
 async def create_family(req: FamilyCreateRequest, request: Request):
@@ -942,8 +948,8 @@ async def update_my_member(request: Request):
 async def list_babies(request: Request):
     """获取当前家庭的所有宝宝"""
     fid = get_family_id(request)
-    babies = db.execute("SELECT baby_id, name, gender, birthday, height, weight FROM babies WHERE family_id = ?", [fid]).fetchall()
-    return [{"baby_id": b[0], "name": b[1], "gender": b[2], "birthday": b[3], "height": b[4], "weight": b[5]} for b in babies]
+    babies = db.execute("SELECT baby_id, name, gender, birthday, height, weight, sick_mode FROM babies WHERE family_id = ?", [fid]).fetchall()
+    return [{"baby_id": b[0], "name": b[1], "gender": b[2], "birthday": b[3], "height": b[4], "weight": b[5], "sick_mode": b[6] or 0} for b in babies]
 
 @app.post("/family/babies")
 async def add_baby(req: BabyCreateRequest, request: Request):
@@ -979,6 +985,7 @@ async def update_baby(baby_id: str, req: BabyUpdateRequest, request: Request):
     if req.birthday is not None: updates["birthday"] = req.birthday
     if req.height is not None: updates["height"] = req.height
     if req.weight is not None: updates["weight"] = req.weight
+    if req.sick_mode is not None: updates["sick_mode"] = req.sick_mode
     if updates:
         cols = ", ".join(f"{k}=?" for k in updates)
         vals = list(updates.values()) + [baby_id, fid]

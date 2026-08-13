@@ -763,18 +763,24 @@ export default function BabyAppFullStack() {
   const [growthMetric, setGrowthMetric] = useState('weight'); // weight | height
   const [editingGrowthId, setEditingGrowthId] = useState(null);
   const [growthHistoryOpen, setGrowthHistoryOpen] = useState(false);
-  // 生病模式：体温记录
-  const [sickMode, setSickMode] = useState(() => {
-    try { return localStorage.getItem('babyapp_sickmode') === '1'; } catch { return false; }
-  });
+  // 生病模式：体温记录（按宝宝同步到后端，跨设备一致）
+  const [sickMode, setSickMode] = useState(false);
   const [tempRecords, setTempRecords] = useState([]);
   const [tempDraft, setTempDraft] = useState({ temp: '', note: '', datetime: nowDateTime().replace(' ', 'T'), symptoms: [] });
   const [editingTempId, setEditingTempId] = useState(null); // 正在编辑的体温记录 id（null=新增）
   const TEMP_SYMPTOMS = ['咳嗽', '流涕', '呕吐', '腹泻', '精神差', '已用药'];
-  // 生病模式开关持久化：下次进入仍保持开启
-  const persistSickMode = (next) => {
+  // 生病模式开关持久化到后端（按宝宝），不同设备打开会同步
+  const persistSickMode = async (next) => {
     setSickMode(next);
     try { localStorage.setItem('babyapp_sickmode', next ? '1' : '0'); } catch {}
+    if (!currentBabyId) return;
+    try {
+      await apiFetch(`${API_BASE}/family/babies/${currentBabyId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ sick_mode: next ? 1 : 0 }),
+      });
+    } catch (e) { console.error('sync sick_mode failed', e); }
   };
 
   // 同步 currentBabyId 到模块级变量
@@ -798,6 +804,8 @@ export default function BabyAppFullStack() {
       if (fam.babies && fam.babies.length > 0) {
         _currentBabyId = fam.babies[0].baby_id;
         setCurrentBabyId(fam.babies[0].baby_id);
+        setSickMode(fam.babies[0].sick_mode === 1);
+        try { localStorage.setItem('babyapp_sickmode', fam.babies[0].sick_mode === 1 ? '1' : '0'); } catch {}
         setView('dashboard');
         setTimeout(() => fetchDashboard(), 0);
       } else {
@@ -927,6 +935,12 @@ export default function BabyAppFullStack() {
     if (babyId === currentBabyId) return;
     _currentBabyId = babyId;
     setCurrentBabyId(babyId);
+    // 切换宝宝时同步该宝宝的生病模式状态（跨设备一致）
+    const target = babies.find(b => b.baby_id === babyId);
+    if (target) {
+      setSickMode(target.sick_mode === 1);
+      try { localStorage.setItem('babyapp_sickmode', target.sick_mode === 1 ? '1' : '0'); } catch {}
+    }
     setData(null);
     setFeedRecords([]);
     setFeedEval(null);
@@ -947,6 +961,19 @@ export default function BabyAppFullStack() {
       fetchChecklist();
       loadGrowth();
       loadTemps();
+      // 拉取宝宝列表，同步生病模式状态（跨设备一致）
+      try {
+        const bres = await apiFetch(`${API_BASE}/family/babies`);
+        if (bres.ok) {
+          const list = await bres.json();
+          setBabies(list);
+          const cur = list.find(b => b.baby_id === currentBabyId);
+          if (cur) {
+            setSickMode(cur.sick_mode === 1);
+            try { localStorage.setItem('babyapp_sickmode', cur.sick_mode === 1 ? '1' : '0'); } catch {}
+          }
+        }
+      } catch {}
     } catch (e) {
       console.error(e);
       if (e.name === 'AbortError') {
@@ -1842,7 +1869,7 @@ export default function BabyAppFullStack() {
                       const sleepEnd = r.type === 'sleep' && r.duration > 0 ? addMinutesHM(r.time, r.duration) : '';
                       const sleepBarW = sleepEnd ? Math.max(36, Math.min(r.duration * 1.2, 320)) : 0;
                       return (
-                        <div key={r.id} className={`daytime__item daytime__item--${pos} daytime__item--${meta.cls}`}>
+                        <div key={r.id} className={`daytime__item daytime__item--${pos} daytime__item--${meta.cls}${sleepEnd ? ' daytime__item--sleep-range' : ''}`} style={sleepEnd ? { '--shift': `${sleepBarW / 2}px` } : undefined}>
                           {sleepEnd && (
                             <div className="daytime__sleep-range" style={{ width: `${sleepBarW}px` }}>
                               <span className="daytime__sleep-end">{sleepEnd}</span>
@@ -1853,7 +1880,7 @@ export default function BabyAppFullStack() {
                             <div className="daytime__top">
                               <span className="daytime__icon">{meta.emoji}</span>
                               <div className="daytime__title">
-                                <div className="daytime__time">{sleepEnd ? `${r.time} → ${sleepEnd}` : r.time}</div>
+                                <div className="daytime__time">{r.time}</div>
                                 <div className="daytime__amount">{subTitle}</div>
                               </div>
                             </div>

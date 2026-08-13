@@ -867,6 +867,12 @@ body { display: block; background: #eef3f1; }
   background: rgba(109, 40, 217, 0.15);
   border: 1.5px solid rgba(109, 40, 217, 0.3);
 }
+/* 有结束时间的睡觉记录：整个方格（圆点/卡片/连线）右移到睡觉区间中点 */
+.daytime__item--sleep-range { transform: translateX(var(--shift, 0)); }
+/* 范围条反向补偿，仍从开始时间点向右延伸、不被方格位移带动 */
+.daytime__item--sleep-range .daytime__sleep-range {
+  transform: translateX(calc(var(--shift, 0) * -1)) translateY(-50%);
+}
 .daytime__sleep-end {
   position: absolute; right: 0; top: 50%; transform: translate(50%, -50%);
   background: #6d28d9; color: #fff; font-size: 10px; font-weight: 700;
