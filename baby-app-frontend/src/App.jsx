@@ -2209,8 +2209,8 @@ export default function BabyAppFullStack() {
                 {/* 体温录入 */}
                 <h3 className="sick__h">记录体温</h3>
                 <div className="growth__form" id="temp-form">
-                  {/* 时间 + 体温：宽度收窄 */}
-                  <div className="growth__form-row growth__form-row--temp">
+                  {/* 时间 + 体温 + 症状：同一行（手机端自动堆叠） */}
+                  <div className="growth__form-row growth__form-row--temp-symp">
                     <div className="feed__log-field feed__log-field--time">
                       <label>时间</label>
                       <input type="datetime-local" className="input input--sm" value={tempDraft.datetime} onChange={(e) => setTempDraft({ ...tempDraft, datetime: e.target.value })} />
@@ -2219,9 +2219,6 @@ export default function BabyAppFullStack() {
                       <label>体温(°C)</label>
                       <input type="number" step="0.1" className="input input--sm" placeholder="如 38.5" value={tempDraft.temp} onChange={(e) => setTempDraft({ ...tempDraft, temp: e.target.value })} />
                     </div>
-                  </div>
-                  {/* 症状 + 备注：同一行（手机端自动换行/堆叠） */}
-                  <div className="growth__form-row growth__form-row--symp-note">
                     <div className="feed__log-field feed__log-field--symp">
                       <label>症状</label>
                       <div className="feed__chips">
@@ -2235,6 +2232,9 @@ export default function BabyAppFullStack() {
                         ))}
                       </div>
                     </div>
+                  </div>
+                  {/* 备注：单独一行 */}
+                  <div className="growth__form-row growth__form-row--note">
                     <div className="feed__log-field feed__log-field--note">
                       <label>备注（可选）</label>
                       <input type="text" className="input input--sm" placeholder="如：已服美林" value={tempDraft.note} onChange={(e) => setTempDraft({ ...tempDraft, note: e.target.value })} />

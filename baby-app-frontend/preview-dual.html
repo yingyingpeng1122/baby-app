@@ -1,0 +1,187 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>双视口预览 · 宝宝的一天 / 喂养记录 / 记录体温 / 喂养评估</title>
+  <link rel="stylesheet" href="src/index.css" />
+  <style>
+    body { background: var(--surface-2); margin: 0; }
+    .pv-tag { position: sticky; top: 0; z-index: 99; background: #111827; color: #fff; font: 700 13px/1 system-ui; padding: 8px 14px; }
+    .pv-tag b { color: #fbbf24; }
+    section.card { background: var(--surface); border: 1px solid var(--line); border-radius: var(--r-card); padding: 18px 16px; margin-bottom: 16px; }
+    .luc { display: inline-block; width: 14px; height: 14px; vertical-align: -2px; opacity: .8; }
+  </style>
+</head>
+<body>
+  <div class="pv-tag">当前视口：<b id="w">—</b> px（切换浏览器窗口宽度即可看桌面/手机两套样式）</div>
+
+  <div class="app">
+  <div class="wrap">
+
+    <!-- 1) 宝宝的一天 -->
+    <section class="card">
+      <h2 class="section__title">宝宝的一天</h2>
+      <div class="daytime">
+        <div class="daytime-canvas">
+          <div class="daytime__inner">
+            <div class="daytime__item daytime__item--up daytime__item--milk">
+              <span class="daytime__dot"></span>
+              <div class="daytime__card">
+                <div class="daytime__top">
+                  <div class="daytime__icon">🥛</div>
+                  <div class="daytime__title">
+                    <div class="daytime__time">08:30</div>
+                    <div class="daytime__amount">配方奶 120ml</div>
+                  </div>
+                </div>
+                <div class="daytime__note">宝宝喝得不错，没怎么哭闹，中途歇了一下又继续</div>
+                <div class="daytime__ops">
+                  <button class="daytime__op">✎</button>
+                  <button class="daytime__op daytime__op--del">🗑</button>
+                </div>
+              </div>
+            </div>
+            <div class="daytime__item daytime__item--down daytime__item--solids">
+              <span class="daytime__dot"></span>
+              <div class="daytime__card">
+                <div class="daytime__top">
+                  <div class="daytime__icon">🍚</div>
+                  <div class="daytime__title">
+                    <div class="daytime__time">12:00</div>
+                    <div class="daytime__amount">辅食 米粉+南瓜</div>
+                  </div>
+                </div>
+                <div class="daytime__note">吃了大半碗，喜欢南瓜泥的味道，后面有点抗拒勺子，整体接受度尚可</div>
+                <div class="daytime__ops">
+                  <button class="daytime__op">✎</button>
+                  <button class="daytime__op daytime__op--del">🗑</button>
+                </div>
+              </div>
+            </div>
+            <div class="daytime__item daytime__item--up daytime__item--sleep">
+              <span class="daytime__dot"></span>
+              <div class="daytime__card">
+                <div class="daytime__top">
+                  <div class="daytime__icon">😴</div>
+                  <div class="daytime__title">
+                    <div class="daytime__time">14:30</div>
+                    <div class="daytime__amount">小睡 40分钟</div>
+                  </div>
+                </div>
+                <div class="daytime__ops">
+                  <button class="daytime__op">✎</button>
+                  <button class="daytime__op daytime__op--del">🗑</button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- 2) 喂养记录 · 日历详情 -->
+    <section class="card">
+      <h2 class="section__title">8月13日 喂养记录</h2>
+      <div class="feed-detail__item">
+        <div class="feed-detail__top">
+          <span class="feed-detail__type feed-detail__type--milk">奶</span>
+          <span class="feed-detail__time">08:30</span>
+          <span class="feed-detail__amount">120 ml</span>
+        </div>
+        <div class="feed-detail__note">配方奶 · 宝宝喝得很好，中途未停顿</div>
+      </div>
+      <div class="feed-detail__item">
+        <div class="feed-detail__top">
+          <span class="feed-detail__type feed-detail__type--solids">辅食</span>
+          <span class="feed-detail__time">12:00</span>
+          <span class="feed-detail__amount">米粉+南瓜</span>
+        </div>
+        <div class="feed-detail__groups">含：谷物、蔬菜</div>
+      </div>
+    </section>
+
+    <!-- 3) 生病模式 · 记录体温 -->
+    <section class="card">
+      <h3 class="sick__h">体温变化曲线</h3>
+      <div class="sick__chart">
+        <div class="growth__empty">记录第一次体温后，这里会画出体温变化曲线。</div>
+      </div>
+      <h3 class="sick__h">记录体温</h3>
+      <div class="growth__form" id="temp-form">
+        <div class="growth__form-row growth__form-row--temp-symp">
+          <div class="feed__log-field feed__log-field--time">
+            <label>时间</label>
+            <input type="datetime-local" class="input input--sm" value="2026-08-13T14:30" />
+          </div>
+          <div class="feed__log-field feed__log-field--temp">
+            <label>体温(°C)</label>
+            <input type="number" step="0.1" class="input input--sm" value="38.5" />
+          </div>
+          <div class="feed__log-field feed__log-field--symp">
+            <label>症状</label>
+            <div class="feed__chips">
+              <button class="feed__chip feed__chip--on">发烧</button>
+              <button class="feed__chip">咳嗽</button>
+              <button class="feed__chip">流涕</button>
+              <button class="feed__chip">呕吐</button>
+              <button class="feed__chip">腹泻</button>
+              <button class="feed__chip">精神差</button>
+            </div>
+          </div>
+        </div>
+        <div class="growth__form-row growth__form-row--note">
+          <div class="feed__log-field feed__log-field--note">
+            <label>备注（可选）</label>
+            <input type="text" class="input input--sm" value="已服美林，半小时后复测" />
+          </div>
+        </div>
+        <div class="growth__form-row growth__form-row--actions">
+          <button class="btn btn--primary btn--sm growth__add">记录体温</button>
+        </div>
+      </div>
+
+      <h3 class="sick__h">体温记录</h3>
+      <div class="growth__list">
+        <div class="growth__row">
+          <span class="growth__row-date">08-13 14:30</span>
+          <span class="growth__row-temp is-high">38.5°C</span>
+          <span class="growth__row-note">已服美林，半小时后复测</span>
+          <span class="growth__row-actions">
+            <button class="growth__row-edit">✎</button>
+            <button class="growth__row-del">🗑</button>
+          </span>
+        </div>
+      </div>
+    </section>
+
+    <!-- 4) 喂养评估 -->
+    <section class="card">
+      <h2 class="section__title">今日喂养建议</h2>
+      <div class="feed__eval feed__eval--good">
+        <div class="feed__eval-body">
+          <div class="feed__eval-title">喂养评估</div>
+          <div class="feed__eval-msg">今日奶量与辅食搭配良好，继续保持规律喂养节奏。</div>
+          <div class="feed__eval-stats">
+            <span class="feed__eval-stat feed__eval-stat--good"><span class="luc">🥛</span> 奶量 <b>620ml</b><span class="feed__eval-target">/ 建议 700ml（已随辅食下调）</span></span>
+            <span class="feed__eval-stat feed__eval-stat--good"><span class="luc">🍚</span> 辅食 <b>90g</b></span>
+            <span class="feed__eval-stat"><span class="luc">⏱</span> 喂养 <b>6</b> 次<span class="feed__eval-target">/ 均隔 3.2h</span></span>
+          </div>
+          <div class="feed__eval-solids">
+            <div class="feed__eval-solids-item"><span class="feed__eval-solids-label">餐次</span><span class="feed__eval-solids-val is-ok">2/2</span></div>
+            <div class="feed__eval-solids-item"><span class="feed__eval-solids-label">种类</span><span class="feed__eval-solids-val is-ok">4/4</span></div>
+            <div class="feed__eval-solids-item"><span class="feed__eval-solids-label">单餐量</span><span class="feed__eval-solids-val">45g</span></div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+  </div>
+  </div>
+
+  <script>
+    function upd(){ document.getElementById('w').textContent = window.innerWidth; }
+    window.addEventListener('resize', upd); upd();
+  </script>
+</body>
+</html>
