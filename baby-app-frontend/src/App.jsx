@@ -1352,6 +1352,7 @@ export default function BabyAppFullStack() {
       console.error(e);
       if (e.name === 'AbortError') {
         setConnError('连接后端超时，请确认服务已启动或检查网络');
+
         setView('conn-error');
       } else {
         setView('baby-edit');
@@ -2238,7 +2239,9 @@ export default function BabyAppFullStack() {
               {(() => {
                 const items = [...feedRecords].sort((a, b) => a.time.localeCompare(b.time));
                 if (items.length === 0) {
-                  return <div className="daytime__empty">今天还没有记录，添加一个喂养 / 换尿布 / 睡觉吧～</div>;
+                  // 区分"加载中"和"真的没记录"：feedEval 还是 null 说明喂养数据尚未加载完
+                  const loading = feedEval === null;
+                  return <div className="daytime__empty">{loading ? '加载中…' : '今天还没有记录，添加一个喂养 / 换尿布 / 睡觉吧～'}</div>;
                 }
                 return (
                   (() => {

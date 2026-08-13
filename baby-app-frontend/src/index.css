@@ -1056,7 +1056,7 @@ body { display: block; background: #eef3f1; }
 .member-chip--more { cursor: pointer; color: var(--muted); background: var(--bg); }
 .member-chip--more:hover { border-color: var(--primary); color: var(--primary); }
 .member-more__menu {
-  position: absolute; top: calc(100% + 6px); left: 0; z-index: 20;
+  position: absolute; top: calc(100% + 6px); right: 0; left: auto; z-index: 20;
   min-width: 140px; padding: 6px; background: #fff; border: 1px solid var(--line);
   border-radius: var(--r-mid); box-shadow: var(--sh-md); display: flex; flex-direction: column; gap: 2px;
 }
