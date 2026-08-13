@@ -187,16 +187,14 @@ def init_db():
         height REAL, weight REAL,
         created_at TEXT DEFAULT (datetime('now'))
     )""")
-    db.execute("""CREATE TABLE IF NOT EXISTS users (
-        user_id TEXT PRIMARY KEY,
-        created_at TEXT DEFAULT (datetime('now'))
-    )""")
     # 家庭系统表
     db.execute("""CREATE TABLE IF NOT EXISTS families (
         family_id TEXT PRIMARY KEY,
         family_name TEXT NOT NULL,
         created_at TEXT DEFAULT (datetime('now'))
     )""")
+    # 注：旧的 users 表（仅 user_id + created_at）已在下方完整定义处用 CREATE OR REPLACE 重建，
+    # 这里不再重复定义，避免 IF NOT EXISTS 跳过导致缺列。
     db.execute("""CREATE TABLE IF NOT EXISTS family_members (
         user_id TEXT PRIMARY KEY,
         family_id TEXT NOT NULL,
@@ -256,6 +254,8 @@ def init_db():
         datetime TEXT, temp REAL, note TEXT DEFAULT ''
     )""")
     # 账号体系：手机号 + 密码登录，替代 localStorage 随机 user_id
+    # 注意：旧版代码可能已建过 users 表（仅 user_id + created_at），用 IF NOT EXISTS 会跳过导致缺列。
+    # 先尝试建完整表（首次部署有效），再用 ALTER TABLE 补齐缺失列（已存在旧表时）。
     db.execute("""CREATE TABLE IF NOT EXISTS users (
         user_id TEXT PRIMARY KEY,
         phone TEXT UNIQUE NOT NULL,
@@ -264,6 +264,27 @@ def init_db():
         nickname TEXT DEFAULT '',
         created_at TEXT DEFAULT (datetime('now'))
     )""")
+    # 兼容旧表：补齐缺失列（列已存在则忽略异常）
+    # 注意 SQLite 不允许 ALTER TABLE ADD COLUMN 带 UNIQUE，phone 列加普通 TEXT，再建唯一索引
+    for col, decl in [
+        ("phone", "TEXT DEFAULT ''"),
+        ("password_hash", "TEXT DEFAULT ''"),
+        ("password_salt", "TEXT DEFAULT ''"),
+        ("nickname", "TEXT DEFAULT ''"),
+    ]:
+        try:
+            db.execute(f"ALTER TABLE users ADD COLUMN {col} {decl}")
+        except Exception:
+            pass
+    try:
+        db.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_users_phone ON users(phone)")
+    except Exception:
+        # 可能有旧 guest 行 phone 为空串/NULL 导致唯一索引冲突：先把空 phone 设为各自 user_id 保证唯一
+        try:
+            db.execute("UPDATE users SET phone = user_id WHERE phone = '' OR phone IS NULL")
+            db.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_users_phone ON users(phone)")
+        except Exception:
+            pass
     db.execute("""CREATE TABLE IF NOT EXISTS sessions (
         token TEXT PRIMARY KEY,
         user_id TEXT NOT NULL,
@@ -850,9 +871,10 @@ async def health():
 
 @app.get("/init-user")
 async def init_user():
-    """前端首次访问时调用，生成一个 guest 用户 ID。"""
+    """前端首次访问时调用，生成一个 guest 用户 ID（兼容旧前端；新前端走 /auth/register）。"""
     uid = str(uuid.uuid4())
-    db.execute("INSERT OR IGNORE INTO users (user_id) VALUES (?)", [uid])
+    # 插入 guest 行：phone 用 user_id 兜底（保证唯一，不与注册用户冲突）
+    db.execute("INSERT OR IGNORE INTO users (user_id, phone, password_hash, password_salt, nickname) VALUES (?, ?, '', '', '')", [uid, uid])
     db.sync()
     return {"userId": uid}
 
