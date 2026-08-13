@@ -733,7 +733,6 @@ export default function BabyAppFullStack() {
   const [careItem, setCareItem] = useState(null); // 当前展开的条目 key
   // 喂养记录
   const [feedRecords, setFeedRecords] = useState([]);
-  const [openDayId, setOpenDayId] = useState(null); // 宝宝的一天：当前展开编辑/删除的方格（手机点击切换）
   const [feedEval, setFeedEval] = useState(null);
   const [feedForm, setFeedForm] = useState({ time: nowHM(), amount: '', type: 'milk', note: '', foodGroups: [], kind: '', duration: 0, wakeTime: '' });
   const [feedLoading, setFeedLoading] = useState(false);
@@ -1841,9 +1840,9 @@ export default function BabyAppFullStack() {
                       const subTitle = meta.amount ? meta.amount : meta.typeLabel;
                       const pos = i % 2 === 0 ? 'up' : 'down';
                       return (
-                        <div key={r.id} className={`daytime__item daytime__item--${pos} daytime__item--${meta.cls} ${openDayId === r.id ? 'is-open' : ''}`}>
+                        <div key={r.id} className={`daytime__item daytime__item--${pos} daytime__item--${meta.cls}`}>
                           <span className="daytime__dot" />
-                          <div className="daytime__card" onClick={() => setOpenDayId(openDayId === r.id ? null : r.id)}>
+                          <div className="daytime__card">
                             <div className="daytime__top">
                               <span className="daytime__icon">{meta.emoji}</span>
                               <div className="daytime__title">
