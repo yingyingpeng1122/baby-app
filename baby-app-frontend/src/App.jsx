@@ -365,16 +365,19 @@ const ACT_ICONS = {
 
 const API_BASE = import.meta.env.VITE_API_BASE || (import.meta.env.DEV ? 'http://localhost:8000' : window.location.origin);
 
-/* 多用户：浏览器自动生成唯一 ID，存 localStorage 持久化 */
-function getUserId() {
-  let id = localStorage.getItem('babyapp_user_id');
+/* 账号体系：手机号+密码登录，token 存 localStorage。
+ * 未登录时 fallback 到旧的随机 user_id（兼容过渡期，登录后以 token 为准）。 */
+function getToken() { try { return localStorage.getItem('babyapp_token') || ''; } catch { return ''; } }
+function setToken(t) { try { t ? localStorage.setItem('babyapp_token', t) : localStorage.removeItem('babyapp_token'); } catch {} }
+function getLegacyUserId() {
+  let id = ''; try { id = localStorage.getItem('babyapp_user_id') || ''; } catch {}
   if (!id) {
     id = crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random().toString(36).slice(2)}`;
-    localStorage.setItem('babyapp_user_id', id);
+    try { localStorage.setItem('babyapp_user_id', id); } catch {}
   }
   return id;
 }
-const USER_ID = getUserId();
+const LEGACY_USER_ID = getLegacyUserId();
 
 /* 当前选中的宝宝 ID（模块级，组件内通过 useEffect 同步） */
 let _currentBabyId = null;
@@ -382,10 +385,31 @@ let _currentBabyId = null;
 /* 请求超时：避免后端无响应时前端一直转圈 */
 const FETCH_TIMEOUT = 15000;
 
-/* 统一 fetch 包装：自动注入 X-User-Id 和 X-Baby-Id header，并带超时兜底 */
+/* 401 时清 token 触发回调（由 App 组件注册） */
+let _onUnauthorized = null;
+function setUnauthorizedHandler(fn) { _onUnauthorized = fn; }
+
+/* 统一 fetch 包装：有 token 带 Authorization，否则带 X-User-Id 兜底 */
 async function apiFetch(url, options = {}) {
-  const headers = { ...(options.headers || {}), 'X-User-Id': USER_ID };
+  const headers = { ...(options.headers || {}) };
+  const token = getToken();
+  if (token) headers['Authorization'] = `Bearer ${token}`;
+  else headers['X-User-Id'] = LEGACY_USER_ID; // 未登录：兼容旧随机 ID
   if (_currentBabyId) headers['X-Baby-Id'] = _currentBabyId;
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), FETCH_TIMEOUT);
+  try {
+    const res = await fetch(url, { ...options, headers, signal: ctrl.signal });
+    if (res.status === 401 && _onUnauthorized) _onUnauthorized();
+    return res;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+/* 账号相关请求（不走 apiFetch 的 401 自动跳转，避免登录页自己 401 死循环） */
+async function authFetch(url, options = {}) {
+  const headers = { ...(options.headers || {}), 'Content-Type': 'application/json' };
   const ctrl = new AbortController();
   const timer = setTimeout(() => ctrl.abort(), FETCH_TIMEOUT);
   try {
@@ -708,6 +732,113 @@ function TimePicker({ value, onChange }) {
   );
 }
 
+/* ---------- 账号登录/注册页 ---------- */
+function AuthPage({ mode, onAuth }) {
+  const [m, setM] = useState(mode); // 'login' | 'register'
+  const [phone, setPhone] = useState('');
+  const [password, setPassword] = useState('');
+  const [nickname, setNickname] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState('');
+
+  const submit = async (e) => {
+    e.preventDefault();
+    setErr('');
+    if (!/^1[3-9]\d{9}$/.test(phone)) { setErr('请输入正确的手机号'); return; }
+    if (password.length < 6) { setErr('密码至少 6 位'); return; }
+    if (m === 'register' && !nickname.trim()) { setErr('请填写昵称'); return; }
+    setBusy(true);
+    try {
+      const endpoint = m === 'register' ? '/auth/register' : '/auth/login';
+      const body = m === 'register'
+        ? { phone, password, nickname: nickname.trim() }
+        : { phone, password };
+      const res = await authFetch(`${API_BASE}${endpoint}`, {
+        method: 'POST',
+        body: JSON.stringify(body),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) { setErr(data.detail || '请求失败'); return; }
+      setToken(data.token);
+      // 拉取 /auth/me 取完整信息（含 family）
+      const meRes = await authFetch(`${API_BASE}/auth/me`, { headers: { Authorization: `Bearer ${data.token}` } });
+      const me = meRes.ok ? await meRes.json() : data;
+      onAuth(me);
+    } catch (e) {
+      setErr(e.name === 'AbortError' ? '请求超时，请检查网络' : '网络错误');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div className="app app--center">
+      <span className="blob blob--1" aria-hidden /><span className="blob blob--2" aria-hidden />
+      <div className="form family-form">
+        <div className="form__head">
+          <div className="form__logo"><Baby className="icon icon--lg" /></div>
+          <h2 className="form__title">{m === 'register' ? '注册账号' : '欢迎回来'}</h2>
+          <p className="form__sub">{m === 'register' ? '用手机号注册，数据跨设备同步' : '登录后继续记录宝宝的成长'}</p>
+        </div>
+        <form onSubmit={submit} className="auth-form">
+          <label className="field">
+            <span className="field__label">手机号</span>
+            <input
+              type="tel"
+              inputMode="numeric"
+              maxLength={11}
+              value={phone}
+              onChange={(e) => setPhone(e.target.value.replace(/\D/g, ''))}
+              placeholder="11 位手机号"
+              autoComplete="tel"
+              required
+            />
+          </label>
+          {m === 'register' && (
+            <label className="field">
+              <span className="field__label">昵称</span>
+              <input
+                type="text"
+                maxLength={20}
+                value={nickname}
+                onChange={(e) => setNickname(e.target.value)}
+                placeholder="如：妈妈 / 爸爸 / 小姨"
+                required
+              />
+            </label>
+          )}
+          <label className="field">
+            <span className="field__label">密码</span>
+            <input
+              type="password"
+              minLength={6}
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              placeholder="至少 6 位"
+              autoComplete={m === 'register' ? 'new-password' : 'current-password'}
+              required
+            />
+          </label>
+          {err && <p className="form__error">{err}</p>}
+          <button type="submit" className="btn btn--primary btn--block" disabled={busy}>
+            {busy ? '处理中…' : (m === 'register' ? '注册并登录' : '登录')}
+          </button>
+        </form>
+        <p className="auth-switch">
+          {m === 'register' ? '已有账号？' : '还没有账号？'}
+          <button
+            type="button"
+            className="auth-switch__btn"
+            onClick={() => { setM(m === 'register' ? 'login' : 'register'); setErr(''); }}
+          >
+            {m === 'register' ? '去登录' : '去注册'}
+          </button>
+        </p>
+      </div>
+    </div>
+  );
+}
+
 export default function BabyAppFullStack() {
   const [view, setView] = useState('loading');
   const [error, setError] = useState(null);
@@ -715,6 +846,9 @@ export default function BabyAppFullStack() {
   const [data, setData] = useState(null);
   const [modal, setModal] = useState({ open: false, title: '' });
   const [form, setForm] = useState({ name: '', gender: 'boy', birthday: '', height: '', weight: '' });
+  // 账号系统
+  const [currentUser, setCurrentUser] = useState(null); // { user_id, phone, nickname }
+  const [authView, setAuthView] = useState(null); // 'login' | 'register' | null
   // 家庭系统
   const [family, setFamily] = useState(null);          // { family_id, family_name, role, members, babies }
   const [babies, setBabies] = useState([]);            // 家庭所有宝宝列表
@@ -757,6 +891,9 @@ export default function BabyAppFullStack() {
   const [sickCalendarDate, setSickCalendarDate] = useState({ year: new Date().getFullYear(), month: new Date().getMonth() + 1 });
   const [feedingStats, setFeedingStats] = useState(null);
   const [devOpen, setDevOpen] = useState(false); // 发育概况折叠（必须放在提前 return 之前，遵守 hooks 规则）
+  // 历史身份认领
+  const [claimableList, setClaimableList] = useState([]);
+  const [claimModal, setClaimModal] = useState(false);
   // 成长记录（身高体重）
   const [growthRecords, setGrowthRecords] = useState([]);
   const [growthDraft, setGrowthDraft] = useState({ date: todayISO(), height: '', weight: '', note: '' });
@@ -786,8 +923,66 @@ export default function BabyAppFullStack() {
   // 同步 currentBabyId 到模块级变量
   useEffect(() => { _currentBabyId = currentBabyId; }, [currentBabyId]);
 
-  // 初始化：检查家庭状态
-  useEffect(() => { initFamily(); }, []);
+  // 注册 401 拦截：任何业务请求返回 401 → 清 token，回登录页
+  useEffect(() => {
+    setUnauthorizedHandler(() => {
+      setToken('');
+      setCurrentUser(null);
+      setAuthView('login');
+      setView('auth');
+    });
+    return () => setUnauthorizedHandler(null);
+  }, []);
+
+  // 启动初始化：先校验 token → 拉用户信息 → 再走家庭流程
+  useEffect(() => { bootstrapAuth(); }, []);
+
+  const bootstrapAuth = async () => {
+    const token = getToken();
+    if (!token) {
+      setAuthView('login');
+      setView('auth');
+      return;
+    }
+    try {
+      const res = await authFetch(`${API_BASE}/auth/me`, { headers: { Authorization: `Bearer ${token}` } });
+      if (!res.ok) {
+        setToken('');
+        setAuthView('login');
+        setView('auth');
+        return;
+      }
+      const me = await res.json();
+      setCurrentUser(me);
+      initFamily();
+    } catch (e) {
+      // 网络问题，不清 token，回连接错误页
+      setConnError('连接后端失败，请确认服务已启动');
+      setView('conn-error');
+    }
+  };
+
+  // 登录/注册成功后回调
+  const onAuthSuccess = (me) => {
+    setCurrentUser(me);
+    setAuthView(null);
+    initFamily();
+  };
+
+  const logout = async () => {
+    try { await authFetch(`${API_BASE}/auth/logout`, { method: 'POST', headers: { Authorization: `Bearer ${getToken()}` } }); } catch {}
+    setToken('');
+    setCurrentUser(null);
+    setFamily(null);
+    setBabies([]);
+    setData(null);
+    setAuthView('login');
+    setView('auth');
+  };
+
+  // 初始化：检查家庭状态（旧入口，bootstrapAuth 鉴权通过后调用）
+  // 保留无 token 时的兜底入口（向后兼容）
+  useEffect(() => { if (getToken()) return; /* 由 bootstrapAuth 接管 */ }, []);
 
   const initFamily = async () => {
     try {
@@ -808,6 +1003,8 @@ export default function BabyAppFullStack() {
         try { localStorage.setItem('babyapp_sickmode', fam.babies[0].sick_mode === 1 ? '1' : '0'); } catch {}
         setView('dashboard');
         setTimeout(() => fetchDashboard(), 0);
+        // 检查是否有可认领的历史身份（旧 user_id 残留）
+        setTimeout(() => checkClaimable(), 0);
       } else {
         setView('baby-edit');
       }
@@ -872,9 +1069,37 @@ export default function BabyAppFullStack() {
     } catch (e) { alert('退出家庭失败：' + (e.message || '请确认后端已启动')); }
   };
 
-  // ---- 更新我的成员昵称 ----
-  const saveNickname = async () => {
+  // ---- 历史身份认领：检查并认领家庭中残留的旧 user_id ----
+  const checkClaimable = async () => {
     try {
+      const res = await apiFetch(`${API_BASE}/auth/claimable`);
+      if (!res.ok) return;
+      const data = await res.json();
+      if (data.members && data.members.length > 0) {
+        setClaimableList(data.members);
+        setClaimModal(true);
+      }
+    } catch (e) { /* 静默 */ }
+  };
+
+  const claimIdentity = async (oldUserId) => {
+    try {
+      const res = await apiFetch(`${API_BASE}/auth/claim-identity`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ old_user_id: oldUserId, family_id: family.family_id }),
+      });
+      if (!res.ok) { const e = await res.json(); throw new Error(e.detail || '认领失败'); }
+      // 认领后刷新家庭信息
+      const rest = data => data;
+      setClaimableList(prev => prev.filter(m => m.old_user_id !== oldUserId));
+      if (claimableList.length <= 1) setClaimModal(false);
+      await initFamily();
+    } catch (e) { alert('认领失败：' + (e.message || '')); }
+  };
+
+  // ---- 更新我的成员昵称 ----
+  const saveNickname = async () => {    try {
       const res = await apiFetch(`${API_BASE}/family/member`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
@@ -1359,6 +1584,11 @@ export default function BabyAppFullStack() {
     );
   }
 
+  /* ---------- 账号登录/注册页 ---------- */
+  if (view === 'auth') {
+    return <AuthPage mode={authView || 'login'} onAuth={onAuthSuccess} />;
+  }
+
   /* ---------- 家庭设置页 ---------- */
   if (view === 'family-setup') {
     return (
@@ -1593,8 +1823,9 @@ export default function BabyAppFullStack() {
               </span>
               <div className="family-bar__members">
                 {(() => {
-                  const me = family.members?.find((m) => m.user_id === USER_ID);
-                  const others = (family.members || []).filter((m) => m.user_id !== USER_ID);
+                  const myUid = currentUser?.user_id;
+                  const me = family.members?.find((m) => m.user_id === myUid);
+                  const others = (family.members || []).filter((m) => m.user_id !== myUid);
                   const meName = me ? (me.nickname || (me.role === 'creator' ? '创建者' : '成员')) : '我';
                   return (
                     <>
@@ -1624,7 +1855,7 @@ export default function BabyAppFullStack() {
                           <div className="member-more__menu">
                             {family.members?.map((m) => {
                               const name = m.nickname || (m.role === 'creator' ? '创建者' : '成员');
-                              const isMe = m.user_id === USER_ID;
+                              const isMe = m.user_id === (currentUser?.user_id || '');
                               return (
                                 <div key={m.user_id} className={`member-more__item ${isMe ? 'is-me' : ''}`}>
                                   {isMe && <span className="member-more__tag">我</span>}
@@ -1640,6 +1871,11 @@ export default function BabyAppFullStack() {
                 })()}
               </div>
               <button className="family-bar__leave" onClick={leaveFamily} title="退出当前家庭">退出</button>
+              {currentUser && (
+                <button className="family-bar__leave" onClick={logout} title="退出登录">
+                  {currentUser.nickname || currentUser.phone}
+                </button>
+              )}
             </div>
           </div>
         )}
@@ -2764,6 +3000,33 @@ export default function BabyAppFullStack() {
       </div>
 
       <VideoModal open={modal.open} title={modal.title} src={modal.src || ''} onClose={() => setModal({ open: false, title: '', src: '' })} />
+
+      {/* 历史身份认领弹窗 */}
+      {claimModal && claimableList.length > 0 && (
+        <div className="modal" role="dialog" aria-modal="true">
+          <div className="modal__backdrop" onClick={() => setClaimModal(false)} />
+          <div className="modal__card modal__card--form">
+            <div className="modal__head">
+              <h3 className="modal__title">认领你的历史身份</h3>
+              <button className="modal__close" onClick={() => setClaimModal(false)} aria-label="关闭">✕</button>
+            </div>
+            <div className="modal__body">
+              <p className="modal__hint">
+                这个家庭里还有以下未绑定账号的成员，如果其中有你之前的身份，请点击「这是我」把记录合并过来。
+                如果都不是你，可关闭此弹窗。
+              </p>
+              <ul className="claim-list">
+                {claimableList.map((m) => (
+                  <li key={m.old_user_id} className="claim-list__item">
+                    <span className="claim-list__name">{m.nickname || '未命名'}</span>
+                    <button className="btn btn--primary btn--sm" onClick={() => claimIdentity(m.old_user_id)}>这是我</button>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* 成员昵称编辑弹窗 */}
       {nickModal.open && (

@@ -15,6 +15,9 @@ import os
 import uuid
 import random
 import html as _html
+import hashlib
+import secrets
+import hmac
 
 # ---------------- 应用 & 跨域 ----------------
 app = FastAPI(title="Baby Growth Assistant API")
@@ -252,6 +255,26 @@ def init_db():
         id TEXT PRIMARY KEY, baby_id TEXT NOT NULL,
         datetime TEXT, temp REAL, note TEXT DEFAULT ''
     )""")
+    # 账号体系：手机号 + 密码登录，替代 localStorage 随机 user_id
+    db.execute("""CREATE TABLE IF NOT EXISTS users (
+        user_id TEXT PRIMARY KEY,
+        phone TEXT UNIQUE NOT NULL,
+        password_hash TEXT NOT NULL,
+        password_salt TEXT NOT NULL,
+        nickname TEXT DEFAULT '',
+        created_at TEXT DEFAULT (datetime('now'))
+    )""")
+    db.execute("""CREATE TABLE IF NOT EXISTS sessions (
+        token TEXT PRIMARY KEY,
+        user_id TEXT NOT NULL,
+        created_at TEXT DEFAULT (datetime('now')),
+        expires_at TEXT NOT NULL
+    )""")
+    # sessions 过期索引（清理用）
+    try:
+        db.execute("CREATE INDEX IF NOT EXISTS idx_sessions_expires ON sessions(expires_at)")
+    except Exception:
+        pass
     # 旧数据迁移：profiles → 家庭 + 宝宝
     _migrate_profiles()
 
@@ -371,9 +394,15 @@ activity_videos = {}
 
 # ---------------- 多用户辅助 ----------------
 def get_uid(request: Request) -> str:
+    """身份识别：优先 Authorization: Bearer token；兼容期 fallback 到 X-User-Id header。"""
+    # 1) token 解析（推荐路径）
+    uid = _resolve_token(request)
+    if uid:
+        return uid
+    # 2) 兼容期：旧的 localStorage 随机 user_id（让旧前端在迁移过渡期仍可用）
     uid = request.headers.get("X-User-Id", "").strip()
     if not uid:
-        raise HTTPException(status_code=400, detail="X-User-Id header required")
+        raise HTTPException(status_code=401, detail="未登录：请先登录")
     return uid
 
 def _get_profile(uid: str) -> Optional[BabyProfile]:
@@ -848,6 +877,178 @@ async def leave_family(request: Request):
         db.execute("DELETE FROM families WHERE family_id = ?", [fid])
     db.sync()
     return {"ok": True, "family_id": fid}
+
+# ---------------- 账号认证系统 API ----------------
+# 手机号 + 密码登录，签发 session token；替代 localStorage 随机 user_id
+SESSION_TTL_DAYS = 30
+PHONE_RE = re.compile(r"^1[3-9]\d{9}$")
+
+class AuthRegisterRequest(BaseModel):
+    phone: str
+    password: str
+    nickname: str = ""
+
+class AuthLoginRequest(BaseModel):
+    phone: str
+    password: str
+
+class ClaimIdentityRequest(BaseModel):
+    old_user_id: str
+    family_id: str
+
+def _hash_password(password: str, salt: str) -> str:
+    """PBKDF2-HMAC-SHA256，100000 轮，32 字节 → hex。零依赖（标准库 hashlib）。"""
+    return hashlib.pbkdf2_hmac('sha256', password.encode('utf-8'), salt.encode('utf-8'), 100000).hex()
+
+def _new_salt() -> str:
+    return secrets.token_hex(16)
+
+def _new_token() -> str:
+    return secrets.token_urlsafe(32)
+
+def _issue_session(user_id: str) -> str:
+    token = _new_token()
+    from datetime import timedelta
+    exp = (datetime.utcnow() + timedelta(days=SESSION_TTL_DAYS)).isoformat()
+    db.execute("INSERT INTO sessions (token, user_id, expires_at) VALUES (?, ?, ?)", [token, user_id, exp])
+    return token
+
+def _resolve_token(request: Request) -> Optional[str]:
+    """从 Authorization: Bearer <token> 解析 user_id；token 无效/过期返回 None。"""
+    auth = request.headers.get("Authorization", "")
+    if not auth.startswith("Bearer "):
+        return None
+    token = auth[7:].strip()
+    rs = db.execute(
+        "SELECT user_id, expires_at FROM sessions WHERE token = ?", [token]
+    ).fetchall()
+    if not rs:
+        return None
+    uid, exp = rs[0][0], rs[0][1]
+    try:
+        if datetime.fromisoformat(exp) < datetime.utcnow():
+            return None
+    except Exception:
+        return None
+    return uid
+
+@app.post("/auth/register")
+async def auth_register(req: AuthRegisterRequest):
+    phone = req.phone.strip()
+    if not PHONE_RE.match(phone):
+        raise HTTPException(400, "手机号格式不正确")
+    if len(req.password) < 6:
+        raise HTTPException(400, "密码至少 6 位")
+    # 检查手机号是否已注册
+    existing = db.execute("SELECT user_id FROM users WHERE phone = ?", [phone]).fetchall()
+    if existing:
+        raise HTTPException(409, "该手机号已注册")
+    user_id = str(uuid.uuid4())
+    salt = _new_salt()
+    pw_hash = _hash_password(req.password, salt)
+    nickname = req.nickname.strip()[:20]
+    db.execute(
+        "INSERT INTO users (user_id, phone, password_hash, password_salt, nickname) VALUES (?, ?, ?, ?, ?)",
+        [user_id, phone, pw_hash, salt, nickname]
+    )
+    token = _issue_session(user_id)
+    return {"token": token, "user_id": user_id, "phone": phone, "nickname": nickname}
+
+@app.post("/auth/login")
+async def auth_login(req: AuthLoginRequest):
+    phone = req.phone.strip()
+    rs = db.execute(
+        "SELECT user_id, password_hash, password_salt, nickname FROM users WHERE phone = ?", [phone]
+    ).fetchall()
+    if not rs:
+        raise HTTPException(401, "手机号或密码错误")
+    user_id, pw_hash, salt, nickname = rs[0]
+    if not hmac.compare_digest(_hash_password(req.password, salt), pw_hash):
+        raise HTTPException(401, "手机号或密码错误")
+    token = _issue_session(user_id)
+    return {"token": token, "user_id": user_id, "phone": phone, "nickname": nickname or ""}
+
+@app.post("/auth/logout")
+async def auth_logout(request: Request):
+    auth = request.headers.get("Authorization", "")
+    if auth.startswith("Bearer "):
+        token = auth[7:].strip()
+        db.execute("DELETE FROM sessions WHERE token = ?", [token])
+    return {"ok": True}
+
+@app.get("/auth/me")
+async def auth_me(request: Request):
+    uid = _resolve_token(request)
+    if not uid:
+        raise HTTPException(401, "未登录或会话已过期")
+    rs = db.execute("SELECT phone, nickname FROM users WHERE user_id = ?", [uid]).fetchall()
+    if not rs:
+        raise HTTPException(401, "用户不存在")
+    phone, nickname = rs[0]
+    # 顺带返回家庭信息（若有）
+    family = None
+    fm = db.execute("SELECT family_id, role, nickname FROM family_members WHERE user_id = ?", [uid]).fetchall()
+    if fm:
+        fid, role, mnick = fm[0]
+        family = {"family_id": fid, "role": role, "nickname": mnick or nickname or ""}
+    return {"user_id": uid, "phone": phone, "nickname": nickname or "", "family": family}
+
+@app.get("/auth/claimable")
+async def auth_claimable(request: Request):
+    """列出当前登录用户家庭中、尚未绑定到任何 users.user_id 的旧成员（可认领）。"""
+    uid = _resolve_token(request)
+    if not uid:
+        raise HTTPException(401, "未登录")
+    fm = db.execute("SELECT family_id FROM family_members WHERE user_id = ?", [uid]).fetchall()
+    if not fm:
+        return {"family_id": None, "members": []}
+    fid = fm[0][0]
+    # 该家庭所有成员的 user_id
+    members = db.execute(
+        "SELECT user_id, nickname, role FROM family_members WHERE family_id = ? AND user_id != ?", [fid, uid]
+    ).fetchall()
+    # 所有已注册到 users 表的 user_id（即已认领/已绑定）
+    claimed_set = set()
+    if members:
+        ids = [m[0] for m in members]
+        placeholders = ",".join(["?"] * len(ids))
+        rs = db.execute(f"SELECT user_id FROM users WHERE user_id IN ({placeholders})", ids).fetchall()
+        claimed_set = {r[0] for r in rs}
+    result = [
+        {"old_user_id": m[0], "nickname": m[1], "role": m[2]}
+        for m in members if m[0] not in claimed_set
+    ]
+    return {"family_id": fid, "members": result}
+
+@app.post("/auth/claim-identity")
+async def auth_claim_identity(req: ClaimIdentityRequest, request: Request):
+    """认领历史身份：把 family_members 中 old_user_id 的成员关系改挂到当前登录 user_id。
+    防错：要求 old_user_id 当前必须在该家庭且尚未绑定到 users 表。"""
+    uid = _resolve_token(request)
+    if not uid:
+        raise HTTPException(401, "未登录")
+    old = req.old_user_id.strip()
+    fid = req.family_id.strip()
+    if not old or not fid:
+        raise HTTPException(400, "参数不完整")
+    # 当前登录用户必须已属于该家庭
+    mine = db.execute("SELECT 1 FROM family_members WHERE user_id = ? AND family_id = ?", [uid, fid]).fetchall()
+    if not mine:
+        raise HTTPException(403, "你不属于该家庭")
+    # old_user_id 必须在该家庭
+    target = db.execute(
+        "SELECT user_id FROM family_members WHERE user_id = ? AND family_id = ?", [old, fid]
+    ).fetchall()
+    if not target:
+        raise HTTPException(404, "要认领的成员不存在")
+    # old_user_id 不能已绑定到 users 表（防止认领已登录用户）
+    bound = db.execute("SELECT 1 FROM users WHERE user_id = ?", [old]).fetchall()
+    if bound:
+        raise HTTPException(409, "该成员已绑定账号，无法认领")
+    # 若 old 已与 uid 同一家庭且 uid 已是成员，删除 old 行即可（成员关系合并到 uid）
+    # 这里 old 的 nickname 保留原值，不覆盖 uid 的 nickname
+    db.execute("DELETE FROM family_members WHERE user_id = ? AND family_id = ?", [old, fid])
+    return {"ok": True, "claimed_user_id": old, "merged_into": uid}
 
 # ---------------- 家庭系统 API ----------------
 class FamilyCreateRequest(BaseModel):

@@ -1527,6 +1527,31 @@ body { display: block; background: #eef3f1; }
   text-align: center;
 }
 
+/* ---------- 账号登录/注册页 ---------- */
+.auth-form { display: flex; flex-direction: column; gap: 14px; margin-top: 18px; }
+.auth-form .field { display: flex; flex-direction: column; gap: 6px; }
+.auth-form .field__label { font-size: 13px; color: var(--muted, #888); font-weight: 500; }
+.auth-form input {
+  height: 42px; padding: 0 14px; border: 1px solid var(--line, #e5e7eb); border-radius: 10px;
+  font-size: 15px; background: var(--card, #fff); color: var(--text, #1f2937);
+  transition: border-color .15s;
+}
+.auth-form input:focus { outline: none; border-color: var(--primary, #6d28d9); }
+.form__error { color: #dc2626; font-size: 13px; margin: 0; }
+.auth-switch { text-align: center; margin-top: 16px; font-size: 14px; color: var(--muted, #888); }
+.auth-switch__btn { background: none; border: none; color: var(--primary, #6d28d9); font-weight: 600; cursor: pointer; padding: 0 4px; font-size: 14px; }
+.auth-switch__btn:hover { text-decoration: underline; }
+
+/* ---------- 历史身份认领 ---------- */
+.claim-list { list-style: none; padding: 0; margin: 12px 0 0; display: flex; flex-direction: column; gap: 8px; }
+.claim-list__item {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 10px 14px; background: var(--bg, #f9fafb); border: 1px solid var(--line, #e5e7eb);
+  border-radius: 10px;
+}
+.claim-list__name { font-size: 15px; font-weight: 500; color: var(--text, #1f2937); }
+.btn--sm { height: 32px; padding: 0 14px; font-size: 13px; }
+
 /* ---------- 无障碍：尊重减少动效 ---------- */
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation: none !important; transition: none !important; }
