@@ -462,6 +462,92 @@ const HEIGHT_STATUS_TEXT = { normal: '达标', short: '偏矮', tall: '偏高' }
 const WEIGHT_STATUS_TEXT = { normal: '达标', light: '略轻', under: '超轻', heavy: '略重', over: '超重' };
 const growthOk = (s) => s === 'normal';
 
+/* 修改个人信息弹窗：昵称 + 密码（手机号不可改） */
+function EditProfileModal({ currentUser, onClose, onSave }) {
+  const [nickname, setNickname] = useState(currentUser?.nickname || '');
+  const [oldPw, setOldPw] = useState('');
+  const [newPw, setNewPw] = useState('');
+  const [confirmPw, setConfirmPw] = useState('');
+  const [submitting, setSubmitting] = useState(false);
+
+  const handleSave = async () => {
+    // 只填了昵称没动密码：只改昵称
+    const onlyNick = !oldPw && !newPw && !confirmPw;
+    if (!onlyNick) {
+      if (!oldPw) { alert('请输入旧密码'); return; }
+      if (newPw.length < 6) { alert('新密码至少 6 位'); return; }
+      if (newPw !== confirmPw) { alert('两次新密码不一致'); return; }
+    }
+    setSubmitting(true);
+    try {
+      const form = { nickname: nickname.trim() };
+      if (!onlyNick) { form.old_password = oldPw; form.new_password = newPw; }
+      await onSave(form);
+    } finally { setSubmitting(false); }
+  };
+
+  return (
+    <div className="modal" role="dialog" aria-modal="true">
+      <div className="modal__backdrop" onClick={onClose} />
+      <div className="modal__card modal__card--form">
+        <div className="modal__head">
+          <h3 className="modal__title">修改个人信息</h3>
+          <button className="modal__close" onClick={onClose} aria-label="关闭">✕</button>
+        </div>
+        <div className="modal__body">
+          <div className="field">
+            <label className="field__label">手机号</label>
+            <input className="field__input" value={currentUser?.phone || ''} disabled style={{ opacity: .6 }} />
+            <p className="field__hint">手机号不可修改</p>
+          </div>
+          <div className="field">
+            <label className="field__label">昵称</label>
+            <input
+              className="field__input"
+              value={nickname}
+              maxLength={20}
+              placeholder="例如：妈妈"
+              onChange={(e) => setNickname(e.target.value)}
+            />
+          </div>
+          <div className="field">
+            <label className="field__label">修改密码（可选）</label>
+            <input
+              className="field__input"
+              type="password"
+              value={oldPw}
+              placeholder="旧密码"
+              onChange={(e) => setOldPw(e.target.value)}
+            />
+            <input
+              className="field__input"
+              type="password"
+              value={newPw}
+              placeholder="新密码（至少 6 位，不修改请留空）"
+              onChange={(e) => setNewPw(e.target.value)}
+              style={{ marginTop: 8 }}
+            />
+            <input
+              className="field__input"
+              type="password"
+              value={confirmPw}
+              placeholder="确认新密码"
+              onChange={(e) => setConfirmPw(e.target.value)}
+              style={{ marginTop: 8 }}
+            />
+          </div>
+          <div className="modal__actions">
+            <button className="btn btn--ghost" onClick={onClose}>取消</button>
+            <button className="btn btn--primary" onClick={handleSave} disabled={submitting}>
+              {submitting ? '保存中…' : '保存'}
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function VideoModal({ open, title, src = '', onClose }) {
   const cardRef = useRef(null);
   const [isFullscreen, setIsFullscreen] = useState(false); // 浏览器原生 Fullscreen API
@@ -858,6 +944,8 @@ export default function BabyAppFullStack() {
   const [joinFamilyId, setJoinFamilyId] = useState('');
   // 成员昵称编辑
   const [nickModal, setNickModal] = useState({ open: false, nickname: '' });
+  // 修改个人信息弹窗（昵称 + 密码，手机号不可改）
+  const [editProfileModal, setEditProfileModal] = useState(false);
   // 家庭成员「+x」下拉展开
   const [membersOpen, setMembersOpen] = useState(false);
   // 成长阶段详情弹窗
@@ -896,6 +984,7 @@ export default function BabyAppFullStack() {
   const [claimModal, setClaimModal] = useState(false);
   const claimCheckingRef = useRef(false); // 防止 initFamily 反复触发 checkClaimable 导致认领后弹窗反复弹
   const [claimDismissed, setClaimDismissed] = useState(false); // 用户关闭认领弹窗后本次会话不再自动弹
+  const [claimSelected, setClaimSelected] = useState({}); // { old_user_id: true } 多选选中状态
   // 成长记录（身高体重）
   const [growthRecords, setGrowthRecords] = useState([]);
   const [growthDraft, setGrowthDraft] = useState({ date: todayISO(), height: '', weight: '', note: '' });
@@ -980,6 +1069,28 @@ export default function BabyAppFullStack() {
     setData(null);
     setAuthView('login');
     setView('auth');
+  };
+
+  // 修改个人信息：昵称和密码（手机号不可改）
+  const saveProfile = async (form) => {
+    try {
+      const res = await authFetch(`${API_BASE}/auth/me`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${getToken()}` },
+        body: JSON.stringify(form),
+      });
+      if (!res.ok) {
+        const e = await res.json().catch(() => ({}));
+        throw new Error(e.detail || '保存失败');
+      }
+      const data = await res.json();
+      // 更新本地 currentUser（昵称改了要同步）
+      setCurrentUser(prev => prev ? { ...prev, nickname: data.nickname ?? prev.nickname } : prev);
+      // 同步刷新家庭（成员昵称可能也改了）
+      await initFamily();
+      setEditProfileModal(false);
+      alert('保存成功');
+    } catch (e) { alert('保存失败：' + (e.message || '')); }
   };
 
   // 初始化：检查家庭状态（旧入口，bootstrapAuth 鉴权通过后调用）
@@ -1094,31 +1205,44 @@ export default function BabyAppFullStack() {
     finally { claimCheckingRef.current = false; }
   };
 
-  const claimIdentity = async (oldUserId) => {
+  // 批量认领选中的身份（同一账号可认领多个，如既是妈妈又用过'调试'身份）
+  const claimSelectedIdentities = async () => {
+    const selectedIds = Object.keys(claimSelected).filter(id => claimSelected[id]);
+    if (selectedIds.length === 0) { alert('请勾选要认领的身份'); return; }
     try {
       const res = await apiFetch(`${API_BASE}/auth/claim-identity`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ old_user_id: oldUserId, family_id: family.family_id }),
+        body: JSON.stringify({ old_user_ids: selectedIds, family_id: family.family_id }),
       });
       if (!res.ok) { const e = await res.json(); throw new Error(e.detail || '认领失败'); }
-      // 认领成功后：刷新家庭信息，initFamily 末尾的 checkClaimable 会重新拉取可认领列表
-      // （checkClaimable 有 ref 防重入，不会因 initFamily 反复触发而弹窗）
-      setClaimableList(prev => prev.filter(m => m.old_user_id !== oldUserId));
+      const data = await res.json();
+      // 认领成功的从列表移除；skipped 的保留（可能是重复认领或已绑定）
+      const okSet = new Set(data.claimed_user_ids || []);
+      setClaimableList(prev => prev.filter(m => !okSet.has(m.old_user_id)));
+      setClaimSelected({});
       await initFamily();
     } catch (e) { alert('认领失败：' + (e.message || '')); }
   };
 
-  // 清理家庭里无人认领的幽灵成员（认领弹窗"都不是我"时用）
+  // 清理家庭里未命名的幽灵成员（认领完剩余的空昵称身份直接删）
   const clearGhosts = async () => {
-    if (!confirm('确认清理这些未认领的成员吗？清理后不影响宝宝数据（宝宝数据按 baby_id 隔离）。')) return;
+    if (!confirm('确认清理未命名的成员吗？清理后不影响宝宝数据（宝宝数据按 baby_id 隔离）。')) return;
     try {
       const res = await apiFetch(`${API_BASE}/auth/clear-ghosts`, { method: 'POST' });
       if (!res.ok) { const e = await res.json(); throw new Error(e.detail || '清理失败'); }
       const data = await res.json();
-      setClaimableList([]);
-      setClaimModal(false);
-      setClaimDismissed(true); // 本次会话不再自动弹
+      // 重新拉可认领列表（清理后可能还有有名字的成员等待认领）
+      const cres = await apiFetch(`${API_BASE}/auth/claimable`);
+      if (cres.ok) {
+        const cdata = await cres.json();
+        const rest = cdata.members || [];
+        setClaimableList(rest);
+        if (rest.length === 0) {
+          setClaimModal(false);
+          setClaimDismissed(true); // 列表空了，本次会话不再弹
+        }
+      }
       await initFamily();
     } catch (e) { alert('清理失败：' + (e.message || '')); }
   };
@@ -1806,7 +1930,7 @@ export default function BabyAppFullStack() {
             </div>
           </div>
           <div className="topbar__actions">
-            {/* 宝宝切换器 */}
+            {/* 多宝宝切换器（添加宝宝入口移到家庭ID右侧） */}
             {babies.length > 1 && (
               <div className="baby-switcher">
                 {babies.map(b => (
@@ -1820,21 +1944,22 @@ export default function BabyAppFullStack() {
                     </button>
                   </div>
                 ))}
-                <button className="baby-switcher__btn baby-switcher__btn--add" onClick={() => { setForm({ name: '', gender: 'boy', birthday: '', height: '', weight: '' }); setView('baby-edit'); }} title="添加宝宝">
-                  <Plus className="icon icon--xs" />
-                </button>
               </div>
             )}
-            {babies.length <= 1 && (
-              <button className="btn btn--ghost btn--sm" onClick={() => { setForm({ name: '', gender: 'boy', birthday: '', height: '', weight: '' }); setView('baby-edit'); }}>
-                <Plus className="icon icon--xs" />添加宝宝
-              </button>
-            )}
-            <button className="btn btn--ghost" onClick={() => { setForm({ name: profile.name, gender: profile.gender, birthday: profile.birthday, height: String(profile.height), weight: String(profile.weight) }); setView('edit'); }}><Pencil className="icon icon--xs" />编辑</button>
             {babies.length > 1 && (
               <button className="btn btn--ghost" style={{ color: 'var(--red)' }} onClick={() => deleteBaby(currentBabyId, profile.name)}>
                 <Trash2 className="icon icon--xs" />删除
               </button>
+            )}
+            {currentUser && (
+              <>
+                <button className="btn btn--ghost btn--sm" onClick={() => setEditProfileModal(true)} title="修改昵称和密码">
+                  修改信息
+                </button>
+                <button className="btn btn--ghost btn--sm" onClick={logout} title={`退出登录（${currentUser.nickname || currentUser.phone}）`}>
+                  退出登录
+                </button>
+              </>
             )}
           </div>
         </div>
@@ -1846,6 +1971,9 @@ export default function BabyAppFullStack() {
               <span className="family-bar__id" onClick={copyFamilyId} title="点击复制家庭 ID">
                 ID: <b>{family.family_id}</b>
               </span>
+              <button className="family-bar__add" onClick={() => { setForm({ name: '', gender: 'boy', birthday: '', height: '', weight: '' }); setView('baby-edit'); }} title="添加宝宝">
+                <Plus className="icon icon--xs" />添加宝宝
+              </button>
               <div className="family-bar__members">
                 {(() => {
                   const myUid = currentUser?.user_id;
@@ -1895,12 +2023,7 @@ export default function BabyAppFullStack() {
                   );
                 })()}
               </div>
-              <button className="family-bar__leave" onClick={leaveFamily} title="退出当前家庭">退出</button>
-              {currentUser && (
-                <button className="family-bar__leave" onClick={logout} title={`退出登录（${currentUser.nickname || currentUser.phone}）`}>
-                  退出登录
-                </button>
-              )}
+              <button className="family-bar__leave" onClick={leaveFamily} title="退出当前家庭">退出家庭</button>
             </div>
           </div>
         )}
@@ -1918,6 +2041,9 @@ export default function BabyAppFullStack() {
             <button className={`section__toggle ${devOpen ? 'is-open' : ''}`} onClick={() => setDevOpen(v => !v)} aria-expanded={devOpen}>
               {devOpen ? '收起' : '详情'}
               <ChevronDown className="icon icon--xs" />
+            </button>
+            <button className="btn btn--ghost btn--sm section__edit" onClick={() => { setForm({ name: profile.name, gender: profile.gender, birthday: profile.birthday, height: String(profile.height), weight: String(profile.weight) }); setView('edit'); }} title="编辑宝宝档案">
+              <Pencil className="icon icon--xs" />编辑
             </button>
           </div>
           <div className="assess">
@@ -3026,7 +3152,7 @@ export default function BabyAppFullStack() {
 
       <VideoModal open={modal.open} title={modal.title} src={modal.src || ''} onClose={() => setModal({ open: false, title: '', src: '' })} />
 
-      {/* 历史身份认领弹窗 */}
+      {/* 历史身份认领弹窗（多选） */}
       {claimModal && claimableList.length > 0 && (
         <div className="modal" role="dialog" aria-modal="true">
           <div className="modal__backdrop" onClick={() => { setClaimModal(false); setClaimDismissed(true); }} />
@@ -3037,24 +3163,41 @@ export default function BabyAppFullStack() {
             </div>
             <div className="modal__body">
               <p className="modal__hint">
-                这个家庭里还有以下未绑定账号的成员。如果其中有你之前的身份，请点击「这是我」把记录合并过来。
-                如果都不是你，可点击下方「这些都不是我」直接清理掉。
+                这个家庭里还有以下未绑定账号的成员。如果你之前用过其中某些身份，请勾选它们（可多选），把记录合并到你当前账号下。剩余未命名的身份可一并清理掉。
               </p>
               <ul className="claim-list">
                 {claimableList.map((m) => (
-                  <li key={m.old_user_id} className="claim-list__item">
-                    <span className="claim-list__name">{m.nickname || '未命名'}</span>
-                    <button className="btn btn--primary btn--sm" onClick={() => claimIdentity(m.old_user_id)}>这是我</button>
+                  <li key={m.old_user_id} className={`claim-list__item ${claimSelected[m.old_user_id] ? 'is-selected' : ''}`}>
+                    <label className="claim-list__check">
+                      <input
+                        type="checkbox"
+                        checked={!!claimSelected[m.old_user_id]}
+                        onChange={(e) => setClaimSelected(prev => ({ ...prev, [m.old_user_id]: e.target.checked }))}
+                      />
+                      <span className="claim-list__name">{m.nickname || '未命名'}</span>
+                    </label>
                   </li>
                 ))}
               </ul>
               <div className="claim-list__footer">
                 <button className="btn btn--ghost btn--sm" onClick={() => { setClaimModal(false); setClaimDismissed(true); }}>稍后再说</button>
-                <button className="btn btn--ghost btn--sm" style={{ color: 'var(--red)' }} onClick={clearGhosts}>这些都不是我，清理掉</button>
+                <div style={{ display: 'flex', gap: 8 }}>
+                  <button className="btn btn--ghost btn--sm" style={{ color: 'var(--red)' }} onClick={clearGhosts}>清理未命名</button>
+                  <button className="btn btn--primary btn--sm" onClick={claimSelectedIdentities}>认领选中</button>
+                </div>
               </div>
             </div>
           </div>
         </div>
+      )}
+
+      {/* 修改个人信息弹窗：昵称 + 密码（手机号不可改） */}
+      {editProfileModal && (
+        <EditProfileModal
+          currentUser={currentUser}
+          onClose={() => setEditProfileModal(false)}
+          onSave={saveProfile}
+        />
       )}
 
       {/* 成员昵称编辑弹窗 */}

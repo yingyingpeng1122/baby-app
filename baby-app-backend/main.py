@@ -914,8 +914,15 @@ class AuthLoginRequest(BaseModel):
     phone: str
     password: str
 
+class UpdateProfileRequest(BaseModel):
+    nickname: str | None = None      # 新昵称（可改）
+    new_password: str | None = None  # 新密码（可改，需同时提供 old_password 验证）
+    old_password: str | None = None   # 旧密码（改密码时必填）
+
 class ClaimIdentityRequest(BaseModel):
-    old_user_id: str
+    # 兼容旧的单个字段（保留），新接口用 old_user_ids 批量
+    old_user_id: str | None = None
+    old_user_ids: list[str] = []
     family_id: str
 
 def _hash_password(password: str, salt: str) -> str:
@@ -1015,6 +1022,41 @@ async def auth_me(request: Request):
         family = {"family_id": fid, "role": role, "nickname": mnick or nickname or ""}
     return {"user_id": uid, "phone": phone, "nickname": nickname or "", "family": family}
 
+@app.put("/auth/me")
+async def auth_update_me(req: UpdateProfileRequest, request: Request):
+    """修改个人信息：可改昵称和密码，手机号不可改。改密码需验证旧密码。"""
+    uid = _resolve_token(request)
+    if not uid:
+        raise HTTPException(401, "未登录或会话已过期")
+    rs = db.execute("SELECT phone, password_hash, password_salt, nickname FROM users WHERE user_id = ?", [uid]).fetchall()
+    if not rs:
+        raise HTTPException(401, "用户不存在")
+    phone, pw_hash, pw_salt, cur_nick = rs[0]
+    updated = {}
+    # 改昵称
+    if req.nickname is not None:
+        nick = req.nickname.strip()[:20]
+        db.execute("UPDATE users SET nickname = ? WHERE user_id = ?", [nick, uid])
+        # 同步更新 family_members 里的成员昵称（让家庭成员列表即时显示新昵称）
+        db.execute("UPDATE family_members SET nickname = ? WHERE user_id = ?", [nick, uid])
+        updated["nickname"] = nick
+    # 改密码：需验证旧密码
+    if req.new_password is not None:
+        if not req.old_password:
+            raise HTTPException(400, "修改密码需提供旧密码")
+        if not pw_hash or not pw_salt or _hash_password(req.old_password, pw_salt) != pw_hash:
+            raise HTTPException(403, "旧密码错误")
+        if len(req.new_password) < 6:
+            raise HTTPException(400, "新密码至少 6 位")
+        new_salt = _new_salt()
+        new_hash = _hash_password(req.new_password, new_salt)
+        db.execute("UPDATE users SET password_hash = ?, password_salt = ? WHERE user_id = ?", [new_hash, new_salt, uid])
+        updated["password"] = "updated"
+    db.sync()
+    if not updated:
+        raise HTTPException(400, "没有需要更新的字段")
+    return {"ok": True, "updated": updated, "phone": phone, "nickname": updated.get("nickname", cur_nick or "")}
+
 @app.get("/auth/claimable")
 async def auth_claimable(request: Request):
     """列出当前登录用户家庭中、尚未绑定到任何 users.user_id 的旧成员（可认领）。"""
@@ -1044,38 +1086,51 @@ async def auth_claimable(request: Request):
 
 @app.post("/auth/claim-identity")
 async def auth_claim_identity(req: ClaimIdentityRequest, request: Request):
-    """认领历史身份：把 family_members 中 old_user_id 的成员关系改挂到当前登录 user_id。
-    防错：要求 old_user_id 当前必须在该家庭且尚未绑定到 users 表。"""
+    """认领历史身份：把 family_members 中 old_user_ids 列表的成员关系改挂到当前登录 user_id。
+    支持批量认领（同一账号认领多个旧身份，如既是妈妈又用过'调试'身份）。
+    防错：每个 old_user_id 必须在该家庭且尚未绑定到 users 表。"""
     uid = _resolve_token(request)
     if not uid:
         raise HTTPException(401, "未登录")
-    old = req.old_user_id.strip()
     fid = req.family_id.strip()
-    if not old or not fid:
+    if not fid:
         raise HTTPException(400, "参数不完整")
+    # 统一收集要认领的 old_user_id（兼容旧的单字段）
+    olds = list(req.old_user_ids or [])
+    if req.old_user_id:
+        olds.append(req.old_user_id.strip())
+    olds = [o.strip() for o in olds if o and o.strip()]
+    if not olds:
+        raise HTTPException(400, "未指定要认领的成员")
     # 当前登录用户必须已属于该家庭
     mine = db.execute("SELECT 1 FROM family_members WHERE user_id = ? AND family_id = ?", [uid, fid]).fetchall()
     if not mine:
         raise HTTPException(403, "你不属于该家庭")
-    # old_user_id 必须在该家庭
-    target = db.execute(
-        "SELECT user_id FROM family_members WHERE user_id = ? AND family_id = ?", [old, fid]
-    ).fetchall()
-    if not target:
-        raise HTTPException(404, "要认领的成员不存在")
-    # old_user_id 不能已绑定到 users 表（防止认领已登录用户）
-    bound = db.execute("SELECT 1 FROM users WHERE user_id = ?", [old]).fetchall()
-    if bound:
-        raise HTTPException(409, "该成员已绑定账号，无法认领")
-    # 若 old 已与 uid 同一家庭且 uid 已是成员，删除 old 行即可（成员关系合并到 uid）
-    # 这里 old 的 nickname 保留原值，不覆盖 uid 的 nickname
-    db.execute("DELETE FROM family_members WHERE user_id = ? AND family_id = ?", [old, fid])
-    return {"ok": True, "claimed_user_id": old, "merged_into": uid}
+    claimed_ids = []
+    skipped = []
+    for old in olds:
+        # old_user_id 必须在该家庭
+        target = db.execute(
+            "SELECT user_id FROM family_members WHERE user_id = ? AND family_id = ?", [old, fid]
+        ).fetchall()
+        if not target:
+            skipped.append({"old_user_id": old, "reason": "该成员不存在于家庭"})
+            continue
+        # old_user_id 不能已绑定到 users 表（防止认领已登录用户）
+        bound = db.execute("SELECT 1 FROM users WHERE user_id = ?", [old]).fetchall()
+        if bound:
+            skipped.append({"old_user_id": old, "reason": "已绑定账号"})
+            continue
+        # 合并：删除 old 行（成员关系合并到 uid）
+        db.execute("DELETE FROM family_members WHERE user_id = ? AND family_id = ?", [old, fid])
+        claimed_ids.append(old)
+    return {"ok": True, "claimed_user_ids": claimed_ids, "merged_into": uid, "skipped": skipped}
 
 @app.post("/auth/clear-ghosts")
 async def auth_clear_ghosts(request: Request):
-    """清理当前登录用户家庭中、未绑定到 users 表的幽灵成员（认领弹窗里"都不是我"时用）。
-    保留所有已绑定到 users 表的成员。返回被清理的 user_id 列表。"""
+    """清理当前登录用户家庭中、未绑定到 users 表且未命名（空昵称）的幽灵成员。
+    保留有昵称的成员（小姨/爸爸等），给用户后续认领的机会。
+    返回被清理的 user_id 列表。"""
     uid = _resolve_token(request)
     if not uid:
         raise HTTPException(401, "未登录")
@@ -1083,14 +1138,16 @@ async def auth_clear_ghosts(request: Request):
     if not fm:
         return {"deleted": []}
     fid = fm[0][0]
+    # 只查未命名的其他成员（nickname 为空或 null）
     members = db.execute(
-        "SELECT user_id FROM family_members WHERE family_id = ? AND user_id != ?", [fid, uid]
+        "SELECT user_id FROM family_members WHERE family_id = ? AND user_id != ? AND (nickname IS NULL OR nickname = '')",
+        [fid, uid]
     ).fetchall()
     if not members:
         return {"deleted": []}
     ids = [m[0] for m in members]
     placeholders = ",".join(["?"] * len(ids))
-    # 已绑定到 users 表的（即已认领/已注册），保留
+    # 已绑定到 users 表的保留，未绑定的才是幽灵
     claimed = db.execute(f"SELECT user_id FROM users WHERE user_id IN ({placeholders})", ids).fetchall()
     claimed_set = {r[0] for r in claimed}
     ghosts = [i for i in ids if i not in claimed_set]
@@ -1138,7 +1195,10 @@ async def create_family(req: FamilyCreateRequest, request: Request):
     else:
         raise HTTPException(status_code=500, detail="Failed to generate unique family ID")
     db.execute("INSERT INTO families (family_id, family_name) VALUES (?, ?)", [fid, req.family_name])
-    db.execute("INSERT INTO family_members (family_id, user_id, role) VALUES (?, ?, 'creator')", [fid, uid])
+    # 用注册时填的昵称作为成员默认名（users 表查不到则空，前端走兜底文案）
+    urow = db.execute("SELECT nickname FROM users WHERE user_id = ?", [uid]).fetchall()
+    dnick = urow[0][0] if urow and urow[0][0] else ""
+    db.execute("INSERT INTO family_members (family_id, user_id, role, nickname) VALUES (?, ?, 'creator', ?)", [fid, uid, dnick])
     db.sync()
     return {"family_id": fid, "family_name": req.family_name, "role": "creator"}
 
@@ -1156,7 +1216,10 @@ async def join_family(req: FamilyJoinRequest, request: Request):
     fam = db.execute("SELECT family_id, family_name FROM families WHERE family_id = ?", [req.family_id]).fetchall()
     if not fam:
         raise HTTPException(status_code=404, detail="Family not found. Check the family ID.")
-    db.execute("INSERT INTO family_members (family_id, user_id, role) VALUES (?, ?, 'member')", [req.family_id, uid])
+    # 用注册时填的昵称作为成员默认名
+    urow = db.execute("SELECT nickname FROM users WHERE user_id = ?", [uid]).fetchall()
+    dnick = urow[0][0] if urow and urow[0][0] else ""
+    db.execute("INSERT INTO family_members (family_id, user_id, role, nickname) VALUES (?, ?, 'member', ?)", [req.family_id, uid, dnick])
     db.sync()
     return {"family_id": fam[0][0], "family_name": fam[0][1], "role": "member"}
 

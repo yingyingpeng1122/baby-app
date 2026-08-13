@@ -915,6 +915,7 @@ body { display: block; background: #eef3f1; }
 .err { display: flex; align-items: center; gap: 9px; background: var(--coral-soft); color: var(--coral); border: 1px solid #f6cdbf; border-radius: var(--r-mid); padding: 11px 13px; font-size: 13px; font-weight: 700; margin-bottom: 18px; }
 .field { margin-bottom: 16px; }
 .field__label { display: block; font-size: 12px; font-weight: 800; letter-spacing: .04em; text-transform: uppercase; color: var(--muted); margin: 0 0 7px 2px; }
+.field__hint { font-size: 12px; color: var(--muted); margin: 4px 0 0 2px; }
 .input { width: 100%; padding: 13px 14px; font-family: var(--font-body); font-size: 15px; font-weight: 600; color: var(--ink); background: var(--surface-2); border: 1.5px solid var(--line); border-radius: var(--r-mid); outline: none; transition: border-color .2s ease, box-shadow .2s ease, background .2s ease; }
 .input::placeholder { color: #b3c4bf; }
 .input:focus { border-color: var(--primary); background: #fff; box-shadow: 0 0 0 4px var(--primary-soft); }
@@ -1033,6 +1034,8 @@ body { display: block; background: #eef3f1; }
 .family-bar__id { cursor: pointer; padding: 2px 10px; background: var(--bg); border-radius: var(--r-pill); border: 1px dashed var(--line); font-size: 12px; color: var(--muted); transition: all .15s; }
 .family-bar__id:hover { border-color: var(--primary); color: var(--primary); background: var(--primary-soft); }
 .family-bar__id b { color: var(--text); }
+.family-bar__add { display: inline-flex; align-items: center; gap: 4px; padding: 2px 12px; font-size: 12px; font-weight: 700; font-family: var(--font-display); color: var(--primary); background: var(--primary-soft); border: 1px solid var(--primary-soft); border-radius: var(--r-pill); cursor: pointer; transition: all .15s; }
+.family-bar__add:hover { background: var(--primary); color: #fff; border-color: var(--primary); }
 .family-bar__members { margin-left: auto; display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
 .family-bar__leave {
   padding: 2px 12px; font-size: 12px; font-weight: 600; font-family: var(--font-display);
@@ -1053,7 +1056,7 @@ body { display: block; background: #eef3f1; }
 .member-chip--more { cursor: pointer; color: var(--muted); background: var(--bg); }
 .member-chip--more:hover { border-color: var(--primary); color: var(--primary); }
 .member-more__menu {
-  position: absolute; top: calc(100% + 6px); right: 0; z-index: 20;
+  position: absolute; top: calc(100% + 6px); left: 0; z-index: 20;
   min-width: 140px; padding: 6px; background: #fff; border: 1px solid var(--line);
   border-radius: var(--r-mid); box-shadow: var(--sh-md); display: flex; flex-direction: column; gap: 2px;
 }
@@ -1545,12 +1548,14 @@ body { display: block; background: #eef3f1; }
 /* ---------- 历史身份认领 ---------- */
 .claim-list { list-style: none; padding: 0; margin: 12px 0 0; display: flex; flex-direction: column; gap: 8px; }
 .claim-list__item {
-  display: flex; align-items: center; justify-content: space-between;
-  padding: 10px 14px; background: var(--bg, #f9fafb); border: 1px solid var(--line, #e5e7eb);
-  border-radius: 10px;
+  padding: 0; background: var(--bg, #f9fafb); border: 1px solid var(--line, #e5e7eb);
+  border-radius: 10px; transition: border-color .15s, background .15s;
 }
+.claim-list__item.is-selected { border-color: var(--primary, #6366f1); background: rgba(99,102,241,.08); }
+.claim-list__check { display: flex; align-items: center; gap: 10px; padding: 10px 14px; cursor: pointer; }
+.claim-list__check input { width: 18px; height: 18px; accent-color: var(--primary, #6366f1); cursor: pointer; }
 .claim-list__name { font-size: 15px; font-weight: 500; color: var(--text, #1f2937); }
-.claim-list__footer { display: flex; gap: 8px; justify-content: space-between; margin-top: 14px; flex-wrap: wrap; }
+.claim-list__footer { display: flex; gap: 8px; justify-content: space-between; margin-top: 14px; flex-wrap: wrap; align-items: center; }
 .btn--sm { height: 32px; padding: 0 14px; font-size: 13px; }
 
 /* ---------- 无障碍：尊重减少动效 ---------- */
