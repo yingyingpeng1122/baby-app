@@ -749,6 +749,7 @@ body { display: block; background: #eef3f1; }
 .growth__row-edit:hover { color: var(--primary); }
 .growth__row-del { background: none; border: none; color: var(--muted); cursor: pointer; padding: 4px; }
 .growth__row-del:hover { color: var(--coral); }
+.growth__row-actions { margin-left: auto; display: flex; align-items: center; gap: 2px; }
 
 /* ---------- SVG 图表 ---------- */
 .chart-svg { width: 100%; height: auto; display: block; margin-top: 10px; }
@@ -782,6 +783,8 @@ body { display: block; background: #eef3f1; }
 .sick__advice-text { margin-top: 4px; font-size: 13px; color: var(--ink); line-height: 1.6; }
 .sick__advice-meta { margin-top: 8px; font-size: 12px; color: var(--muted); }
 .sick__advice-next { margin-top: 4px; font-size: 12px; font-weight: 700; color: var(--coral); }
+.sick__chart { margin-top: 14px; }
+.sick__h { font-size: 14px; font-weight: 800; color: var(--ink); margin: 16px 0 8px; }
 
 /* ---------- 今日活动 · 时间轴 ---------- */
 /* 宝宝的一天 · 可爱记录卡 */
@@ -818,7 +821,7 @@ body { display: block; background: #eef3f1; }
 .daytime__item--diaper .daytime__dot { background: #0e7490; }
 .daytime__item--sleep  .daytime__dot { background: #6d28d9; }
 .daytime__card {
-  position: absolute; left: 0; right: 0; z-index: 3;
+  position: absolute; left: 0; right: 0; z-index: 3; touch-action: manipulation;
   background: var(--surface); border: 1px solid var(--line); border-radius: var(--r-mid);
   padding: 10px; display: flex; flex-direction: column; gap: 8px; box-shadow: var(--sh-sm);
 }
@@ -1137,8 +1140,8 @@ body { display: block; background: #eef3f1; }
   .feed__log-form { grid-template-columns: 1fr; gap: 10px; }
   /* 双列网格在手机上改为单列 */
   .field__row, .seg { grid-template-columns: 1fr; }
-  /* 宝宝的一天：宽度恒定 84px；展开只增高度（露出底部编辑/删除），不横向挤动 */
-  .daytime__item { width: 84px; height: 288px; }
+  /* 宝宝的一天：手机端宽度自适应（不再固定 84px 偏窄），随屏宽在 96~124px 间伸缩；展开只增高度不横向挤动 */
+  .daytime__item { width: clamp(96px, 27vw, 124px); height: 288px; }
   /* 手机端禁用 hover 残留，编辑/删除仅由点击切换的 .is-open 控制，避免误显其它方块图标 */
   .daytime__item:hover .daytime__ops { display: none; }
   .daytime__card { padding: 8px; }
@@ -1264,10 +1267,12 @@ body { display: block; background: #eef3f1; }
 .stage-tip__cur b, .stage-tip__next b { color: #c2410c; }
 @media (max-width: 480px) {
   .stage-tip__cols { grid-template-columns: 1fr; gap: 10px; }
-  /* 成长记录 / 生病模式：窄屏表单纵向堆叠 */
-  .growth__form-row { flex-direction: column; align-items: stretch; }
+  /* 成长记录 / 生病模式：窄屏表单纵向堆叠，并收紧行距避免间距过大 */
+  .growth__form-row { flex-direction: column; align-items: stretch; gap: 6px; }
   .growth__form-row .feed__log-field { min-width: 0; }
   .growth__add { width: 100%; }
+  .growth__form { gap: 6px; margin-top: 10px; }
+  .feed__chips { margin-top: 6px; }
   .growth__latest-item b { font-size: 20px; }
   .sick-toggle { padding: 4px 10px; }
 }

@@ -770,6 +770,7 @@ export default function BabyAppFullStack() {
   });
   const [tempRecords, setTempRecords] = useState([]);
   const [tempDraft, setTempDraft] = useState({ temp: '', note: '', datetime: nowDateTime().replace(' ', 'T'), symptoms: [] });
+  const [editingTempId, setEditingTempId] = useState(null); // 正在编辑的体温记录 id（null=新增）
   const TEMP_SYMPTOMS = ['咳嗽', '流涕', '呕吐', '腹泻', '精神差', '已用药'];
   // 生病模式开关持久化：下次进入仍保持开启
   const persistSickMode = (next) => {
@@ -1052,6 +1053,39 @@ export default function BabyAppFullStack() {
       const res = await apiFetch(`${API_BASE}/temperature-records/${id}`, { method: 'DELETE' });
       if (res.ok) setTempRecords(prev => prev.filter(r => r.id !== id));
     } catch (e) { console.error('delete temp failed', e); }
+  };
+  const editTemp = (r) => {
+    setTempDraft({
+      temp: String(r.temp),
+      note: r.note || '',
+      datetime: (r.datetime || '').replace(' ', 'T').slice(0, 16),
+      symptoms: [],
+    });
+    setEditingTempId(r.id);
+    // 滚动到表单，便于直接修改
+    requestAnimationFrame(() => document.getElementById('temp-form')?.scrollIntoView({ behavior: 'smooth', block: 'center' }));
+  };
+  const cancelTempEdit = () => {
+    setEditingTempId(null);
+    setTempDraft({ temp: '', note: '', datetime: nowDateTime().replace(' ', 'T'), symptoms: [] });
+  };
+  const updateTemp = async () => {
+    const t = parseFloat(tempDraft.temp);
+    if (!t || t < 34 || t > 43) return alert('请输入有效体温（34–43°C）');
+    try {
+      const res = await apiFetch(`${API_BASE}/temperature-records/${editingTempId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          datetime: (tempDraft.datetime || nowDateTime()).replace('T', ' ').slice(0, 16),
+          temp: t,
+          note: tempDraft.note || '',
+        }),
+      });
+      if (!res.ok) { const e = await res.json().catch(() => ({})); throw new Error(e.detail || '保存失败'); }
+      await loadTemps();
+      cancelTempEdit();
+    } catch (e) { alert('保存体温失败：' + (e.message || '')); }
   };
 
   // 勾选 / 取消勾选
@@ -2159,8 +2193,26 @@ export default function BabyAppFullStack() {
                   {nextAt && <div className="sick__advice-next">建议下次复测：约 {nextAt}</div>}
                 </div>
 
+                {/* 体温曲线（置于记录功能上方、当前体温状态下方） */}
+                {tempRecords.length > 0 ? (
+                  <div className="sick__chart">
+                    <h3 className="sick__h">体温变化曲线</h3>
+                    <TempChart records={tempRecords} />
+                    <div className="growth__legend">
+                      <span className="growth__lg growth__lg--intl"><i />发热线 38°C</span>
+                      <span className="growth__lg growth__lg--cn"><i />就医线 39.4°C</span>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="sick__chart">
+                    <h3 className="sick__h">体温变化曲线</h3>
+                    <div className="growth__empty">记录第一次体温后，这里会画出体温变化曲线。</div>
+                  </div>
+                )}
+
                 {/* 体温录入 */}
-                <div className="growth__form">
+                <h3 className="sick__h">记录体温</h3>
+                <div className="growth__form" id="temp-form">
                   <div className="growth__form-row">
                     <div className="feed__log-field">
                       <label>时间</label>
@@ -2189,32 +2241,27 @@ export default function BabyAppFullStack() {
                       <label>备注（可选）</label>
                       <input type="text" className="input input--sm" placeholder="如：已服美林" value={tempDraft.note} onChange={(e) => setTempDraft({ ...tempDraft, note: e.target.value })} />
                     </div>
-                    <button type="button" className="btn btn--primary btn--sm growth__add" onClick={() => addTemp()}><Plus className="icon icon--xs" />记录体温</button>
+                    <button type="button" className="btn btn--primary btn--sm growth__add" onClick={() => editingTempId ? updateTemp() : addTemp()}>
+                      {editingTempId ? <><Check className="icon icon--xs" />保存修改</> : <><Plus className="icon icon--xs" />记录体温</>}
+                    </button>
+                    {editingTempId && (
+                      <button type="button" className="btn btn--ghost btn--sm growth__add" onClick={cancelTempEdit}>取消</button>
+                    )}
                   </div>
                 </div>
-
-                {/* 体温曲线 */}
-                {tempRecords.length > 0 ? (
-                  <>
-                    <TempChart records={tempRecords} />
-                    <div className="growth__legend">
-                      <span className="growth__lg growth__lg--intl"><i />发热线 38°C</span>
-                      <span className="growth__lg growth__lg--cn"><i />就医线 39.4°C</span>
-                    </div>
-                  </>
-                ) : (
-                  <div className="growth__empty">记录第一次体温后，这里会画出体温变化曲线。</div>
-                )}
 
                 {/* 体温记录列表 */}
                 {tempRecords.length > 0 && (
                   <div className="growth__list">
                     {tempRecords.map(r => (
-                      <div key={r.id} className="growth__row">
+                      <div key={r.id} className={`growth__row ${editingTempId === r.id ? 'is-editing' : ''}`}>
                         <span className="growth__row-date">{r.datetime || '—'}</span>
                         <span className={`growth__row-temp ${r.temp >= 38 ? 'is-high' : ''}`}>{r.temp}°C</span>
                         {r.note && <span className="growth__row-note">{r.note}</span>}
-                        <button className="growth__row-del" onClick={() => delTemp(r.id)} aria-label="删除"><Trash2 className="icon icon--xs" /></button>
+                        <span className="growth__row-actions">
+                          <button className="growth__row-edit" onClick={() => editTemp(r)} aria-label="编辑"><Pencil className="icon icon--xs" /></button>
+                          <button className="growth__row-del" onClick={() => delTemp(r.id)} aria-label="删除"><Trash2 className="icon icon--xs" /></button>
+                        </span>
                       </div>
                     ))}
                   </div>
@@ -2223,6 +2270,83 @@ export default function BabyAppFullStack() {
             );
           })()}
         </Reveal>
+
+        {/* 宝宝生病护理指南：置于生病模式下方，仅生病模式开启时显示 */}
+        {sickMode && (
+        <Reveal className="section" delay={0.05}>
+          <button
+            type="button"
+            className={`care-toggle ${careOpen ? 'is-open' : ''}`}
+            onClick={() => setCareOpen(v => !v)}
+            aria-expanded={careOpen}
+          >
+            <span className="section__ico section__ico--rose"><Heart className="icon icon--sm" /></span>
+            <h2 className="section__title">宝宝生病护理指南</h2>
+            <span className="care-toggle__hint">{careOpen ? '收起' : '点击展开'}</span>
+            <ChevronDown className="icon icon--sm care-toggle__chev" />
+          </button>
+
+          {careOpen && (
+            <div className="care">
+              <div className="care__disclaimer">
+                <AlertCircle className="icon icon--xs" />
+                本指南为通用科普，<b>不能替代医生诊断</b>。用药前请遵医嘱，尤其 3 个月以下婴儿出现发热须立即就医。
+              </div>
+
+              <div className="care__block">
+                <h3 className="care__h">阶段相关发烧风险</h3>
+                {CARE_GUIDE.stageFever.map(it => {
+                  const Ico = CARE_ICONS[it.icon] || Thermometer;
+                  const open = careItem === it.key;
+                  return (
+                    <div className={`care-item ${open ? 'is-open' : ''}`} key={it.key}>
+                      <button type="button" className="care-item__head" onClick={() => setCareItem(open ? null : it.key)} aria-expanded={open}>
+                        <Ico className="icon icon--sm care-item__ico" />
+                        <span className="care-item__title">{it.title}</span>
+                        <ChevronDown className="icon icon--xs care-item__chev" />
+                      </button>
+                      {open && (
+                        <ul className="care-item__list">
+                          {it.points.map((p, i) => <li key={i}>{p}</li>)}
+                        </ul>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+
+              <div className="care__block">
+                <h3 className="care__h">常见不适护理</h3>
+                {CARE_GUIDE.illnesses.map(it => {
+                  const Ico = CARE_ICONS[it.icon] || Stethoscope;
+                  const open = careItem === it.key;
+                  return (
+                    <div className={`care-item ${open ? 'is-open' : ''}`} key={it.key}>
+                      <button type="button" className="care-item__head" onClick={() => setCareItem(open ? null : it.key)} aria-expanded={open}>
+                        <Ico className="icon icon--sm care-item__ico" />
+                        <span className="care-item__title">{it.title}</span>
+                        <ChevronDown className="icon icon--xs care-item__chev" />
+                      </button>
+                      {open && (
+                        <ul className="care-item__list">
+                          {it.points.map((p, i) => <li key={i}>{p}</li>)}
+                        </ul>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+
+              <div className="care__redflag">
+                <h3 className="care__h care__h--warn"><AlertCircle className="icon icon--xs" />必须立即就医的红线</h3>
+                <ul className="care__redlist">
+                  {CARE_GUIDE.redflags.map((r, i) => <li key={i}>{r}</li>)}
+                </ul>
+              </div>
+            </div>
+          )}
+        </Reveal>
+        )}
 
         {/* 照护日历弹窗 */}
         {calendarOpen && (
@@ -2580,79 +2704,6 @@ export default function BabyAppFullStack() {
           <ActList items={music} onPlay={(a) => setModal({ open: true, title: a.title, src: a.videoUrl || '' })} />
         </Reveal>
 
-        <Reveal className="section" delay={0.05}>
-          <button
-            type="button"
-            className={`care-toggle ${careOpen ? 'is-open' : ''}`}
-            onClick={() => setCareOpen(v => !v)}
-            aria-expanded={careOpen}
-          >
-            <span className="section__ico section__ico--rose"><Heart className="icon icon--sm" /></span>
-            <h2 className="section__title">宝宝生病护理指南</h2>
-            <span className="care-toggle__hint">{careOpen ? '收起' : '点击展开'}</span>
-            <ChevronDown className="icon icon--sm care-toggle__chev" />
-          </button>
-
-          {careOpen && (
-            <div className="care">
-              <div className="care__disclaimer">
-                <AlertCircle className="icon icon--xs" />
-                本指南为通用科普，<b>不能替代医生诊断</b>。用药前请遵医嘱，尤其 3 个月以下婴儿出现发热须立即就医。
-              </div>
-
-              <div className="care__block">
-                <h3 className="care__h">阶段相关发烧风险</h3>
-                {CARE_GUIDE.stageFever.map(it => {
-                  const Ico = CARE_ICONS[it.icon] || Thermometer;
-                  const open = careItem === it.key;
-                  return (
-                    <div className={`care-item ${open ? 'is-open' : ''}`} key={it.key}>
-                      <button type="button" className="care-item__head" onClick={() => setCareItem(open ? null : it.key)} aria-expanded={open}>
-                        <Ico className="icon icon--sm care-item__ico" />
-                        <span className="care-item__title">{it.title}</span>
-                        <ChevronDown className="icon icon--xs care-item__chev" />
-                      </button>
-                      {open && (
-                        <ul className="care-item__list">
-                          {it.points.map((p, i) => <li key={i}>{p}</li>)}
-                        </ul>
-                      )}
-                    </div>
-                  );
-                })}
-              </div>
-
-              <div className="care__block">
-                <h3 className="care__h">常见不适护理</h3>
-                {CARE_GUIDE.illnesses.map(it => {
-                  const Ico = CARE_ICONS[it.icon] || Stethoscope;
-                  const open = careItem === it.key;
-                  return (
-                    <div className={`care-item ${open ? 'is-open' : ''}`} key={it.key}>
-                      <button type="button" className="care-item__head" onClick={() => setCareItem(open ? null : it.key)} aria-expanded={open}>
-                        <Ico className="icon icon--sm care-item__ico" />
-                        <span className="care-item__title">{it.title}</span>
-                        <ChevronDown className="icon icon--xs care-item__chev" />
-                      </button>
-                      {open && (
-                        <ul className="care-item__list">
-                          {it.points.map((p, i) => <li key={i}>{p}</li>)}
-                        </ul>
-                      )}
-                    </div>
-                  );
-                })}
-              </div>
-
-              <div className="care__redflag">
-                <h3 className="care__h care__h--warn"><AlertCircle className="icon icon--xs" />必须立即就医的红线</h3>
-                <ul className="care__redlist">
-                  {CARE_GUIDE.redflags.map((r, i) => <li key={i}>{r}</li>)}
-                </ul>
-              </div>
-            </div>
-          )}
-        </Reveal>
       </div>
 
       <VideoModal open={modal.open} title={modal.title} src={modal.src || ''} onClose={() => setModal({ open: false, title: '', src: '' })} />

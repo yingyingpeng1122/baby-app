@@ -1165,6 +1165,16 @@ async def delete_temperature_record(record_id: str, request: Request):
     return {"status": "deleted", "id": record_id}
 
 
+@app.put("/temperature-records/{record_id}")
+async def update_temperature_record(record_id: str, record: TemperatureRecord, request: Request):
+    bid = get_baby_id(request)
+    db.execute(
+        "UPDATE temperature_records SET datetime = ?, temp = ?, note = ? WHERE id = ? AND baby_id = ?",
+        [record.datetime, record.temp, record.note, record_id, bid])
+    db.sync()
+    return {"status": "updated", "id": record_id}
+
+
 @app.get("/feeding-evaluation", response_model=FeedingEvaluation)
 async def get_feeding_evaluation(request: Request, date_str: str = Query(default=None, alias="date")):
     bid = get_baby_id(request)
