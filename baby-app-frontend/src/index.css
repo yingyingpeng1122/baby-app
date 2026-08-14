@@ -802,7 +802,7 @@ body { display: block; background: #eef3f1; }
   background-image: radial-gradient(rgba(17,24,39,.06) 1px, transparent 1.5px);
   background-size: 16px 16px;
 }
-.daytime__inner { position: relative; width: max-content; padding: 4px 0; }
+.daytime__inner { position: relative; width: max-content; height: 280px; padding: 4px 0; }
 .daytime__inner::before {
   content: ''; position: absolute; top: 50%; left: 0; right: 0; height: 2px;
   background: var(--line); transform: translateY(-1px); border-radius: 2px;
@@ -1030,12 +1030,20 @@ body { display: block; background: #eef3f1; }
 /* 家庭信息栏 */
 .family-bar { background: rgba(255,255,255,.5); border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); }
 .family-bar__inner { max-width: 880px; margin: 0 auto; padding: 8px 20px; display: flex; align-items: center; gap: 16px; font-size: 13px; }
-.family-bar__name { font-weight: 700; font-family: var(--font-display); color: var(--primary); }
-.family-bar__id { cursor: pointer; padding: 2px 10px; background: var(--bg); border-radius: var(--r-pill); border: 1px dashed var(--line); font-size: 12px; color: var(--muted); transition: all .15s; }
-.family-bar__id:hover { border-color: var(--primary); color: var(--primary); background: var(--primary-soft); }
-.family-bar__id b { color: var(--text); }
-.family-bar__add { display: inline-flex; align-items: center; gap: 4px; padding: 2px 12px; font-size: 12px; font-weight: 700; font-family: var(--font-display); color: var(--primary); background: var(--primary-soft); border: 1px solid var(--primary-soft); border-radius: var(--r-pill); cursor: pointer; transition: all .15s; }
-.family-bar__add:hover { background: var(--primary); color: #fff; border-color: var(--primary); }
+/* topbar 家庭信息（替代原宝宝品牌区） */
+.brand--family { gap: 12px; }
+.brand__logo--family { background: linear-gradient(140deg, var(--honey, #f59e0b), var(--primary)); }
+.brand__meta--family { display: flex; align-items: center; gap: 8px; margin-top: 2px; flex-wrap: wrap; }
+.brand__fid { cursor: pointer; padding: 2px 10px; background: var(--bg); border-radius: var(--r-pill); border: 1px dashed var(--line); font-size: 12px; color: var(--muted); transition: all .15s; }
+.brand__fid:hover { border-color: var(--primary); color: var(--primary); background: var(--primary-soft); }
+.brand__fid b { color: var(--text); font-weight: 700; }
+.brand__add { display: inline-flex; align-items: center; gap: 4px; padding: 2px 12px; font-size: 12px; font-weight: 700; font-family: var(--font-display); color: var(--primary); background: var(--primary-soft); border: 1px solid var(--primary-soft); border-radius: var(--r-pill); cursor: pointer; transition: all .15s; white-space: nowrap; }
+.brand__add:hover { background: var(--primary); color: #fff; border-color: var(--primary); }
+/* family-bar 内的宝宝品牌区（原 topbar 品牌区移至此） */
+.brand--baby { gap: 10px; }
+.brand--baby .brand__logo { width: 38px; height: 38px; border-radius: 12px; }
+.brand--baby .brand__name { font-size: 16px; }
+.brand--baby .brand__meta { font-size: 12px; }
 .family-bar__members { margin-left: auto; display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
 .family-bar__leave {
   padding: 2px 12px; font-size: 12px; font-weight: 600; font-family: var(--font-display);
@@ -1069,6 +1077,18 @@ body { display: block; background: #eef3f1; }
 
 /* 宝宝切换器 */
 .topbar__actions { display: flex; align-items: center; gap: 8px; }
+/* 手机端独立「添加宝宝」按钮（桌面端隐藏，桌面用 brand__add） */
+.topbar__add-btn { display: none; }
+/* 桌面端：修改信息/退出登录 直接平铺；手机端隐藏，收进「更多 ⋯」菜单 */
+.topbar__user-desktop { display: flex; align-items: center; gap: 8px; }
+.topbar__user-mobile { display: none; position: relative; }
+.topbar__more-btn { width: 32px; height: 32px; display: grid; place-items: center; border: 1px solid var(--line); background: var(--surface); border-radius: var(--r-pill); color: var(--ink); cursor: pointer; transition: all .15s; }
+.topbar__more-btn:hover { border-color: var(--primary); color: var(--primary); background: var(--primary-soft); }
+.topbar__more-menu { position: absolute; top: calc(100% + 6px); right: 0; z-index: 30; min-width: 120px; padding: 6px; background: #fff; border: 1px solid var(--line); border-radius: var(--r-mid); box-shadow: var(--sh-md); display: flex; flex-direction: column; gap: 2px; }
+.topbar__more-item { border: none; background: none; text-align: left; padding: 8px 10px; font-size: 13px; font-weight: 600; font-family: var(--font-body); color: var(--ink); border-radius: var(--r-sm); cursor: pointer; white-space: nowrap; transition: background .12s; }
+.topbar__more-item:hover { background: var(--surface-2); }
+.topbar__more-item--danger { color: var(--coral); }
+.topbar__more-item--danger:hover { background: var(--coral-soft); }
 .baby-switcher { display: flex; align-items: center; gap: 4px; background: var(--bg); border-radius: var(--r-pill); padding: 3px; border: 1px solid var(--line); }
 .baby-switcher__btn { border: none; background: none; padding: 5px 14px; border-radius: var(--r-pill); font-size: 13px; font-weight: 600; font-family: var(--font-body); color: var(--muted); cursor: pointer; transition: all .15s; white-space: nowrap; }
 .baby-switcher__btn:hover { color: var(--text); background: rgba(255,255,255,.6); }
@@ -1091,7 +1111,14 @@ body { display: block; background: #eef3f1; }
   .brand__name { font-size: 16px; }
   .brand__meta { font-size: 11px; }
   .topbar__actions { flex-wrap: nowrap; }
-  .baby-switcher { flex-wrap: nowrap; max-width: 46vw; overflow-x: auto; scrollbar-width: none; }
+  /* 手机端：独立「添加宝宝」按钮显示（桌面端用 brand__add） */
+  .topbar__add-btn { display: grid; place-items: center; width: 32px; height: 32px; border: 1px solid var(--primary-soft); background: var(--primary-soft); color: var(--primary); border-radius: var(--r-pill); cursor: pointer; transition: all .15s; flex: none; }
+  .topbar__add-btn:hover { background: var(--primary); color: #fff; border-color: var(--primary); }
+  .brand__add { display: none; } /* 桌面端添加宝宝按钮在手机端隐藏，改用 topbar__add-btn */
+  /* 手机端：修改信息/退出登录 收进「更多 ⋯」菜单 */
+  .topbar__user-desktop { display: none; }
+  .topbar__user-mobile { display: block; }
+  .baby-switcher { flex-wrap: nowrap; max-width: 40vw; overflow-x: auto; scrollbar-width: none; }
   .baby-switcher::-webkit-scrollbar { display: none; }
 
   /* 概览横幅：hero 是 flex 容器，用 flex-wrap 让其内容在窄屏自动换行堆叠 */
@@ -1137,7 +1164,11 @@ body { display: block; background: #eef3f1; }
   .cal-weekdays__day { font-size: 11px; }
   .cal-month-nav__label { font-size: 15px; }
 
-  .family-bar__inner { flex-wrap: wrap; gap: 8px; }
+  /* 手机端 family-bar 两行布局：成员+退出家庭在第一行，宝宝品牌区独占第二行 */
+  .family-bar__inner { flex-wrap: wrap; gap: 6px 12px; }
+  .family-bar__inner > .brand--baby { order: 2; flex: 1 1 100%; }
+  .family-bar__members { order: 1; margin-left: 0; flex: 1; min-width: 0; }
+  .family-bar__leave { order: 1; }
 
   /* 视频弹窗：按宽度自适应，避免在小屏过高 */
   .modal__card--video { max-width: 100%; }
@@ -1149,7 +1180,7 @@ body { display: block; background: #eef3f1; }
   .wrap { padding: 16px 12px 72px; }
   .topbar__inner { padding: 8px 12px; }
   .brand__name { font-size: 15px; }
-  .baby-switcher { max-width: 50vw; }
+  .baby-switcher { max-width: 36vw; }
   .hero { padding: 18px 14px; }
   .ring { width: 124px; height: 124px; }
   .ring__num { font-size: 32px; }
@@ -1167,6 +1198,8 @@ body { display: block; background: #eef3f1; }
   .field__row, .seg { grid-template-columns: 1fr; }
   /* 宝宝的一天：手机端方格宽度固定 96px（与桌面一致），与 left 偏移计算基准匹配，避免重叠 */
   .daytime__item { width: 96px; height: 256px; }
+  /* inner 高度同步 item，确保绝对定位的卡片撑开父容器 */
+  .daytime__inner { height: 256px; }
   /* 手机端方块内备注限 1 行：避免带 2 行备注的 down 卡片超出方块高度，触发竖向滚动 */
   .daytime__note { -webkit-line-clamp: 1; }
   .daytime__card { padding: 8px; }
@@ -1175,6 +1208,20 @@ body { display: block; background: #eef3f1; }
   .feed__record-del { width: 32px; height: 32px; }
   .timepicker__item { padding: 10px 0; }
   .cal-cell { font-size: 12px; }
+
+  /* 手机端 topbar 家庭信息：logo 缩小，名字与 ID/添加按钮换行不溢出 */
+  .brand--family .brand__logo { width: 36px; height: 36px; border-radius: 12px; }
+  .brand--family .brand__name { font-size: 15px; }
+  .brand__meta--family { gap: 6px; }
+  .brand__fid { padding: 1px 8px; font-size: 11px; }
+  .brand__add { padding: 2px 10px; font-size: 11px; }
+  /* 手机端 family-bar 宝宝品牌区：logo 再缩小 */
+  .brand--baby .brand__logo { width: 32px; height: 32px; border-radius: 10px; }
+  .brand--baby .brand__name { font-size: 14px; }
+  /* 手机端无 hover：让宝宝切换器的删除按钮常驻显示，否则删不掉宝宝 */
+  .baby-switcher__del { opacity: 1; }
+  /* 480 以下更窄：family-bar 成员 chip 和退出家庭各自缩字、退出家庭按钮缩短为「退出」 */
+  .family-bar__leave { padding: 2px 8px; font-size: 11px; }
 
   /* 喂养详情总结：窄屏让等级徽章独占一行，三个数值横向均分 */
   .feed-detail__summary { flex-wrap: wrap; gap: 8px; }

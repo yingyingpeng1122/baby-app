@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>双宝宝手机端排版预览</title>
+  <link rel="stylesheet" href="src/index.css" />
+  <style>
+    body { background: var(--surface-2); margin: 0; font-family: var(--font-body); }
+    .pv-note { background: #111827; color: #fff; font: 700 13px/1 system-ui; padding: 8px 14px; position: sticky; top: 0; z-index: 99; }
+    .pv-note b { color: #fbbf24; }
+    .icon { display: inline-block; }
+    /* 模拟 SVG 图标尺寸，用 inline-block 占位 */
+    .icon--lg { width: 24px; height: 24px; }
+    .icon--xs { width: 14px; height: 14px; }
+    .ic { display: inline-grid; place-items: center; }
+  </style>
+</head>
+<body>
+  <div class="pv-note">视口：<b id="w">—</b>px · 模拟两个宝宝（苏苏 + 弟弟）的手机端排版</div>
+
+  <header class="topbar">
+    <div class="topbar__inner">
+      <div class="brand brand--family">
+        <div class="brand__logo brand__logo--family"><span class="ic icon icon--lg">🏠</span></div>
+        <div>
+          <div class="brand__name">🏠 苏苏的家</div>
+          <div class="brand__meta brand__meta--family">
+            <span class="brand__fid" title="点击复制家庭 ID">
+              ID: <b>Z5FDCX</b>
+            </span>
+            <button class="brand__add" title="添加宝宝">
+              <span class="ic icon icon--xs">＋</span>添加宝宝
+            </button>
+          </div>
+        </div>
+      </div>
+      <div class="topbar__actions">
+        <div class="baby-switcher">
+          <div class="baby-switcher__item">
+            <button class="baby-switcher__btn baby-switcher__btn--on">苏苏</button>
+            <button class="baby-switcher__del" title="删除 苏苏">
+              <span class="ic icon icon--xs">✕</span>
+            </button>
+          </div>
+          <div class="baby-switcher__item">
+            <button class="baby-switcher__btn">弟弟</button>
+            <button class="baby-switcher__del" title="删除 弟弟">
+              <span class="ic icon icon--xs">✕</span>
+            </button>
+          </div>
+        </div>
+        <!-- 手机端独立「添加宝宝」入口 -->
+        <button class="topbar__add-btn" title="添加宝宝" aria-label="添加宝宝">
+          <span class="ic icon icon--xs">＋</span>
+        </button>
+        <!-- 桌面端平铺 -->
+        <div class="topbar__user-desktop">
+          <button class="btn btn--ghost btn--sm" title="修改昵称和密码">修改信息</button>
+          <button class="btn btn--ghost btn--sm" title="退出登录">退出登录</button>
+        </div>
+        <!-- 手机端「更多 ⋯」菜单 -->
+        <div class="topbar__user-mobile">
+          <button class="topbar__more-btn" title="更多">
+            <span class="ic icon icon--sm">⋯</span>
+          </button>
+          <div class="topbar__more-menu">
+            <button class="topbar__more-item">修改信息</button>
+            <button class="topbar__more-item topbar__more-item--danger">退出登录</button>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="family-bar">
+      <div class="family-bar__inner">
+        <div class="brand brand--baby">
+          <div class="brand__logo brand__logo--baby"><span class="ic icon icon--lg">👶</span></div>
+          <div>
+            <div class="brand__name">苏苏的成长记录</div>
+            <div class="brand__meta">8 个月大 · 女宝</div>
+          </div>
+        </div>
+        <div class="family-bar__members">
+          <button type="button" class="member-chip member-chip--me" title="点击修改我的昵称">
+            <span class="member-chip__me">自己</span>
+            <span class="member-chip__name">妈妈</span>
+            ✎
+          </button>
+          <div class="member-more">
+            <button type="button" class="member-chip member-chip--more" aria-expanded="false" title="查看其他家庭成员">+2</button>
+          </div>
+        </div>
+        <button class="family-bar__leave" title="退出当前家庭">退出家庭</button>
+      </div>
+    </div>
+  </header>
+
+  <div class="wrap">
+    <div class="hero">
+      <div class="hero__compact">
+        <span class="hero__eyebrow">今日概览</span>
+        <h2 class="hero__title"><b>苏苏</b> 的一天</h2>
+        <p class="hero__sub">综合评估：奶量与睡眠基本达标，注意辅食多样化。</p>
+      </div>
+      <div class="ring" style="--deg: 240deg">
+        <div class="ring__hole">
+          <div class="ring__num">8</div>
+          <div class="ring__unit">月龄</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    function update(){ document.getElementById('w').textContent = window.innerWidth; }
+    update();
+    window.addEventListener('resize', update);
+  </script>
+</body>
+</html>

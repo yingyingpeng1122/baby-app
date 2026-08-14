@@ -4,7 +4,7 @@ import {
   Baby, Ruler, Scale, Milk, Utensils, Music, Gamepad2, Video, Save,
   PlayCircle, Loader2, AlertCircle, Sparkles, Pencil, Check, Maximize2, Minimize2,
   Plus, Trash2, Clock, TrendingUp, ChevronDown, Sun, BookOpen, Heart, Moon, Pill, Smile, ListChecks, ChevronLeft, ChevronRight, Calendar, X, Thermometer, Stethoscope, Syringe, Activity,
-  Eye, MessageCircle, Footprints, Hand, Brain, Bell, Lightbulb
+  Eye, MessageCircle, Footprints, Hand, Brain, Bell, Lightbulb, Home, MoreHorizontal
 } from 'lucide-react';
 
 // WHO 最低食物种类（MDD）的 7 个食物组
@@ -378,6 +378,25 @@ function getLegacyUserId() {
   return id;
 }
 const LEGACY_USER_ID = getLegacyUserId();
+
+/* 认领弹窗"稍后再说"持久化：按 user_id 存 localStorage，本次会话+刷新都不再自动弹，
+   换账号/重新登录时 user_id 变化，key 不同会重新触发检查。 */
+function getClaimDismissedKey() {
+  const uid = (() => { try { return localStorage.getItem('babyapp_user_id') || ''; } catch { return ''; } })();
+  return uid ? `babyapp_claim_dismissed_${uid}` : '';
+}
+function isClaimDismissed() {
+  const k = getClaimDismissedKey();
+  return !!(k && (() => { try { return localStorage.getItem(k) === '1'; } catch { return false; } })());
+}
+function setClaimDismissedStorage() {
+  const k = getClaimDismissedKey();
+  if (k) { try { localStorage.setItem(k, '1'); } catch {} }
+}
+function clearClaimDismissed() {
+  const k = getClaimDismissedKey();
+  if (k) { try { localStorage.removeItem(k); } catch {} }
+}
 
 /* 当前选中的宝宝 ID（模块级，组件内通过 useEffect 同步） */
 let _currentBabyId = null;
@@ -948,6 +967,8 @@ export default function BabyAppFullStack() {
   const [editProfileModal, setEditProfileModal] = useState(false);
   // 家庭成员「+x」下拉展开
   const [membersOpen, setMembersOpen] = useState(false);
+  // topbar 用户菜单（手机端「更多 ⋯」）
+  const [userMenuOpen, setUserMenuOpen] = useState(false);
   // 成长阶段详情弹窗
   const [stageModal, setStageModal] = useState(null); // { key,title,principle,signs,advice,sources } | null
   // 生病护理指南折叠
@@ -1057,11 +1078,17 @@ export default function BabyAppFullStack() {
   const onAuthSuccess = (me) => {
     setCurrentUser(me);
     setAuthView(null);
+    // 新登录：清除"稍后再说"标记，重新检查可认领身份
+    clearClaimDismissed();
+    setClaimDismissed(false);
     initFamily();
   };
 
   const logout = async () => {
     try { await authFetch(`${API_BASE}/auth/logout`, { method: 'POST', headers: { Authorization: `Bearer ${getToken()}` } }); } catch {}
+    // 退出时清除"稍后再说"标记，下次登录重新检查认领
+    clearClaimDismissed();
+    setClaimDismissed(false);
     setToken('');
     setCurrentUser(null);
     setFamily(null);
@@ -1184,8 +1211,8 @@ export default function BabyAppFullStack() {
 
   // ---- 历史身份认领：检查并认领家庭中残留的旧 user_id ----
   const checkClaimable = async () => {
-    // 用户已关闭认领弹窗，本次会话不再自动弹
-    if (claimDismissed) return;
+    // 用户已"稍后再说"：本次会话+刷新都不再自动弹，下次重新登录（user_id 变化）才再检查
+    if (isClaimDismissed()) return;
     // 防止 initFamily 在认领流程中反复触发本函数导致弹窗反复弹
     if (claimCheckingRef.current) return;
     claimCheckingRef.current = true;
@@ -1240,7 +1267,8 @@ export default function BabyAppFullStack() {
         setClaimableList(rest);
         if (rest.length === 0) {
           setClaimModal(false);
-          setClaimDismissed(true); // 列表空了，本次会话不再弹
+          setClaimDismissed(true);
+          setClaimDismissedStorage(); // 列表空了，本次会话+刷新都不再弹
         }
       }
       await initFamily();
@@ -1923,15 +1951,24 @@ export default function BabyAppFullStack() {
 
       <header className="topbar">
         <div className="topbar__inner">
-          <div className="brand">
-            <div className="brand__logo"><Baby className="icon icon--lg" /></div>
+          <div className="brand brand--family">
+            <div className="brand__logo brand__logo--family"><Home className="icon icon--lg" /></div>
             <div>
-              <div className="brand__name">{profile.name}的成长记录</div>
-              <div className="brand__meta">{months} 个月大 · {profile.gender === 'boy' ? '男宝' : '女宝'}</div>
+              <div className="brand__name">🏠 {family ? family.family_name : '我的家庭'}</div>
+              {family && (
+                <div className="brand__meta brand__meta--family">
+                  <span className="brand__fid" onClick={copyFamilyId} title="点击复制家庭 ID">
+                    ID: <b>{family.family_id}</b>
+                  </span>
+                  <button className="brand__add" onClick={() => { setForm({ name: '', gender: 'boy', birthday: '', height: '', weight: '' }); setView('baby-edit'); }} title="添加宝宝">
+                    <Plus className="icon icon--xs" />添加宝宝
+                  </button>
+                </div>
+              )}
             </div>
           </div>
           <div className="topbar__actions">
-            {/* 多宝宝切换器（添加宝宝入口移到家庭ID右侧） */}
+            {/* 多宝宝切换器 */}
             {babies.length > 1 && (
               <div className="baby-switcher">
                 {babies.map(b => (
@@ -1947,34 +1984,53 @@ export default function BabyAppFullStack() {
                 ))}
               </div>
             )}
-            {babies.length > 1 && (
-              <button className="btn btn--ghost" style={{ color: 'var(--red)' }} onClick={() => deleteBaby(currentBabyId, profile.name)}>
-                <Trash2 className="icon icon--xs" />删除
+            {/* 手机端独立「添加宝宝」入口（桌面端用 brand__add，避免重复） */}
+            {family && (
+              <button className="topbar__add-btn" onClick={() => { setForm({ name: '', gender: 'boy', birthday: '', height: '', weight: '' }); setView('baby-edit'); }} title="添加宝宝" aria-label="添加宝宝">
+                <Plus className="icon icon--xs" />
               </button>
             )}
+            {/* 桌面端：修改信息 / 退出登录 直接平铺；手机端：收进「更多 ⋯」菜单 */}
             {currentUser && (
               <>
-                <button className="btn btn--ghost btn--sm" onClick={() => setEditProfileModal(true)} title="修改昵称和密码">
-                  修改信息
-                </button>
-                <button className="btn btn--ghost btn--sm" onClick={logout} title={`退出登录（${currentUser.nickname || currentUser.phone}）`}>
-                  退出登录
-                </button>
+                <div className="topbar__user-desktop">
+                  <button className="btn btn--ghost btn--sm" onClick={() => setEditProfileModal(true)} title="修改昵称和密码">
+                    修改信息
+                  </button>
+                  <button className="btn btn--ghost btn--sm" onClick={logout} title={`退出登录（${currentUser.nickname || currentUser.phone}）`}>
+                    退出登录
+                  </button>
+                </div>
+                <div className="topbar__user-mobile">
+                  <button className="topbar__more-btn" onClick={() => setUserMenuOpen((v) => !v)} aria-expanded={userMenuOpen} title="更多">
+                    <MoreHorizontal className="icon icon--sm" />
+                  </button>
+                  {userMenuOpen && (
+                    <div className="topbar__more-menu">
+                      <button className="topbar__more-item" onClick={() => { setUserMenuOpen(false); setEditProfileModal(true); }}>
+                        修改信息
+                      </button>
+                      <button className="topbar__more-item topbar__more-item--danger" onClick={() => { setUserMenuOpen(false); logout(); }} title={`退出登录（${currentUser.nickname || currentUser.phone}）`}>
+                        退出登录
+                      </button>
+                    </div>
+                  )}
+                </div>
               </>
             )}
           </div>
         </div>
-        {/* 家庭信息栏 */}
+        {/* 宝宝信息栏（原 topbar 品牌区移至此） */}
         {family && (
           <div className="family-bar">
             <div className="family-bar__inner">
-              <span className="family-bar__name">🏠 {family.family_name}</span>
-              <span className="family-bar__id" onClick={copyFamilyId} title="点击复制家庭 ID">
-                ID: <b>{family.family_id}</b>
-              </span>
-              <button className="family-bar__add" onClick={() => { setForm({ name: '', gender: 'boy', birthday: '', height: '', weight: '' }); setView('baby-edit'); }} title="添加宝宝">
-                <Plus className="icon icon--xs" />添加宝宝
-              </button>
+              <div className="brand brand--baby">
+                <div className="brand__logo brand__logo--baby"><Baby className="icon icon--lg" /></div>
+                <div>
+                  <div className="brand__name">{profile.name}的成长记录</div>
+                  <div className="brand__meta">{months} 个月大 · {profile.gender === 'boy' ? '男宝' : '女宝'}</div>
+                </div>
+              </div>
               <div className="family-bar__members">
                 {(() => {
                   const myUid = currentUser?.user_id;
@@ -3158,11 +3214,11 @@ export default function BabyAppFullStack() {
       {/* 历史身份认领弹窗（多选） */}
       {claimModal && claimableList.length > 0 && (
         <div className="modal" role="dialog" aria-modal="true">
-          <div className="modal__backdrop" onClick={() => { setClaimModal(false); setClaimDismissed(true); }} />
+          <div className="modal__backdrop" onClick={() => { setClaimModal(false); setClaimDismissed(true); setClaimDismissedStorage(); }} />
           <div className="modal__card modal__card--form">
             <div className="modal__head">
               <h3 className="modal__title">认领你的历史身份</h3>
-              <button className="modal__close" onClick={() => { setClaimModal(false); setClaimDismissed(true); }} aria-label="关闭">✕</button>
+              <button className="modal__close" onClick={() => { setClaimModal(false); setClaimDismissed(true); setClaimDismissedStorage(); }} aria-label="关闭">✕</button>
             </div>
             <div className="modal__body">
               <p className="modal__hint">
@@ -3183,7 +3239,7 @@ export default function BabyAppFullStack() {
                 ))}
               </ul>
               <div className="claim-list__footer">
-                <button className="btn btn--ghost btn--sm" onClick={() => { setClaimModal(false); setClaimDismissed(true); }}>稍后再说</button>
+                <button className="btn btn--ghost btn--sm" onClick={() => { setClaimModal(false); setClaimDismissed(true); setClaimDismissedStorage(); }}>稍后再说</button>
                 <div style={{ display: 'flex', gap: 8 }}>
                   <button className="btn btn--ghost btn--sm" style={{ color: 'var(--red)' }} onClick={clearGhosts}>清理未命名</button>
                   <button className="btn btn--primary btn--sm" onClick={claimSelectedIdentities}>认领选中</button>
