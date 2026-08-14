@@ -70,7 +70,8 @@ button:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
     radial-gradient(720px 520px at 102% 2%, rgba(239,111,76,.08), transparent 55%),
     radial-gradient(680px 680px at 84% 104%, rgba(47,155,214,.08), transparent 60%),
     var(--bg);
-  overflow-x: hidden;
+  /* 用 clip 而非 hidden：clip 不会把 overflow-y 隐式算成 auto，避免 .app 变成滚动容器而破坏顶部 sticky 吸顶；同样能截掉横向溢出 */
+  overflow-x: clip;
 }
 .app::before { /* 极淡点阵，增加质感 */
   content: ""; position: fixed; inset: 0; z-index: 0; pointer-events: none;
