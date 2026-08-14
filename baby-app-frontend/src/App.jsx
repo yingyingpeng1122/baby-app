@@ -379,25 +379,6 @@ function getLegacyUserId() {
 }
 const LEGACY_USER_ID = getLegacyUserId();
 
-/* 认领弹窗"稍后再说"持久化：按 user_id 存 localStorage，本次会话+刷新都不再自动弹，
-   换账号/重新登录时 user_id 变化，key 不同会重新触发检查。 */
-function getClaimDismissedKey() {
-  const uid = (() => { try { return localStorage.getItem('babyapp_user_id') || ''; } catch { return ''; } })();
-  return uid ? `babyapp_claim_dismissed_${uid}` : '';
-}
-function isClaimDismissed() {
-  const k = getClaimDismissedKey();
-  return !!(k && (() => { try { return localStorage.getItem(k) === '1'; } catch { return false; } })());
-}
-function setClaimDismissedStorage() {
-  const k = getClaimDismissedKey();
-  if (k) { try { localStorage.setItem(k, '1'); } catch {} }
-}
-function clearClaimDismissed() {
-  const k = getClaimDismissedKey();
-  if (k) { try { localStorage.removeItem(k); } catch {} }
-}
-
 /* 当前选中的宝宝 ID（模块级，组件内通过 useEffect 同步） */
 let _currentBabyId = null;
 
@@ -1000,12 +981,6 @@ export default function BabyAppFullStack() {
   const [sickCalendarDate, setSickCalendarDate] = useState({ year: new Date().getFullYear(), month: new Date().getMonth() + 1 });
   const [feedingStats, setFeedingStats] = useState(null);
   const [devOpen, setDevOpen] = useState(false); // 发育概况折叠（必须放在提前 return 之前，遵守 hooks 规则）
-  // 历史身份认领
-  const [claimableList, setClaimableList] = useState([]);
-  const [claimModal, setClaimModal] = useState(false);
-  const claimCheckingRef = useRef(false); // 防止 initFamily 反复触发 checkClaimable 导致认领后弹窗反复弹
-  const [claimDismissed, setClaimDismissed] = useState(false); // 用户关闭认领弹窗后本次会话不再自动弹
-  const [claimSelected, setClaimSelected] = useState({}); // { old_user_id: true } 多选选中状态
   // 成长记录（身高体重）
   const [growthRecords, setGrowthRecords] = useState([]);
   const [growthDraft, setGrowthDraft] = useState({ date: todayISO(), height: '', weight: '', note: '' });
@@ -1078,17 +1053,11 @@ export default function BabyAppFullStack() {
   const onAuthSuccess = (me) => {
     setCurrentUser(me);
     setAuthView(null);
-    // 新登录：清除"稍后再说"标记，重新检查可认领身份
-    clearClaimDismissed();
-    setClaimDismissed(false);
     initFamily();
   };
 
   const logout = async () => {
     try { await authFetch(`${API_BASE}/auth/logout`, { method: 'POST', headers: { Authorization: `Bearer ${getToken()}` } }); } catch {}
-    // 退出时清除"稍后再说"标记，下次登录重新检查认领
-    clearClaimDismissed();
-    setClaimDismissed(false);
     setToken('');
     setCurrentUser(null);
     setFamily(null);
@@ -1143,8 +1112,6 @@ export default function BabyAppFullStack() {
         try { localStorage.setItem('babyapp_sickmode', fam.babies[0].sick_mode === 1 ? '1' : '0'); } catch {}
         setView('dashboard');
         setTimeout(() => fetchDashboard(), 0);
-        // 检查是否有可认领的历史身份（旧 user_id 残留）
-        setTimeout(() => checkClaimable(), 0);
       } else {
         setView('baby-edit');
       }
@@ -1207,72 +1174,6 @@ export default function BabyAppFullStack() {
       setFamilySetupMode(null);
       setView('family-setup');
     } catch (e) { alert('退出家庭失败：' + (e.message || '请确认后端已启动')); }
-  };
-
-  // ---- 历史身份认领：检查并认领家庭中残留的旧 user_id ----
-  const checkClaimable = async () => {
-    // 用户已"稍后再说"：本次会话+刷新都不再自动弹，下次重新登录（user_id 变化）才再检查
-    if (isClaimDismissed()) return;
-    // 防止 initFamily 在认领流程中反复触发本函数导致弹窗反复弹
-    if (claimCheckingRef.current) return;
-    claimCheckingRef.current = true;
-    try {
-      const res = await apiFetch(`${API_BASE}/auth/claimable`);
-      if (!res.ok) return;
-      const data = await res.json();
-      if (data.members && data.members.length > 0) {
-        setClaimableList(data.members);
-        setClaimModal(true);
-      } else {
-        // 后端确认无可认领，关窗
-        setClaimableList([]);
-        setClaimModal(false);
-      }
-    } catch (e) { /* 静默 */ }
-    finally { claimCheckingRef.current = false; }
-  };
-
-  // 批量认领选中的身份（同一账号可认领多个，如既是妈妈又用过'调试'身份）
-  const claimSelectedIdentities = async () => {
-    const selectedIds = Object.keys(claimSelected).filter(id => claimSelected[id]);
-    if (selectedIds.length === 0) { alert('请勾选要认领的身份'); return; }
-    try {
-      const res = await apiFetch(`${API_BASE}/auth/claim-identity`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ old_user_ids: selectedIds, family_id: family.family_id }),
-      });
-      if (!res.ok) { const e = await res.json(); throw new Error(e.detail || '认领失败'); }
-      const data = await res.json();
-      // 认领成功的从列表移除；skipped 的保留（可能是重复认领或已绑定）
-      const okSet = new Set(data.claimed_user_ids || []);
-      setClaimableList(prev => prev.filter(m => !okSet.has(m.old_user_id)));
-      setClaimSelected({});
-      await initFamily();
-    } catch (e) { alert('认领失败：' + (e.message || '')); }
-  };
-
-  // 清理家庭里未命名的幽灵成员（认领完剩余的空昵称身份直接删）
-  const clearGhosts = async () => {
-    if (!confirm('确认清理未命名的成员吗？清理后不影响宝宝数据（宝宝数据按 baby_id 隔离）。')) return;
-    try {
-      const res = await apiFetch(`${API_BASE}/auth/clear-ghosts`, { method: 'POST' });
-      if (!res.ok) { const e = await res.json(); throw new Error(e.detail || '清理失败'); }
-      const data = await res.json();
-      // 重新拉可认领列表（清理后可能还有有名字的成员等待认领）
-      const cres = await apiFetch(`${API_BASE}/auth/claimable`);
-      if (cres.ok) {
-        const cdata = await cres.json();
-        const rest = cdata.members || [];
-        setClaimableList(rest);
-        if (rest.length === 0) {
-          setClaimModal(false);
-          setClaimDismissed(true);
-          setClaimDismissedStorage(); // 列表空了，本次会话+刷新都不再弹
-        }
-      }
-      await initFamily();
-    } catch (e) { alert('清理失败：' + (e.message || '')); }
   };
 
   // ---- 更新我的成员昵称 ----
@@ -3210,45 +3111,6 @@ export default function BabyAppFullStack() {
       </div>
 
       <VideoModal open={modal.open} title={modal.title} src={modal.src || ''} onClose={() => setModal({ open: false, title: '', src: '' })} />
-
-      {/* 历史身份认领弹窗（多选） */}
-      {claimModal && claimableList.length > 0 && (
-        <div className="modal" role="dialog" aria-modal="true">
-          <div className="modal__backdrop" onClick={() => { setClaimModal(false); setClaimDismissed(true); setClaimDismissedStorage(); }} />
-          <div className="modal__card modal__card--form">
-            <div className="modal__head">
-              <h3 className="modal__title">认领你的历史身份</h3>
-              <button className="modal__close" onClick={() => { setClaimModal(false); setClaimDismissed(true); setClaimDismissedStorage(); }} aria-label="关闭">✕</button>
-            </div>
-            <div className="modal__body">
-              <p className="modal__hint">
-                这个家庭里还有以下未绑定账号的成员。如果你之前用过其中某些身份，请勾选它们（可多选），把记录合并到你当前账号下。剩余未命名的身份可一并清理掉。
-              </p>
-              <ul className="claim-list">
-                {claimableList.map((m) => (
-                  <li key={m.old_user_id} className={`claim-list__item ${claimSelected[m.old_user_id] ? 'is-selected' : ''}`}>
-                    <label className="claim-list__check">
-                      <input
-                        type="checkbox"
-                        checked={!!claimSelected[m.old_user_id]}
-                        onChange={(e) => setClaimSelected(prev => ({ ...prev, [m.old_user_id]: e.target.checked }))}
-                      />
-                      <span className="claim-list__name">{m.nickname || '未命名'}</span>
-                    </label>
-                  </li>
-                ))}
-              </ul>
-              <div className="claim-list__footer">
-                <button className="btn btn--ghost btn--sm" onClick={() => { setClaimModal(false); setClaimDismissed(true); setClaimDismissedStorage(); }}>稍后再说</button>
-                <div style={{ display: 'flex', gap: 8 }}>
-                  <button className="btn btn--ghost btn--sm" style={{ color: 'var(--red)' }} onClick={clearGhosts}>清理未命名</button>
-                  <button className="btn btn--primary btn--sm" onClick={claimSelectedIdentities}>认领选中</button>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
 
       {/* 修改个人信息弹窗：昵称 + 密码（手机号不可改） */}
       {editProfileModal && (

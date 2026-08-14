@@ -6,6 +6,12 @@ html, body { margin: 0; padding: 0; }
 body { display: block; background: #eef3f1; }
 #root { width: 100%; max-width: none; margin: 0; padding: 0; text-align: left; min-height: 100vh; }
 
+/* 全局 button reset：消除浏览器默认 appearance/padding 导致的图标视觉偏移
+   （尤其影响纯图标小按钮的居中：topbar__add-btn / topbar__more-btn / daytime__op 等）
+   文字按钮（.btn 等）自行覆盖 padding/font-size，不受影响。 */
+button { font: inherit; color: inherit; background: none; border: none; padding: 0; margin: 0; appearance: none; -webkit-appearance: none; cursor: pointer; }
+button:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
+
 /* ---------- 设计令牌 ---------- */
 :root {
   --bg: #eef3f1;
@@ -846,7 +852,7 @@ body { display: block; background: #eef3f1; }
 .daytime__ops { display: flex; justify-content: center; gap: 8px; margin-top: 1px; }
 .daytime__op {
   width: 24px; height: 24px; border-radius: 6px; border: 1px solid var(--line);
-  background: #fff; color: var(--muted); display: grid; place-items: center; cursor: pointer;
+  background: #fff; color: var(--muted); display: grid; place-items: center;
   transition: all .15s; -webkit-tap-highlight-color: transparent;
 }
 .daytime__op:focus { outline: none; }
@@ -1082,7 +1088,7 @@ body { display: block; background: #eef3f1; }
 /* 桌面端：修改信息/退出登录 直接平铺；手机端隐藏，收进「更多 ⋯」菜单 */
 .topbar__user-desktop { display: flex; align-items: center; gap: 8px; }
 .topbar__user-mobile { display: none; position: relative; }
-.topbar__more-btn { width: 32px; height: 32px; display: grid; place-items: center; border: 1px solid var(--line); background: var(--surface); border-radius: var(--r-pill); color: var(--ink); cursor: pointer; transition: all .15s; }
+.topbar__more-btn { width: 32px; height: 32px; display: grid; place-items: center; border: 1px solid var(--line); background: var(--surface); border-radius: var(--r-pill); color: var(--ink); transition: all .15s; }
 .topbar__more-btn:hover { border-color: var(--primary); color: var(--primary); background: var(--primary-soft); }
 .topbar__more-menu { position: absolute; top: calc(100% + 6px); right: 0; z-index: 30; min-width: 120px; padding: 6px; background: #fff; border: 1px solid var(--line); border-radius: var(--r-mid); box-shadow: var(--sh-md); display: flex; flex-direction: column; gap: 2px; }
 .topbar__more-item { border: none; background: none; text-align: left; padding: 8px 10px; font-size: 13px; font-weight: 600; font-family: var(--font-body); color: var(--ink); border-radius: var(--r-sm); cursor: pointer; white-space: nowrap; transition: background .12s; }
@@ -1112,7 +1118,7 @@ body { display: block; background: #eef3f1; }
   .brand__meta { font-size: 11px; }
   .topbar__actions { flex-wrap: nowrap; }
   /* 手机端：独立「添加宝宝」按钮显示（桌面端用 brand__add） */
-  .topbar__add-btn { display: grid; place-items: center; width: 32px; height: 32px; border: 1px solid var(--primary-soft); background: var(--primary-soft); color: var(--primary); border-radius: var(--r-pill); cursor: pointer; transition: all .15s; flex: none; }
+  .topbar__add-btn { display: grid; place-items: center; width: 32px; height: 32px; border: 1px solid var(--primary-soft); background: var(--primary-soft); color: var(--primary); border-radius: var(--r-pill); transition: all .15s; flex: none; }
   .topbar__add-btn:hover { background: var(--primary); color: #fff; border-color: var(--primary); }
   .brand__add { display: none; } /* 桌面端添加宝宝按钮在手机端隐藏，改用 topbar__add-btn */
   /* 手机端：修改信息/退出登录 收进「更多 ⋯」菜单 */
@@ -1592,17 +1598,6 @@ body { display: block; background: #eef3f1; }
 .auth-switch__btn { background: none; border: none; color: var(--primary, #6d28d9); font-weight: 600; cursor: pointer; padding: 0 4px; font-size: 14px; }
 .auth-switch__btn:hover { text-decoration: underline; }
 
-/* ---------- 历史身份认领 ---------- */
-.claim-list { list-style: none; padding: 0; margin: 12px 0 0; display: flex; flex-direction: column; gap: 8px; }
-.claim-list__item {
-  padding: 0; background: var(--bg, #f9fafb); border: 1px solid var(--line, #e5e7eb);
-  border-radius: 10px; transition: border-color .15s, background .15s;
-}
-.claim-list__item.is-selected { border-color: var(--primary, #6366f1); background: rgba(99,102,241,.08); }
-.claim-list__check { display: flex; align-items: center; gap: 10px; padding: 10px 14px; cursor: pointer; }
-.claim-list__check input { width: 18px; height: 18px; accent-color: var(--primary, #6366f1); cursor: pointer; }
-.claim-list__name { font-size: 15px; font-weight: 500; color: var(--text, #1f2937); }
-.claim-list__footer { display: flex; gap: 8px; justify-content: space-between; margin-top: 14px; flex-wrap: wrap; align-items: center; }
 .btn--sm { height: 32px; padding: 0 14px; font-size: 13px; }
 
 /* ---------- 无障碍：尊重减少动效 ---------- */
