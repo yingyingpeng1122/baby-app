@@ -4,7 +4,7 @@ import {
   Baby, Ruler, Scale, Milk, Utensils, Music, Gamepad2, Video, Save,
   PlayCircle, Loader2, AlertCircle, Sparkles, Pencil, Check, Maximize2, Minimize2,
   Plus, Trash2, Clock, TrendingUp, ChevronDown, Sun, BookOpen, Heart, Moon, Pill, Smile, ListChecks, ChevronLeft, ChevronRight, Calendar, X, Thermometer, Stethoscope, Syringe, Activity,
-  Eye, MessageCircle, Footprints, Hand, Brain, Bell, Lightbulb, Home, MoreHorizontal
+  Eye, MessageCircle, Footprints, Hand, Brain, Bell, Lightbulb, Home, MoreHorizontal, UserPlus
 } from 'lucide-react';
 
 // WHO 最低食物种类（MDD）的 7 个食物组
@@ -1888,10 +1888,10 @@ export default function BabyAppFullStack() {
             {/* 手机端独立「添加宝宝」入口（桌面端用 brand__add，避免重复） */}
             {family && (
               <button className="topbar__add-btn" onClick={() => { setForm({ name: '', gender: 'boy', birthday: '', height: '', weight: '' }); setView('baby-edit'); }} title="添加宝宝" aria-label="添加宝宝">
-                <Plus className="icon icon--xs" />
+                <UserPlus className="icon icon--xs" />
               </button>
             )}
-            {/* 桌面端：修改信息 / 退出登录 直接平铺；手机端：收进「更多 ⋯」菜单 */}
+            {/* 桌面端：修改信息 / 退出登录 直接平铺（文字按钮）；手机端单宝宝：铅笔(修改信息) + 退出登录 平铺，不用 ⋯ 菜单 */}
             {currentUser && (
               <>
                 <div className="topbar__user-desktop">
@@ -1902,21 +1902,34 @@ export default function BabyAppFullStack() {
                     退出登录
                   </button>
                 </div>
-                <div className="topbar__user-mobile">
-                  <button className="topbar__more-btn" onClick={() => setUserMenuOpen((v) => !v)} aria-expanded={userMenuOpen} title="更多">
-                    <MoreHorizontal className="icon icon--sm" />
-                  </button>
-                  {userMenuOpen && (
-                    <div className="topbar__more-menu">
-                      <button className="topbar__more-item" onClick={() => { setUserMenuOpen(false); setEditProfileModal(true); }}>
-                        修改信息
-                      </button>
-                      <button className="topbar__more-item topbar__more-item--danger" onClick={() => { setUserMenuOpen(false); logout(); }} title={`退出登录（${currentUser.nickname || currentUser.phone}）`}>
-                        退出登录
-                      </button>
-                    </div>
-                  )}
-                </div>
+                {babies.length > 1 ? (
+                  /* 多宝宝：仍收进「更多 ⋯」菜单，避免顶栏过挤 */
+                  <div className="topbar__user-mobile">
+                    <button className="topbar__more-btn" onClick={() => setUserMenuOpen((v) => !v)} aria-expanded={userMenuOpen} title="更多">
+                      <MoreHorizontal className="icon icon--sm" />
+                    </button>
+                    {userMenuOpen && (
+                      <div className="topbar__more-menu">
+                        <button className="topbar__more-item" onClick={() => { setUserMenuOpen(false); setEditProfileModal(true); }}>
+                          修改信息
+                        </button>
+                        <button className="topbar__more-item topbar__more-item--danger" onClick={() => { setUserMenuOpen(false); logout(); }} title={`退出登录（${currentUser.nickname || currentUser.phone}）`}>
+                          退出登录
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                ) : (
+                  /* 单宝宝：铅笔(修改信息) + 退出登录 平铺显示 */
+                  <div className="topbar__user-mobile">
+                    <button className="topbar__icon-btn" onClick={() => setEditProfileModal(true)} title="修改昵称和密码" aria-label="修改信息">
+                      <Pencil className="icon icon--sm" />
+                    </button>
+                    <button className="btn btn--ghost btn--sm" onClick={logout} title={`退出登录（${currentUser.nickname || currentUser.phone}）`}>
+                      退出登录
+                    </button>
+                  </div>
+                )}
               </>
             )}
           </div>

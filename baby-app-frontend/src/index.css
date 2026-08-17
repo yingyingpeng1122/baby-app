@@ -1086,9 +1086,11 @@ button:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
 .topbar__actions { display: flex; align-items: center; gap: 8px; }
 /* 手机端独立「添加宝宝」按钮（桌面端隐藏，桌面用 brand__add） */
 .topbar__add-btn { display: none; }
-/* 桌面端：修改信息/退出登录 直接平铺；手机端隐藏，收进「更多 ⋯」菜单 */
+/* 桌面端：修改信息/退出登录 直接平铺；手机端单宝宝平铺（铅笔+退出登录），多宝宝收进「更多 ⋯」菜单 */
 .topbar__user-desktop { display: flex; align-items: center; gap: 8px; }
-.topbar__user-mobile { display: none; position: relative; }
+.topbar__user-mobile { display: none; align-items: center; gap: 8px; }
+.topbar__icon-btn { width: 32px; height: 32px; display: grid; place-items: center; border: 1px solid var(--line); background: var(--surface); border-radius: var(--r-pill); color: var(--ink); transition: all .15s; flex: none; }
+.topbar__icon-btn:hover { border-color: var(--primary); color: var(--primary); background: var(--primary-soft); }
 .topbar__more-btn { width: 32px; height: 32px; display: grid; place-items: center; border: 1px solid var(--line); background: var(--surface); border-radius: var(--r-pill); color: var(--ink); transition: all .15s; }
 .topbar__more-btn:hover { border-color: var(--primary); color: var(--primary); background: var(--primary-soft); }
 .topbar__more-menu { position: absolute; top: calc(100% + 6px); right: 0; z-index: 30; min-width: 120px; padding: 6px; background: #fff; border: 1px solid var(--line); border-radius: var(--r-mid); box-shadow: var(--sh-md); display: flex; flex-direction: column; gap: 2px; }
@@ -1122,9 +1124,9 @@ button:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
   .topbar__add-btn { display: grid; place-items: center; width: 32px; height: 32px; border: 1px solid var(--primary-soft); background: var(--primary-soft); color: var(--primary); border-radius: var(--r-pill); transition: all .15s; flex: none; }
   .topbar__add-btn:hover { background: var(--primary); color: #fff; border-color: var(--primary); }
   .brand__add { display: none; } /* 桌面端添加宝宝按钮在手机端隐藏，改用 topbar__add-btn */
-  /* 手机端：修改信息/退出登录 收进「更多 ⋯」菜单 */
+  /* 手机端：单宝宝时 修改信息(铅笔)+退出登录 平铺；多宝宝时仍用 ⋯ 菜单 */
   .topbar__user-desktop { display: none; }
-  .topbar__user-mobile { display: block; }
+  .topbar__user-mobile { display: flex; }
   .baby-switcher { flex-wrap: nowrap; max-width: 40vw; overflow-x: auto; scrollbar-width: none; }
   .baby-switcher::-webkit-scrollbar { display: none; }
 
