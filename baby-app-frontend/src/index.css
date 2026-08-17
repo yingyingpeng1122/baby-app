@@ -1120,8 +1120,8 @@ button:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
   .brand__name { font-size: 16px; }
   .brand__meta { font-size: 11px; }
   .topbar__actions { flex-wrap: nowrap; }
-  /* 手机端：独立「添加宝宝」按钮显示（桌面端用 brand__add） */
-  .topbar__add-btn { display: grid; place-items: center; width: 32px; height: 32px; border: 1px solid var(--primary-soft); background: var(--primary-soft); color: var(--primary); border-radius: var(--r-pill); transition: all .15s; flex: none; }
+  /* 手机端：独立「添加宝宝」按钮（与电脑端 brand__add 一致：+添加宝宝 文字按钮） */
+  .topbar__add-btn { display: inline-flex; align-items: center; gap: 4px; padding: 2px 12px; font-size: 12px; font-weight: 700; font-family: var(--font-display); color: var(--primary); background: var(--primary-soft); border: 1px solid var(--primary-soft); border-radius: var(--r-pill); cursor: pointer; transition: all .15s; white-space: nowrap; flex: none; }
   .topbar__add-btn:hover { background: var(--primary); color: #fff; border-color: var(--primary); }
   .brand__add { display: none; } /* 桌面端添加宝宝按钮在手机端隐藏，改用 topbar__add-btn */
   /* 手机端：单宝宝时 修改信息(铅笔)+退出登录 平铺；多宝宝时仍用 ⋯ 菜单 */

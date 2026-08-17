@@ -4,7 +4,7 @@ import {
   Baby, Ruler, Scale, Milk, Utensils, Music, Gamepad2, Video, Save,
   PlayCircle, Loader2, AlertCircle, Sparkles, Pencil, Check, Maximize2, Minimize2,
   Plus, Trash2, Clock, TrendingUp, ChevronDown, Sun, BookOpen, Heart, Moon, Pill, Smile, ListChecks, ChevronLeft, ChevronRight, Calendar, X, Thermometer, Stethoscope, Syringe, Activity,
-  Eye, MessageCircle, Footprints, Hand, Brain, Bell, Lightbulb, Home, MoreHorizontal, UserPlus
+  Eye, MessageCircle, Footprints, Hand, Brain, Bell, Lightbulb, Home, MoreHorizontal
 } from 'lucide-react';
 
 // WHO 最低食物种类（MDD）的 7 个食物组
@@ -1885,10 +1885,10 @@ export default function BabyAppFullStack() {
                 ))}
               </div>
             )}
-            {/* 手机端独立「添加宝宝」入口（桌面端用 brand__add，避免重复） */}
+            {/* 手机端独立「添加宝宝」入口（与电脑端 brand__add 一致：+添加宝宝 文字按钮） */}
             {family && (
-              <button className="topbar__add-btn" onClick={() => { setForm({ name: '', gender: 'boy', birthday: '', height: '', weight: '' }); setView('baby-edit'); }} title="添加宝宝" aria-label="添加宝宝">
-                <UserPlus className="icon icon--xs" />
+              <button className="topbar__add-btn" onClick={() => { setForm({ name: '', gender: 'boy', birthday: '', height: '', weight: '' }); setView('baby-edit'); }} title="添加宝宝">
+                <Plus className="icon icon--xs" />添加宝宝
               </button>
             )}
             {/* 桌面端：修改信息 / 退出登录 直接平铺（文字按钮）；手机端单宝宝：铅笔(修改信息) + 退出登录 平铺，不用 ⋯ 菜单 */}
