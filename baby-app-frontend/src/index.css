@@ -1350,7 +1350,7 @@ button:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
   .stage-tip__cols { grid-template-columns: 1fr; gap: 10px; }
   /* 成长记录 / 生病模式：窄屏表单纵向堆叠，并收紧行距避免间距过大 */
   .growth__form-row { flex-direction: column; align-items: stretch; gap: 4px; }
-  .growth__form-row .feed__log-field { min-width: 0; gap: 3px; }
+  .growth__form-row .feed__log-field { min-width: 0; gap: 3px; flex: 0 0 auto; min-height: 0; }
   /* 体温表单：窄屏下时间/体温/症状/备注均纵向堆叠并占满宽度 */
   .growth__form-row--temp-symp .feed__log-field,
   .growth__form-row--note .feed__log-field { flex: 1 1 auto; width: auto; max-width: none; }

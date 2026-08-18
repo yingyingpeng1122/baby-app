@@ -1586,7 +1586,8 @@ export default function BabyAppFullStack() {
           }),
         });
       }
-      setFeedForm({ time: nowHM(), amount: '', type: 'milk', note: '', foodGroups: [], kind: '', duration: 0, wakeTime: '' });
+      setFeedForm({ time: nowHM(), amount: '', type: feedForm.type, note: '', foodGroups: [], kind: '', duration: 0, wakeTime: '' });
+      setRecordTab(feedForm.type === 'diaper' ? 'diaper' : feedForm.type === 'sleep' ? 'sleep' : 'feed');
       await fetchFeedData();
     } catch (e) { alert('操作失败：' + e.message); }
     setFeedLoading(false);
