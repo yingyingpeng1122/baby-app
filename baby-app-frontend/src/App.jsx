@@ -961,6 +961,14 @@ export default function BabyAppFullStack() {
   const [feedForm, setFeedForm] = useState({ time: nowHM(), amount: '', type: 'milk', note: '', foodGroups: [], kind: '', duration: 0, wakeTime: '' });
   const [feedLoading, setFeedLoading] = useState(false);
   const [editingId, setEditingId] = useState(null);
+  // 提交成功反馈 toast
+  const [toast, setToast] = useState(null); // { msg, key }
+  const toastTimer = useRef(null);
+  const showToast = (msg) => {
+    setToast({ msg, key: Date.now() });
+    if (toastTimer.current) clearTimeout(toastTimer.current);
+    toastTimer.current = setTimeout(() => setToast(null), 2000);
+  };
   // 录入表单类型 tab：feed / diaper / sleep
   const [recordTab, setRecordTab] = useState('feed');
   // 每日照护清单
@@ -1588,6 +1596,7 @@ export default function BabyAppFullStack() {
       }
       setFeedForm({ time: nowHM(), amount: '', type: feedForm.type, note: '', foodGroups: [], kind: '', duration: 0, wakeTime: '' });
       setRecordTab(feedForm.type === 'diaper' ? 'diaper' : feedForm.type === 'sleep' ? 'sleep' : 'feed');
+      showToast(editingId ? '已更新 ✓' : '已保存 ✓');
       await fetchFeedData();
     } catch (e) { alert('操作失败：' + e.message); }
     setFeedLoading(false);
@@ -1850,6 +1859,11 @@ export default function BabyAppFullStack() {
   return (
     <div className="app">
       <span className="blob blob--1" aria-hidden /><span className="blob blob--2" aria-hidden />
+      {toast && (
+        <div key={toast.key} className="toast" role="status" aria-live="polite">
+          <Check className="icon icon--sm" />{toast.msg}
+        </div>
+      )}
 
       <header className="topbar">
         <div className="topbar__inner">
@@ -2229,11 +2243,20 @@ export default function BabyAppFullStack() {
                         const prevT = toMin(items[i - 1].time);
                         let delta = t - prevT;
                         if (delta < 0) delta += 24 * 60; // 跨午夜
-                        cursor += Math.max(MIN_GAP, delta * PX_PER_MIN);
+                        // 上一条若是睡觉且有 duration，其长条向右延伸 sleepBarW 像素，
+                        // 必须保证当前卡片 left 至少跳过「长条右端 + MIN_GAP」，否则长条会盖到本卡片
+                        const prev = items[i - 1];
+                        const prevSleepBarW = (prev.type === 'sleep' && prev.duration > 0)
+                          ? Math.max(36, Math.min(prev.duration * 1.2, 320)) : 0;
+                        cursor += Math.max(MIN_GAP, delta * PX_PER_MIN, prevSleepBarW + 8);
                       }
                       return { r, left: cursor };
                     });
-                    const totalW = (placed[placed.length - 1].left) + ITEM_W + 20;
+                    // totalW 需把最后一条若为睡觉的长条右端算进去，否则长条会被容器裁掉
+                    const last = placed[placed.length - 1];
+                    const lastSleepBarW = (last.r.type === 'sleep' && last.r.duration > 0)
+                      ? Math.max(36, Math.min(last.r.duration * 1.2, 320)) : 0;
+                    const totalW = last.left + ITEM_W + lastSleepBarW + 20;
                     return (
                   <div className="daytime__inner" style={{ width: totalW }}>
                     {placed.map(({ r, left }, i) => {
