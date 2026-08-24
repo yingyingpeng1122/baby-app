@@ -4,7 +4,7 @@ import {
   Baby, Ruler, Scale, Milk, Utensils, Music, Gamepad2, Video, Save,
   PlayCircle, Loader2, AlertCircle, Sparkles, Pencil, Check, Maximize2, Minimize2,
   Plus, Trash2, Clock, TrendingUp, ChevronDown, Sun, BookOpen, Heart, Moon, Pill, Smile, ListChecks, ChevronLeft, ChevronRight, Calendar, X, Thermometer, Stethoscope, Syringe, Activity,
-  Eye, MessageCircle, Footprints, Hand, Brain, Bell, Lightbulb, Home, MoreHorizontal
+  Eye, MessageCircle, Footprints, Hand, Brain, Bell, Lightbulb, Home, MoreHorizontal, MapPin
 } from 'lucide-react';
 
 // WHO 最低食物种类（MDD）的 7 个食物组
@@ -963,6 +963,7 @@ export default function BabyAppFullStack() {
   const [editingId, setEditingId] = useState(null);
   // 提交成功反馈 toast
   const [toast, setToast] = useState(null); // { msg, key }
+  const [activeZone, setActiveZone] = useState('daily'); // 'daily' | 'growth' | 'travel'
   const toastTimer = useRef(null);
   const showToast = (msg) => {
     setToast({ msg, key: Date.now() });
@@ -1857,7 +1858,7 @@ export default function BabyAppFullStack() {
   };
 
   return (
-    <div className="app">
+    <div className="app" data-zone={activeZone}>
       <span className="blob blob--1" aria-hidden /><span className="blob blob--2" aria-hidden />
       {toast && (
         <div key={toast.key} className="toast" role="status" aria-live="polite">
@@ -2015,8 +2016,32 @@ export default function BabyAppFullStack() {
         )}
       </header>
 
+      <nav className="zone-tabs" aria-label="功能区域切换">
+        <button
+          className={`zone-tabs__btn ${activeZone === 'daily' ? 'is-active' : ''}`}
+          onClick={() => setActiveZone('daily')}
+        >
+          <span className="zone-tabs__ico"><Milk className="icon icon--sm" /></span>
+          <span className="zone-tabs__label">日常</span>
+        </button>
+        <button
+          className={`zone-tabs__btn ${activeZone === 'growth' ? 'is-active' : ''}`}
+          onClick={() => setActiveZone('growth')}
+        >
+          <span className="zone-tabs__ico"><Sparkles className="icon icon--sm" /></span>
+          <span className="zone-tabs__label">成长</span>
+        </button>
+        <button
+          className={`zone-tabs__btn ${activeZone === 'travel' ? 'is-active' : ''}`}
+          onClick={() => setActiveZone('travel')}
+        >
+          <span className="zone-tabs__ico"><MapPin className="icon icon--sm" /></span>
+          <span className="zone-tabs__label">出行</span>
+        </button>
+      </nav>
+
       <div className="wrap">
-        <Reveal className="section" delay={0.05}>
+        <Reveal className="section zone zone--growth" delay={0.05}>
           <div className="section__head">
             <span className="section__ico section__ico--teal"><Sparkles className="icon icon--sm" /></span>
             <h2 className="section__title">发育概况</h2>
@@ -2150,7 +2175,7 @@ export default function BabyAppFullStack() {
           })()}
         </Reveal>
 
-        <Reveal className="section" delay={0.05}>
+        <Reveal className="section zone zone--growth" delay={0.05}>
           <div className="section__head">
             <span className="section__ico section__ico--amber"><Sparkles className="icon icon--sm" /></span>
             <h2 className="section__title">成长阶段提醒</h2>
@@ -2214,7 +2239,7 @@ export default function BabyAppFullStack() {
 
 
         {/* 宝宝的一天 · 横向时间轴（置于今日记录上方） */}
-        <Reveal className="section" delay={0.05}>
+        <Reveal className="section zone zone--daily" delay={0.05}>
           <div className="section__head">
             <span className="section__ico section__ico--violet"><Sparkles className="icon icon--sm" /></span>
             <h2 className="section__title">宝宝的一天</h2>
@@ -2306,7 +2331,7 @@ export default function BabyAppFullStack() {
           </div>
         </Reveal>
 
-        <Reveal className="section" delay={0.05}>
+        <Reveal className="section zone zone--daily" delay={0.05}>
           <div className="section__head">
             <span className="section__ico section__ico--honey"><Milk className="icon icon--sm" /></span>
             <h2 className="section__title">今日记录</h2>
@@ -2538,7 +2563,7 @@ export default function BabyAppFullStack() {
         </Reveal>
 
         {/* 每日照护清单 */}
-        <Reveal className="section" delay={0.05}>
+        <Reveal className="section zone zone--daily" delay={0.05}>
           <div className="section__head">
             <span className="section__ico section__ico--primary"><ListChecks className="icon icon--sm" /></span>
             <h2 className="section__title">今日照护清单</h2>
@@ -2585,7 +2610,7 @@ export default function BabyAppFullStack() {
         </Reveal>
 
         {/* 生病模式：体温记录 + 动态就医建议 */}
-        <Reveal className="section" delay={0.05}>
+        <Reveal className="section zone zone--daily" delay={0.05}>
           <div className="section__head">
             <span className="section__ico section__ico--rose"><Thermometer className="icon icon--sm" /></span>
             <h2 className="section__title">生病模式</h2>
@@ -2714,7 +2739,7 @@ export default function BabyAppFullStack() {
 
         {/* 宝宝生病护理指南：置于生病模式下方，仅生病模式开启时显示 */}
         {sickMode && (
-        <Reveal className="section" delay={0.05}>
+        <Reveal className="section zone zone--daily" delay={0.05}>
           <button
             type="button"
             className={`care-toggle ${careOpen ? 'is-open' : ''}`}
@@ -3129,7 +3154,7 @@ export default function BabyAppFullStack() {
           </div>
         )}
 
-        <Reveal className="section" delay={0.05}>
+        <Reveal className="section zone zone--growth" delay={0.05}>
           <div className="section__head">
             <span className="section__ico section__ico--teal"><BookOpen className="icon icon--sm" /></span>
             <h2 className="section__title">早教活动</h2>
@@ -3137,7 +3162,7 @@ export default function BabyAppFullStack() {
           <ActList items={activities} onPlay={(a) => setModal({ open: true, title: a.title, src: a.videoUrl || '' })} />
         </Reveal>
 
-        <Reveal className="section" delay={0.08}>
+        <Reveal className="section zone zone--daily" delay={0.08}>
           <div className="section__head">
             <span className="section__ico section__ico--violet"><Music className="icon icon--sm" /></span>
             <h2 className="section__title">音乐区</h2>
@@ -3146,6 +3171,27 @@ export default function BabyAppFullStack() {
         </Reveal>
 
       </div>
+
+      {/* 出行区：批次3 接入完整三件套（打包清单/目的地推荐/出行历史），当前为占位 */}
+      {activeZone === 'travel' && (
+        <div className="zone zone--travel wrap">
+          <Reveal className="section" delay={0.05}>
+            <div className="section__head">
+              <span className="section__ico section__ico--coral"><MapPin className="icon icon--sm" /></span>
+              <h2 className="section__title">带娃出行</h2>
+            </div>
+            <div className="travel-placeholder">
+              <p>出行功能正在建设中，包含：</p>
+              <ul>
+                <li>打包清单生成器（按月龄 × 目的地）</li>
+                <li>目的地推荐（按月龄 + 季节）</li>
+                <li>出行历史记录</li>
+              </ul>
+              <p className="travel-placeholder__hint">即将上线，敬请期待。</p>
+            </div>
+          </Reveal>
+        </div>
+      )}
 
       <VideoModal open={modal.open} title={modal.title} src={modal.src || ''} onClose={() => setModal({ open: false, title: '', src: '' })} />
 

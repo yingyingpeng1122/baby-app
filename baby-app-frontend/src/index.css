@@ -1626,3 +1626,60 @@ button:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
   .reveal { opacity: 1; transform: none; }
   .in-view .bar__fill { width: var(--w, 0%); }
 }
+
+/* ---------- 三区域切换 Tab ---------- */
+.zone-tabs {
+  display: flex; gap: 4px; align-items: center;
+  margin: 0 auto 12px; padding: 4px;
+  width: fit-content; max-width: 100%;
+  background: var(--surface-2, #f1f5f4);
+  border: 1px solid rgba(14,147,136,.12);
+  border-radius: 999px;
+}
+.zone-tabs__btn {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 8px 18px; border: none; background: none; cursor: pointer;
+  border-radius: 999px; font-size: 14px; font-weight: 600; color: var(--muted, #6b7280);
+  transition: background .15s, color .15s;
+}
+.zone-tabs__btn .icon { color: var(--muted, #6b7280); }
+.zone-tabs__btn.is-active {
+  background: #0e9388; color: #fff;
+  box-shadow: 0 2px 8px rgba(14,147,136,.28);
+}
+.zone-tabs__btn.is-active .icon { color: #fff; }
+.zone-tabs__label { line-height: 1; }
+
+/* 区域隐显：非当前区折叠（display:none 保留 DOM 与已加载数据，切回不重新 fetch） */
+.app[data-zone="daily"]   .zone--growth,
+.app[data-zone="daily"]   .zone--travel,
+.app[data-zone="growth"]  .zone--daily,
+.app[data-zone="growth"]  .zone--travel,
+.app[data-zone="travel"]  .zone--daily,
+.app[data-zone="travel"]  .zone--growth { display: none !important; }
+
+/* 移动端：Tab 固定到底部，内容区底部留白 */
+@media (max-width: 720px) {
+  .zone-tabs {
+    position: fixed; left: 0; right: 0; bottom: 0; z-index: 900;
+    margin: 0; width: 100%; max-width: 100%;
+    justify-content: space-around; gap: 0;
+    border-radius: 0; border-left: none; border-right: none; border-bottom: none;
+    padding: 6px 8px calc(6px + env(safe-area-inset-bottom));
+    background: #fff; box-shadow: 0 -2px 12px rgba(0,0,0,.08);
+  }
+  .zone-tabs__btn { flex: 1; flex-direction: column; gap: 2px; padding: 6px 0; font-size: 11px; }
+  .zone-tabs__label { font-size: 11px; }
+  .app { padding-bottom: 64px; }
+}
+
+/* ---------- 出行区（coral 主题） ---------- */
+.section__ico--coral { background: #F0997B; color: #fff; }
+.travel-placeholder {
+  padding: 20px; background: #fff; border-radius: 16px;
+  border: 1px solid rgba(216,90,48,.14);
+}
+.travel-placeholder p { margin: 0 0 10px; color: var(--text, #1f2937); font-size: 14px; }
+.travel-placeholder ul { margin: 0 0 12px; padding-left: 20px; }
+.travel-placeholder li { margin: 4px 0; color: var(--muted, #6b7280); font-size: 14px; }
+.travel-placeholder__hint { color: #d85a30; font-weight: 600; }
