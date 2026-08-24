@@ -1,10 +1,13 @@
 import './App.css';
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
+import { SPOTS, SPOTS_VISITABLE, DISTRICTS, AGE_BANDS, starsForAge, reasonForAge, getBandIdx, getBandLabel, ageMonthsLabel } from './travelSpots.js';
+import TravelMap from './TravelMap.jsx';
 import {
   Baby, Ruler, Scale, Milk, Utensils, Music, Gamepad2, Video, Save,
   PlayCircle, Loader2, AlertCircle, Sparkles, Pencil, Check, Maximize2, Minimize2,
   Plus, Trash2, Clock, TrendingUp, ChevronDown, Sun, BookOpen, Heart, Moon, Pill, Smile, ListChecks, ChevronLeft, ChevronRight, Calendar, X, Thermometer, Stethoscope, Syringe, Activity,
-  Eye, MessageCircle, Footprints, Hand, Brain, Bell, Lightbulb, Home, MoreHorizontal, MapPin
+  Eye, MessageCircle, Footprints, Hand, Brain, Bell, Lightbulb, Home, MoreHorizontal, MapPin,
+  User, LogOut
 } from 'lucide-react';
 
 // WHO 最低食物种类（MDD）的 7 个食物组
@@ -925,6 +928,28 @@ function AuthPage({ mode, onAuth }) {
   );
 }
 
+// 出行清单：新增自定义项的小组件（带本地 state）
+function TravelAddCustom({ onAdd }) {
+  const [cat, setCat] = useState('feed');
+  const [name, setName] = useState('');
+  const submit = () => {
+    if (!name.trim()) return;
+    onAdd(cat, name);
+    setName('');
+  };
+  return (
+    <div className="travel-add-custom">
+      <select value={cat} onChange={(e) => setCat(e.target.value)}>
+        {Object.entries({ feed: '喂养', hygiene: '卫生清洁', clothing: '衣物', sleep: '睡眠安抚', gear: '出行装备', docs: '证件医疗', extra: '长途/出境加项' }).map(([k, v]) => (
+          <option key={k} value={k}>{v}</option>
+        ))}
+      </select>
+      <input value={name} onChange={(e) => setName(e.target.value)} placeholder="自定义物品名" onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); submit(); } }} />
+      <button className="btn btn--ghost btn--sm" onClick={submit}><Plus className="icon icon--xs" />添加</button>
+    </div>
+  );
+}
+
 export default function BabyAppFullStack() {
   const [view, setView] = useState('loading');
   const [error, setError] = useState(null);
@@ -948,6 +973,10 @@ export default function BabyAppFullStack() {
   const [editProfileModal, setEditProfileModal] = useState(false);
   // 家庭成员「+x」下拉展开
   const [membersOpen, setMembersOpen] = useState(false);
+  // 家庭管理弹窗（收起家庭名/ID/成员/退出家庭，点入口打开）
+  const [familyMgmtOpen, setFamilyMgmtOpen] = useState(false);
+  // 多宝宝快速切换下拉（顶部宝宝条旁）
+  const [babySwitchOpen, setBabySwitchOpen] = useState(false);
   // topbar 用户菜单（手机端「更多 ⋯」）
   const [userMenuOpen, setUserMenuOpen] = useState(false);
   // 成长阶段详情弹窗
@@ -996,6 +1025,21 @@ export default function BabyAppFullStack() {
   const [growthMetric, setGrowthMetric] = useState('weight'); // weight | height
   const [editingGrowthId, setEditingGrowthId] = useState(null);
   const [growthHistoryOpen, setGrowthHistoryOpen] = useState(false);
+  // 出行：目的地推荐 + 打包清单 + 出行历史
+  const [travelLists, setTravelLists] = useState([]);       // [{id, dest_type, age_months, items(JSON string)}]
+  const [travelRecords, setTravelRecords] = useState([]);  // [{id, dest_name, dest_type, travel_date, age_months, rating, note}]
+  const [travelTab, setTravelTab] = useState('reco');      // 'reco' | 'list' | 'history'
+  const [travelListDraft, setTravelListDraft] = useState(null); // 当前编辑的清单 {id?, dest_type, age_months, items:[]}
+  const [travelRecordDraft, setTravelRecordDraft] = useState({ dest_name: '', dest_type: 'short', travel_date: todayISO(), age_months: 0, rating: 0, note: '' });
+  const [editingTravelRecordId, setEditingTravelRecordId] = useState(null);
+  const [travelLoading, setTravelLoading] = useState(false);
+  // 目的地推荐：区筛选 + 星级筛选 + 已打卡状态来自 travelRecords（按 dest_name 匹配）
+  const [recoDistrict, setRecoDistrict] = useState('all');   // 'all' | 区名
+  const [recoStar, setRecoStar] = useState('all');           // 'all' | 1-5
+  // 标记出行的弹窗（从地点详情"标记出行"按钮打开）
+  const [markModal, setMarkModal] = useState(null);          // { spot } | null
+  // 地点详情弹窗（从地图点位点击打开）
+  const [spotModal, setSpotModal] = useState(null);          // { spot } | null
   // 生病模式：体温记录（按宝宝同步到后端，跨设备一致）
   const [sickMode, setSickMode] = useState(false);
   const [tempRecords, setTempRecords] = useState([]);
@@ -1273,6 +1317,7 @@ export default function BabyAppFullStack() {
       fetchChecklist();
       loadGrowth();
       loadTemps();
+      loadTravel();
       // 拉取宝宝列表，同步生病模式状态（跨设备一致）
       try {
         const bres = await apiFetch(`${API_BASE}/family/babies`);
@@ -1360,6 +1405,221 @@ export default function BabyAppFullStack() {
       const res = await apiFetch(`${API_BASE}/growth-records/${id}`, { method: 'DELETE' });
       if (res.ok) setGrowthRecords(prev => prev.filter(r => r.id !== id));
     } catch (e) { console.error('delete growth failed', e); }
+  };
+
+  // ---- 出行：打包清单 + 出行历史 ----
+  // 打包清单预设模板：按目的地类型 + 月龄段生成
+  // dest_type: 'short'(短途<3天) / 'long'(长途>3天) / 'abroad'(出境)
+  // 月龄段：<6m / 6-12m / 12-24m / 24m+
+  const TRAVEL_ITEM_TEMPLATES = {
+    // 喂养类（按月龄差异大）
+    feed: {
+      '<6m':  ['奶粉分装盒', '奶瓶×2', '便携温奶器', '围嘴×3', '辅食碗勺'],
+      '6-12m': ['奶粉分装盒', '奶瓶×2', '辅食泥×5', '便携辅食碗勺', '围嘴×3', '儿童餐具'],
+      '12-24m': ['儿童餐具', '便携辅食剪', '零食盒', '吸管杯', '围兜×2'],
+      '24m+': ['儿童餐具', '零食盒', '便携水杯', '辅食剪'],
+    },
+    // 卫生清洁
+    hygiene: {
+      '<6m':  ['纸尿裤(日均8片)', '湿巾', '棉柔巾', '护臀霜', '体温计', '婴儿沐浴露'],
+      '6-12m': ['纸尿裤(日均6片)', '湿巾', '棉柔巾', '护臀霜', '体温计', '婴儿洗衣皂'],
+      '12-24m': ['纸尿裤(日均5片)', '拉拉裤', '湿巾', '洗手液', '体温计', '儿童牙刷牙膏'],
+      '24m+': ['拉拉裤(夜用)', '湿巾', '儿童牙刷牙膏', '洗手液', '体温计'],
+    },
+    // 衣物
+    clothing: {
+      '<6m':  ['连体衣×3', '袜子×3', '薄毯', '口水巾×5'],
+      '6-12m': ['连体衣×3', '袜子×3', '薄毯', '外套×1', '口水巾×3'],
+      '12-24m': ['上衣×3', '裤子×3', '袜子×3', '外套×1', '睡衣×1'],
+      '24m+': ['上衣×3', '裤子×3', '袜子×3', '外套×1', '睡衣×1', '遮阳帽'],
+    },
+    // 睡眠安抚
+    sleep: {
+      '<6m':  ['安抚奶嘴', '睡袋', '便携小床/床中床', '白噪音机'],
+      '6-12m': ['安抚奶嘴', '睡袋', '便携小床', '熟悉的安抚玩具', '白噪音机'],
+      '12-24m': ['熟悉安抚玩具', '睡袋/小被子', '便携床围'],
+      '24m+': ['熟悉安抚玩具', '小被子', '睡前绘本×2'],
+    },
+    // 出行装备
+    gear: {
+      '<6m':  ['婴儿车', '背带/腰凳', '车载安全座椅', '妈咪包'],
+      '6-12m': ['婴儿车', '背带/腰凳', '车载安全座椅', '妈咪包', '便携餐椅'],
+      '12-24m': ['婴儿车/溜娃神器', '背带', '车载安全座椅', '妈咪包', '便携餐椅'],
+      '24m+': ['溜娃神器', '车载安全座椅', '妈咪包', '防走失背包'],
+    },
+    // 证件医疗（长途/出境必备）
+    docs: {
+      '<6m':  ['出生证明复印件', '疫苗本', '医保卡'],
+      '6-12m': ['出生证明复印件', '疫苗本', '医保卡'],
+      '12-24m': ['出生证明复印件', '疫苗本', '医保卡', '户口本复印件'],
+      '24m+': ['户口本复印件', '医保卡', '宝宝身份证(如有)'],
+    },
+  };
+  // 长途/出境额外加项
+  const TRAVEL_EXTRA = {
+    long: ['常用药(退烧/止泻/过敏)', '创可贴', '免洗洗手液', '密封袋(装脏衣)'],
+    abroad: ['护照/港澳通行证', '常用药(退烧/止泻/过敏)', '创可贴', '免洗洗手液', '密封袋', '转换插头', '旅行保险单'],
+  };
+
+  const ageBucket = (m) => m < 6 ? '<6m' : m < 12 ? '6-12m' : m < 24 ? '12-24m' : '24m+';
+  const CATEGORY_LABELS = { feed: '喂养', hygiene: '卫生清洁', clothing: '衣物', sleep: '睡眠安抚', gear: '出行装备', docs: '证件医疗', extra: '长途/出境加项' };
+
+  // 生成清单模板
+  const genTravelList = (destType, ageMonths) => {
+    const bucket = ageBucket(ageMonths);
+    const items = [];
+    for (const [cat, byAge] of Object.entries(TRAVEL_ITEM_TEMPLATES)) {
+      (byAge[bucket] || []).forEach(name => items.push({ cat, name, checked: false, custom: false }));
+    }
+    if (destType === 'long' || destType === 'abroad') {
+      (TRAVEL_EXTRA[destType] || []).forEach(name => items.push({ cat: 'extra', name, checked: false, custom: false }));
+    }
+    return items;
+  };
+
+  const loadTravel = async () => {
+    try {
+      const [listRes, recRes] = await Promise.all([
+        apiFetch(`${API_BASE}/travel/lists`),
+        apiFetch(`${API_BASE}/travel/records`),
+      ]);
+      if (listRes.ok) setTravelLists(await listRes.json());
+      if (recRes.ok) setTravelRecords(await recRes.json());
+    } catch (e) { console.error('fetch travel failed', e); }
+  };
+
+  // 新建清单草稿
+  const startNewTravelList = () => {
+    const m = months || 0;
+    setTravelListDraft({ id: '', dest_type: 'short', age_months: m, items: genTravelList('short', m) });
+  };
+  // 编辑已有清单
+  const editTravelList = (list) => {
+    let items = [];
+    try { items = JSON.parse(list.items || '[]'); } catch (e) { items = []; }
+    setTravelListDraft({ id: list.id, dest_type: list.dest_type || 'short', age_months: list.age_months || 0, items });
+  };
+  // 切换目的地类型时重新生成模板（仅未保存的新清单）
+  const changeTravelListType = (destType) => {
+    if (!travelListDraft) return;
+    const m = travelListDraft.age_months || 0;
+    setTravelListDraft({ ...travelListDraft, dest_type: destType, items: genTravelList(destType, m) });
+  };
+  // 勾选某项
+  const toggleTravelItem = (idx) => {
+    if (!travelListDraft) return;
+    const items = travelListDraft.items.map((it, i) => i === idx ? { ...it, checked: !it.checked } : it);
+    setTravelListDraft({ ...travelListDraft, items });
+  };
+  // 删除某项
+  const removeTravelItem = (idx) => {
+    if (!travelListDraft) return;
+    const items = travelListDraft.items.filter((_, i) => i !== idx);
+    setTravelListDraft({ ...travelListDraft, items });
+  };
+  // 新增自定义项
+  const addCustomTravelItem = (cat, name) => {
+    if (!travelListDraft || !name.trim()) return;
+    const items = [...travelListDraft.items, { cat, name: name.trim(), checked: false, custom: true }];
+    setTravelListDraft({ ...travelListDraft, items });
+  };
+  // 保存清单
+  const saveTravelList = async () => {
+    if (!travelListDraft) return;
+    setTravelLoading(true);
+    try {
+      const body = {
+        id: travelListDraft.id,
+        dest_type: travelListDraft.dest_type,
+        age_months: travelListDraft.age_months,
+        items: JSON.stringify(travelListDraft.items),
+      };
+      const res = travelListDraft.id
+        ? await apiFetch(`${API_BASE}/travel/lists/${travelListDraft.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
+        : await apiFetch(`${API_BASE}/travel/lists`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+      if (!res.ok) { const e = await res.json().catch(() => ({})); throw new Error(e.detail || '保存失败'); }
+      showToast(travelListDraft.id ? '清单已更新 ✓' : '清单已保存 ✓');
+      setTravelListDraft(null);
+      await loadTravel();
+    } catch (e) { alert('保存清单失败：' + (e.message || '')); }
+    setTravelLoading(false);
+  };
+  const delTravelList = async (id) => {
+    if (!window.confirm('删除这份打包清单？')) return;
+    try {
+      const res = await apiFetch(`${API_BASE}/travel/lists/${id}`, { method: 'DELETE' });
+      if (res.ok) setTravelLists(prev => prev.filter(l => l.id !== id));
+    } catch (e) { console.error('delete travel list failed', e); }
+  };
+
+  // 出行历史
+  const saveTravelRecord = async () => {
+    if (!travelRecordDraft.dest_name.trim()) return alert('请填写目的地');
+    setTravelLoading(true);
+    try {
+      const body = { ...travelRecordDraft, dest_name: travelRecordDraft.dest_name.trim(), age_months: months || 0 };
+      const res = editingTravelRecordId
+        ? await apiFetch(`${API_BASE}/travel/records/${editingTravelRecordId}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
+        : await apiFetch(`${API_BASE}/travel/records`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+      if (!res.ok) { const e = await res.json().catch(() => ({})); throw new Error(e.detail || '保存失败'); }
+      showToast(editingTravelRecordId ? '出行记录已更新 ✓' : '出行记录已保存 ✓');
+      setTravelRecordDraft({ dest_name: '', dest_type: 'short', travel_date: todayISO(), age_months: 0, rating: 0, note: '' });
+      setEditingTravelRecordId(null);
+      setMarkModal(null);
+      await loadTravel();
+    } catch (e) { alert('保存出行记录失败：' + (e.message || '')); }
+    setTravelLoading(false);
+  };
+  const editTravelRecord = (r) => {
+    setEditingTravelRecordId(r.id);
+    setTravelRecordDraft({ dest_name: r.dest_name || '', dest_type: r.dest_type || 'short', travel_date: r.travel_date || todayISO(), age_months: r.age_months || 0, rating: r.rating || 0, note: r.note || '' });
+  };
+  const delTravelRecord = async (id) => {
+    if (!window.confirm('删除这条出行记录？')) return;
+    try {
+      const res = await apiFetch(`${API_BASE}/travel/records/${id}`, { method: 'DELETE' });
+      if (res.ok) setTravelRecords(prev => prev.filter(r => r.id !== id));
+    } catch (e) { console.error('delete travel record failed', e); }
+  };
+
+  // ---- 目的地推荐 ----
+  // 已出行的地点名集合（按 dest_name 匹配 SPOTS.name）
+  const visitedSpotNames = useMemo(() => {
+    const s = new Set();
+    travelRecords.forEach(r => { if (r.dest_name) s.add(r.dest_name); });
+    return s;
+  }, [travelRecords]);
+  // 当前月龄（从 data 中取，避免依赖渲染期解构的 months）
+  const recoMonths = data?.months || 0;
+  // 筛选 + 排序后的推荐列表
+  const filteredSpots = useMemo(() => {
+    let arr = SPOTS_VISITABLE.filter(s => {
+      if (recoDistrict !== 'all' && s.district !== recoDistrict) return false;
+      const stars = starsForAge(s, recoMonths);
+      if (recoStar !== 'all' && stars !== recoStar) return false;
+      return true;
+    });
+    // 按当前月龄星级降序，同星级按已打卡优先
+    arr.sort((a, b) => {
+      const sa = starsForAge(a, recoMonths), sb = starsForAge(b, recoMonths);
+      if (sb !== sa) return sb - sa;
+      const va = visitedSpotNames.has(a.name) ? 1 : 0;
+      const vb = visitedSpotNames.has(b.name) ? 1 : 0;
+      return va - vb;
+    });
+    return arr;
+  }, [recoDistrict, recoStar, recoMonths, visitedSpotNames]);
+  // 打卡统计
+  const recoStats = useMemo(() => {
+    const total = SPOTS_VISITABLE.length;
+    const visited = SPOTS_VISITABLE.filter(s => visitedSpotNames.has(s.name)).length;
+    return { total, visited, percent: total ? Math.round(visited / total * 100) : 0 };
+  }, [visitedSpotNames]);
+  // 从目的地推荐点击"标记出行" → 打开弹窗预填
+  const openMarkModal = (spot) => {
+    setTravelRecordDraft({ dest_name: spot.name, dest_type: 'daily', travel_date: todayISO(), age_months: recoMonths, rating: starsForAge(spot, recoMonths), note: '' });
+    setEditingTravelRecordId(null);
+    setMarkModal({ spot });
   };
 
   // ---- 生病模式：体温记录 ----
@@ -1868,152 +2128,67 @@ export default function BabyAppFullStack() {
 
       <header className="topbar">
         <div className="topbar__inner">
-          <div className="brand brand--family">
-            <div className="brand__logo brand__logo--family"><Home className="icon icon--lg" /></div>
+          {/* 宝宝精简条：当前宝宝名片 */}
+          <div className="brand brand--baby">
+            <div className="brand__logo brand__logo--baby"><Baby className="icon icon--lg" /></div>
             <div>
-              <div className="brand__name">🏠 {family ? family.family_name : '我的家庭'}</div>
-              {family && (
-                <div className="brand__meta brand__meta--family">
-                  <span className="brand__fid" onClick={copyFamilyId} title="点击复制家庭 ID">
-                    ID: <b>{family.family_id}</b>
-                  </span>
-                  <button className="brand__add" onClick={() => { setForm({ name: '', gender: 'boy', birthday: '', height: '', weight: '' }); setView('baby-edit'); }} title="添加宝宝">
-                    <Plus className="icon icon--xs" />添加宝宝
-                  </button>
-                </div>
-              )}
+              <div className="brand__name">{profile.name}的成长记录</div>
+              <div className="brand__meta">{months} 个月大 · {profile.gender === 'boy' ? '男宝' : '女宝'}</div>
             </div>
           </div>
-          <div className="topbar__actions">
-            {/* 多宝宝切换器 */}
-            {babies.length > 1 && (
-              <div className="baby-switcher">
-                {babies.map(b => (
-                  <div key={b.baby_id} className="baby-switcher__item">
-                    <button className={`baby-switcher__btn ${b.baby_id === currentBabyId ? 'baby-switcher__btn--on' : ''}`}
-                      onClick={() => switchBaby(b.baby_id)}>
-                      {b.name}
-                    </button>
-                    <button className="baby-switcher__del" onClick={(e) => { e.stopPropagation(); deleteBaby(b.baby_id, b.name); }} title={`删除 ${b.name}`}>
-                      <Trash2 className="icon icon--xs" />
-                    </button>
+          {/* 多宝宝时显示快速切换下拉 */}
+          {babies.length > 1 && (
+            <div className="baby-quick-switch">
+              <button
+                type="button"
+                className="baby-quick-switch__btn"
+                onClick={() => setBabySwitchOpen(v => !v)}
+                aria-expanded={babySwitchOpen}
+                title="切换宝宝"
+              >
+                <span className="baby-quick-switch__cur">{profile.name}</span>
+                <ChevronDown className="icon icon--xs" />
+              </button>
+              {babySwitchOpen && (
+                <>
+                  <div className="baby-quick-switch__mask" onClick={() => setBabySwitchOpen(false)} />
+                  <div className="baby-quick-switch__menu">
+                    {babies.map(b => (
+                      <button
+                        key={b.baby_id}
+                        type="button"
+                        className={`baby-quick-switch__item ${b.baby_id === currentBabyId ? 'is-current' : ''}`}
+                        onClick={() => { switchBaby(b.baby_id); setBabySwitchOpen(false); }}
+                      >
+                        {b.name}
+                        {b.baby_id === currentBabyId && <Check className="icon icon--xs" />}
+                      </button>
+                    ))}
                   </div>
-                ))}
-              </div>
-            )}
-            {/* 手机端独立「添加宝宝」入口（与电脑端 brand__add 一致：+添加宝宝 文字按钮） */}
+                </>
+              )}
+            </div>
+          )}
+          <div className="topbar__actions">
+            {/* 家庭管理入口（家庭名/ID/成员/退出家庭/添加宝宝） */}
             {family && (
-              <button className="topbar__add-btn" onClick={() => { setForm({ name: '', gender: 'boy', birthday: '', height: '', weight: '' }); setView('baby-edit'); }} title="添加宝宝">
-                <Plus className="icon icon--xs" />添加宝宝
+              <button className="topbar__icon-btn" onClick={() => setFamilyMgmtOpen(true)} title="家庭管理" aria-label="家庭管理">
+                <Home className="icon icon--sm" />
               </button>
             )}
-            {/* 桌面端：修改信息 / 退出登录 直接平铺（文字按钮）；手机端单宝宝：铅笔(修改信息) + 退出登录 平铺，不用 ⋯ 菜单 */}
+            {/* 修改信息 / 退出登录（纯图标，与家庭管理入口风格统一） */}
             {currentUser && (
               <>
-                <div className="topbar__user-desktop">
-                  <button className="btn btn--ghost btn--sm" onClick={() => setEditProfileModal(true)} title="修改昵称和密码">
-                    修改信息
-                  </button>
-                  <button className="btn btn--ghost btn--sm" onClick={logout} title={`退出登录（${currentUser.nickname || currentUser.phone}）`}>
-                    退出登录
-                  </button>
-                </div>
-                {babies.length > 1 ? (
-                  /* 多宝宝：仍收进「更多 ⋯」菜单，避免顶栏过挤 */
-                  <div className="topbar__user-mobile">
-                    <button className="topbar__more-btn" onClick={() => setUserMenuOpen((v) => !v)} aria-expanded={userMenuOpen} title="更多">
-                      <MoreHorizontal className="icon icon--sm" />
-                    </button>
-                    {userMenuOpen && (
-                      <div className="topbar__more-menu">
-                        <button className="topbar__more-item" onClick={() => { setUserMenuOpen(false); setEditProfileModal(true); }}>
-                          修改信息
-                        </button>
-                        <button className="topbar__more-item topbar__more-item--danger" onClick={() => { setUserMenuOpen(false); logout(); }} title={`退出登录（${currentUser.nickname || currentUser.phone}）`}>
-                          退出登录
-                        </button>
-                      </div>
-                    )}
-                  </div>
-                ) : (
-                  /* 单宝宝：铅笔(修改信息) + 退出登录 平铺显示 */
-                  <div className="topbar__user-mobile">
-                    <button className="topbar__icon-btn" onClick={() => setEditProfileModal(true)} title="修改昵称和密码" aria-label="修改信息">
-                      <Pencil className="icon icon--sm" />
-                    </button>
-                    <button className="btn btn--ghost btn--sm" onClick={logout} title={`退出登录（${currentUser.nickname || currentUser.phone}）`}>
-                      退出登录
-                    </button>
-                  </div>
-                )}
+                <button className="topbar__icon-btn" onClick={() => setEditProfileModal(true)} title="修改昵称和密码" aria-label="修改信息">
+                  <User className="icon icon--sm" />
+                </button>
+                <button className="topbar__icon-btn" onClick={logout} title={`退出登录（${currentUser.nickname || currentUser.phone}）`} aria-label="退出登录">
+                  <LogOut className="icon icon--sm" />
+                </button>
               </>
             )}
           </div>
         </div>
-        {/* 宝宝信息栏（原 topbar 品牌区移至此） */}
-        {family && (
-          <div className="family-bar">
-            <div className="family-bar__inner">
-              <div className="brand brand--baby">
-                <div className="brand__logo brand__logo--baby"><Baby className="icon icon--lg" /></div>
-                <div>
-                  <div className="brand__name">{profile.name}的成长记录</div>
-                  <div className="brand__meta">{months} 个月大 · {profile.gender === 'boy' ? '男宝' : '女宝'}</div>
-                </div>
-              </div>
-              <div className="family-bar__members">
-                {(() => {
-                  const myUid = currentUser?.user_id;
-                  const me = family.members?.find((m) => m.user_id === myUid);
-                  const others = (family.members || []).filter((m) => m.user_id !== myUid);
-                  const meName = me ? (me.nickname || (me.role === 'creator' ? '创建者' : '成员')) : '我';
-                  return (
-                    <>
-                      {/* 自己（带编辑按钮） */}
-                      <button
-                        type="button"
-                        className="member-chip member-chip--me"
-                        title="点击修改我的昵称"
-                        onClick={() => me && setNickModal({ open: true, nickname: me.nickname || '' })}
-                      >
-                        <span className="member-chip__me">自己</span>
-                        <span className="member-chip__name">{meName}</span>
-                        <Pencil className="icon icon--xs" />
-                      </button>
-                      {/* +x 展开其他成员 */}
-                      <div className="member-more">
-                        <button
-                          type="button"
-                          className="member-chip member-chip--more"
-                          onClick={() => setMembersOpen((v) => !v)}
-                          aria-expanded={membersOpen}
-                          title="查看其他家庭成员"
-                        >
-                          +{others.length}
-                        </button>
-                        {membersOpen && (
-                          <div className="member-more__menu">
-                            {family.members?.map((m) => {
-                              const name = m.nickname || (m.role === 'creator' ? '创建者' : '成员');
-                              const isMe = m.user_id === (currentUser?.user_id || '');
-                              return (
-                                <div key={m.user_id} className={`member-more__item ${isMe ? 'is-me' : ''}`}>
-                                  {isMe && <span className="member-more__tag">我</span>}
-                                  {name}
-                                </div>
-                              );
-                            })}
-                          </div>
-                        )}
-                      </div>
-                    </>
-                  );
-                })()}
-              </div>
-              <button className="family-bar__leave" onClick={leaveFamily} title="退出当前家庭">退出家庭</button>
-            </div>
-          </div>
-        )}
       </header>
 
       <nav className="zone-tabs" aria-label="功能区域切换">
@@ -3172,7 +3347,7 @@ export default function BabyAppFullStack() {
 
       </div>
 
-      {/* 出行区：批次3 接入完整三件套（打包清单/目的地推荐/出行历史），当前为占位 */}
+      {/* 出行区：目的地推荐 → 打包清单 → 出行历史 */}
       {activeZone === 'travel' && (
         <div className="zone zone--travel wrap">
           <Reveal className="section" delay={0.05}>
@@ -3180,20 +3355,370 @@ export default function BabyAppFullStack() {
               <span className="section__ico section__ico--coral"><MapPin className="icon icon--sm" /></span>
               <h2 className="section__title">带娃出行</h2>
             </div>
-            <div className="travel-placeholder">
-              <p>出行功能正在建设中，包含：</p>
-              <ul>
-                <li>打包清单生成器（按月龄 × 目的地）</li>
-                <li>目的地推荐（按月龄 + 季节）</li>
-                <li>出行历史记录</li>
-              </ul>
-              <p className="travel-placeholder__hint">即将上线，敬请期待。</p>
+
+            {/* 子 Tab：目的地推荐 / 打包清单 / 出行历史 */}
+            <div className="travel-subtabs">
+              <button className={`travel-subtab ${travelTab === 'reco' ? 'is-on' : ''}`} onClick={() => setTravelTab('reco')}>
+                目的地推荐
+              </button>
+              <button className={`travel-subtab ${travelTab === 'list' ? 'is-on' : ''}`} onClick={() => setTravelTab('list')}>
+                打包清单
+              </button>
+              <button className={`travel-subtab ${travelTab === 'history' ? 'is-on' : ''}`} onClick={() => setTravelTab('history')}>
+                出行历史
+              </button>
             </div>
+
+            {/* ---------- 目的地推荐 ---------- */}
+            {travelTab === 'reco' && (
+              <div className="travel-panel travel-reco">
+                {/* 打卡进度条 */}
+                <div className="reco-stats">
+                  <div className="reco-stats__nums">
+                    <span className="reco-stats__v">{recoStats.visited}</span>
+                    <span className="reco-stats__sep">/</span>
+                    <span className="reco-stats__t">{recoStats.total}</span>
+                    <span className="reco-stats__label">已打卡</span>
+                  </div>
+                  <div className="reco-stats__pct">{recoStats.percent}%</div>
+                </div>
+                <div className="reco-progress"><div style={{ width: recoStats.percent + '%' }} /></div>
+
+                {/* 当前月龄提示 */}
+                <div className="reco-age-tag">
+                  <Sparkles className="icon icon--xs" />
+                  <span>当前 {ageMonthsLabel(recoMonths)} · {getBandLabel(recoMonths).split('（')[1]?.replace('）', '') || ''} · 星级按月龄自动推荐</span>
+                </div>
+
+                {/* SVG 深圳地图：点击点位打开地点详情卡片，与下方筛选联动 */}
+                <TravelMap
+                  months={recoMonths}
+                  visitedSpotNames={visitedSpotNames}
+                  onSpotClick={(s) => setSpotModal({ spot: s })}
+                  filter={{ district: recoDistrict, star: recoStar, matched: (recoDistrict !== 'all' || recoStar !== 'all') ? new Set(filteredSpots.map(s => s.id)) : null }}
+                />
+
+                {/* 筛选器：区 + 星级 */}
+                <div className="reco-filters">
+                  <div className="reco-filter-row">
+                    <button className={`reco-chip ${recoDistrict === 'all' ? 'is-on' : ''}`} onClick={() => setRecoDistrict('all')}>全部区</button>
+                    {DISTRICTS.map(d => (
+                      <button key={d.name} className={`reco-chip ${recoDistrict === d.name ? 'is-on' : ''}`} onClick={() => setRecoDistrict(d.name)}>{d.name}</button>
+                    ))}
+                  </div>
+                  <div className="reco-filter-row reco-filter-row--star">
+                    <button className={`reco-chip reco-chip--star ${recoStar === 'all' ? 'is-on' : ''}`} onClick={() => setRecoStar('all')}>全部星级</button>
+                    {[5,4,3,2,1].map(n => (
+                      <button key={n} className={`reco-chip reco-chip--star ${recoStar === n ? 'is-on' : ''}`} onClick={() => setRecoStar(n)}>{'★'.repeat(n)}</button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* 地点卡片列表 */}
+                {filteredSpots.length === 0 ? (
+                  <p className="travel-empty">当前筛选没有匹配的地点</p>
+                ) : (
+                  <div className="reco-cards">
+                    {filteredSpots.map(s => {
+                      const visited = visitedSpotNames.has(s.name);
+                      const stars = starsForAge(s, recoMonths);
+                      return (
+                        <div key={s.id} className={`reco-card ${visited ? 'is-visited' : ''}`}>
+                          <div className="reco-card__head">
+                            <span className="reco-card__name">{s.name}</span>
+                            <span className="reco-card__dist">{s.district}</span>
+                            {stars > 0 && <span className="reco-card__stars">{'★'.repeat(stars)}<span className="reco-card__stars-dim">{'★'.repeat(5 - stars)}</span></span>}
+                          </div>
+                          {s.feel && <div className="reco-card__feel">{s.feel}</div>}
+                          <div className="reco-card__reason"><span className="reco-card__reason-label">推荐理由</span>{reasonForAge(s, recoMonths)}</div>
+                          <div className="reco-card__actions">
+                            {visited ? (
+                              <span className="reco-card__visited">已出行 ✓</span>
+                            ) : (
+                              <button className="btn btn--primary btn--sm" onClick={() => openMarkModal(s)}>
+                                标记出行
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* ---------- 打包清单 ---------- */}
+            {travelTab === 'list' && (
+              <div className="travel-panel">
+                {/* 清单编辑态 */}
+                {travelListDraft ? (
+                  <div className="travel-list-edit">
+                    <div className="travel-list-edit__bar">
+                      <label className="travel-list-edit__label">
+                        目的地类型：
+                        <select value={travelListDraft.dest_type} onChange={(e) => changeTravelListType(e.target.value)}>
+                          <option value="daily">日常遛弯</option>
+                          <option value="short">短途（&lt;3天）</option>
+                          <option value="long">长途（&gt;3天）</option>
+                          <option value="abroad">出境</option>
+                        </select>
+                      </label>
+                      <span className="travel-list-edit__age">月龄参考：{ageBucket(travelListDraft.age_months || months || 0)}</span>
+                      <button className="btn btn--ghost btn--sm" onClick={() => setTravelListDraft(null)}>取消</button>
+                      <button className="btn btn--primary btn--sm" disabled={travelLoading} onClick={saveTravelList}>
+                        {travelLoading ? '保存中…' : '保存清单'}
+                      </button>
+                    </div>
+                    {/* 按类别分组 */}
+                    {Object.entries(CATEGORY_LABELS).map(([cat, label]) => {
+                      const catItems = travelListDraft.items.map((it, i) => ({ ...it, _idx: i })).filter(it => it.cat === cat);
+                      if (!catItems.length) return null;
+                      return (
+                        <div key={cat} className="travel-list-cat">
+                          <div className="travel-list-cat__head">{label}</div>
+                          {catItems.map(it => (
+                            <label key={it._idx} className={`travel-item ${it.checked ? 'is-checked' : ''}`}>
+                              <input type="checkbox" checked={it.checked} onChange={() => toggleTravelItem(it._idx)} />
+                              <span className="travel-item__name">{it.name}</span>
+                              {it.custom && <span className="travel-item__tag">自定义</span>}
+                              <button className="travel-item__del" onClick={(e) => { e.preventDefault(); removeTravelItem(it._idx); }} title="移除">
+                                <Trash2 className="icon icon--xs" />
+                              </button>
+                            </label>
+                          ))}
+                        </div>
+                      );
+                    })}
+                    {/* 新增自定义项 */}
+                    <TravelAddCustom onAdd={(cat, name) => addCustomTravelItem(cat, name)} />
+                  </div>
+                ) : (
+                  /* 清单列表态 */
+                  <div className="travel-list-home">
+                    <button className="travel-add-btn" onClick={startNewTravelList}>
+                      <Plus className="icon icon--sm" /> 新建打包清单
+                    </button>
+                    {travelLists.length === 0 ? (
+                      <p className="travel-empty">还没有打包清单，点上方按钮新建一份吧～</p>
+                    ) : (
+                      <div className="travel-list-cards">
+                        {travelLists.map(l => {
+                          let items = []; try { items = JSON.parse(l.items || '[]'); } catch (e) {}
+                          const total = items.length;
+                          const done = items.filter(i => i.checked).length;
+                          const pct = total ? Math.round(done / total * 100) : 0;
+                          const typeLabel = { daily: '日常遛弯', short: '短途', long: '长途', abroad: '出境' }[l.dest_type] || '出行';
+                          return (
+                            <div key={l.id} className="travel-list-card">
+                              <div className="travel-list-card__head">
+                                <span className="travel-list-card__type">{typeLabel}</span>
+                                <span className="travel-list-card__age">{l.age_months || 0}月龄</span>
+                                <span className="travel-list-card__pct">{pct}%</span>
+                              </div>
+                              <div className="travel-list-card__bar"><div style={{ width: pct + '%' }} /></div>
+                              <div className="travel-list-card__sum">{done}/{total} 已备齐</div>
+                              <div className="travel-list-card__actions">
+                                <button className="btn btn--ghost btn--sm" onClick={() => editTravelList(l)}>编辑/勾选</button>
+                                <button className="btn btn--ghost btn--sm" onClick={() => delTravelList(l.id)}>删除</button>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* ---------- 出行历史 ---------- */}
+            {travelTab === 'history' && (
+              <div className="travel-panel">
+                {/* 记录表单 */}
+                <div className="travel-rec-form">
+                  <div className="travel-rec-form__title">{editingTravelRecordId ? '编辑出行记录' : '记录一次出行'}</div>
+                  <div className="travel-rec-form__grid">
+                    <label className="field">
+                      <span>目的地</span>
+                      <input value={travelRecordDraft.dest_name} onChange={(e) => setTravelRecordDraft({ ...travelRecordDraft, dest_name: e.target.value })} placeholder="如：外婆家 / 三亚 / 大梅沙" />
+                    </label>
+                    <label className="field">
+                      <span>类型</span>
+                      <select value={travelRecordDraft.dest_type} onChange={(e) => setTravelRecordDraft({ ...travelRecordDraft, dest_type: e.target.value })}>
+                        <option value="daily">日常遛弯</option>
+                        <option value="short">短途</option>
+                        <option value="long">长途</option>
+                        <option value="abroad">出境</option>
+                      </select>
+                    </label>
+                    <label className="field">
+                      <span>出行日期</span>
+                      <input type="date" value={travelRecordDraft.travel_date} onChange={(e) => setTravelRecordDraft({ ...travelRecordDraft, travel_date: e.target.value })} />
+                    </label>
+                    <label className="field">
+                      <span>评分（按月龄自动）</span>
+                      <div className="stars stars--readonly">
+                        {[1,2,3,4,5].map(n => (
+                          <span key={n} className={`star ${n <= travelRecordDraft.rating ? 'is-on' : ''}`}>★</span>
+                        ))}
+                      </div>
+                    </label>
+                  </div>
+                  <label className="field">
+                    <span>备注</span>
+                    <textarea rows={2} value={travelRecordDraft.note} onChange={(e) => setTravelRecordDraft({ ...travelRecordDraft, note: e.target.value })} placeholder="宝宝表现 / 有趣的事 / 注意事项" />
+                  </label>
+                  <div className="travel-rec-form__actions">
+                    {editingTravelRecordId && <button className="btn btn--ghost btn--sm" onClick={() => { setEditingTravelRecordId(null); setTravelRecordDraft({ dest_name: '', dest_type: 'short', travel_date: todayISO(), age_months: 0, rating: 0, note: '' }); }}>取消编辑</button>}
+                    <button className="btn btn--primary btn--sm" disabled={travelLoading} onClick={saveTravelRecord}>
+                      {travelLoading ? '保存中…' : editingTravelRecordId ? '更新记录' : '保存记录'}
+                    </button>
+                  </div>
+                </div>
+
+                {/* 历史列表 */}
+                {travelRecords.length === 0 ? (
+                  <p className="travel-empty">还没有出行记录，记录宝宝第一次坐高铁、第一次看海吧～</p>
+                ) : (
+                  <div className="travel-rec-list">
+                    {[...travelRecords].sort((a,b) => (b.travel_date||'').localeCompare(a.travel_date||'')).map(r => {
+                      const typeLabel = { daily: '日常遛弯', short: '短途', long: '长途', abroad: '出境' }[r.dest_type] || '出行';
+                      return (
+                        <div key={r.id} className="travel-rec-card">
+                          <div className="travel-rec-card__head">
+                            <span className="travel-rec-card__name">{r.dest_name}</span>
+                            <span className="travel-rec-card__type">{typeLabel}</span>
+                            <span className="travel-rec-card__date">{r.travel_date}</span>
+                          </div>
+                          {r.rating > 0 && (
+                            <div className="travel-rec-card__stars">{'★'.repeat(r.rating)}<span className="travel-rec-card__stars-dim">{'★'.repeat(5 - r.rating)}</span></div>
+                          )}
+                          {r.note && <div className="travel-rec-card__note">{r.note}</div>}
+                          <div className="travel-rec-card__meta">时 {r.age_months || 0} 月龄</div>
+                          <div className="travel-rec-card__actions">
+                            <button className="btn btn--ghost btn--sm" onClick={() => editTravelRecord(r)}>编辑</button>
+                            <button className="btn btn--ghost btn--sm" onClick={() => delTravelRecord(r.id)}>删除</button>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* ---------- 目的地推荐（占位） ---------- */}
           </Reveal>
         </div>
       )}
 
       <VideoModal open={modal.open} title={modal.title} src={modal.src || ''} onClose={() => setModal({ open: false, title: '', src: '' })} />
+
+      {/* 地点详情弹窗（从地图点位点击打开） */}
+      {spotModal && (() => {
+        const s = spotModal.spot;
+        const visited = visitedSpotNames.has(s.name);
+        const stars = starsForAge(s, recoMonths);
+        return (
+          <div className="modal modal--spot" role="dialog" aria-modal="true">
+            <div className="modal__backdrop" onClick={() => setSpotModal(null)} />
+            <div className="modal__card modal__card--spot">
+              <button className="modal__close" onClick={() => setSpotModal(null)} aria-label="关闭"><X className="icon icon--sm" /></button>
+              <div className="spot-head">
+                <div className="spot-head__badge">{s.district}</div>
+                <h3 className="spot-head__name">{s.name}</h3>
+                <div className="spot-head__sub">
+                  {ageMonthsLabel(recoMonths)} · 当前推荐
+                  {stars > 0 && <span className="spot-head__stars">{'★'.repeat(stars)}<span className="spot-head__stars-dim">{'★'.repeat(5 - stars)}</span></span>}
+                  {visited && <span className="spot-head__visited">已出行 ✓</span>}
+                </div>
+              </div>
+              <div className="spot-body">
+                {s.feel && (
+                  <div className="spot-section">
+                    <div className="spot-section__label">口碑</div>
+                    <p className="spot-section__text spot-section__text--feel">{s.feel}</p>
+                  </div>
+                )}
+                <div className="spot-section">
+                  <div className="spot-section__label">推荐理由</div>
+                  <p className="spot-section__text">{reasonForAge(s, recoMonths)}</p>
+                </div>
+                <div className="spot-section spot-section--band">
+                  <div className="spot-section__label">月龄星级</div>
+                  <div className="spot-band">
+                    {AGE_BANDS.map((b, i) => {
+                      const st = s.ratings[i] || 0;
+                      const isCur = getBandIdx(recoMonths) === i;
+                      return (
+                        <div key={i} className={`spot-band__item ${isCur ? 'is-cur' : ''} ${st === 0 ? 'is-zero' : ''}`}>
+                          <span className="spot-band__label">{b.label.split('（')[0]}</span>
+                          <span className="spot-band__stars">{st > 0 ? '★'.repeat(st) : '—'}</span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              </div>
+              <div className="spot-actions">
+                <button className="btn btn--ghost btn--sm" onClick={() => setSpotModal(null)}>关闭</button>
+                <button className="btn btn--primary btn--sm" onClick={() => { openMarkModal(s); setSpotModal(null); }}>
+                  {visited ? '再记一次' : '标记出行'}
+                </button>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
+
+      {/* 标记出行弹窗（从地点详情"标记出行"按钮进入） */}
+      {markModal && (
+        <div className="modal modal--mark" role="dialog" aria-modal="true">
+          <div className="modal__backdrop" onClick={() => setMarkModal(null)} />
+          <div className="modal__card modal__card--mark">
+            <button className="modal__close" onClick={() => setMarkModal(null)} aria-label="关闭"><X className="icon icon--sm" /></button>
+            <div className="mark-head">
+              <div className="mark-head__badge">标记出行</div>
+              <h3 className="mark-head__name">{markModal.spot.name}</h3>
+              <div className="mark-head__sub">{markModal.spot.district} · {ageMonthsLabel(recoMonths)}</div>
+            </div>
+            <div className="mark-body">
+              <label className="field">
+                <span>出行日期</span>
+                <input type="date" value={travelRecordDraft.travel_date} onChange={(e) => setTravelRecordDraft({ ...travelRecordDraft, travel_date: e.target.value })} />
+              </label>
+              <label className="field">
+                <span>类型</span>
+                <select value={travelRecordDraft.dest_type} onChange={(e) => setTravelRecordDraft({ ...travelRecordDraft, dest_type: e.target.value })}>
+                  <option value="daily">日常遛弯</option>
+                  <option value="short">短途</option>
+                  <option value="long">长途</option>
+                  <option value="abroad">出境</option>
+                </select>
+              </label>
+              <label className="field">
+                <span>评分（按月龄自动）</span>
+                <div className="stars stars--readonly">
+                  {[1,2,3,4,5].map(n => (
+                    <span key={n} className={`star ${n <= travelRecordDraft.rating ? 'is-on' : ''}`}>★</span>
+                  ))}
+                </div>
+              </label>
+              <label className="field">
+                <span>备注</span>
+                <textarea rows={2} value={travelRecordDraft.note} onChange={(e) => setTravelRecordDraft({ ...travelRecordDraft, note: e.target.value })} placeholder="宝宝表现 / 有趣的事 / 注意事项" />
+              </label>
+              <div className="mark-actions">
+                <button className="btn btn--ghost btn--sm" onClick={() => setMarkModal(null)}>取消</button>
+                <button className="btn btn--primary btn--sm" disabled={travelLoading} onClick={saveTravelRecord}>
+                  {travelLoading ? '保存中…' : '确认标记出行'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* 修改个人信息弹窗：昵称 + 密码（手机号不可改） */}
       {editProfileModal && (
@@ -3202,6 +3727,67 @@ export default function BabyAppFullStack() {
           onClose={() => setEditProfileModal(false)}
           onSave={saveProfile}
         />
+      )}
+
+      {/* 家庭管理弹窗（家庭名/ID/成员/退出家庭/添加宝宝） */}
+      {familyMgmtOpen && family && (
+        <div className="modal modal--fm" role="dialog" aria-modal="true">
+          <div className="modal__backdrop" onClick={() => setFamilyMgmtOpen(false)} />
+          <div className="modal__card modal__card--fm">
+            <button className="modal__close" onClick={() => setFamilyMgmtOpen(false)} aria-label="关闭"><X className="icon icon--sm" /></button>
+            <div className="fm-head">
+              <div className="fm-head__name">🏠 {family.family_name}</div>
+              <button className="fm-head__fid" onClick={copyFamilyId} title="点击复制家庭 ID">
+                ID: <b>{family.family_id}</b>
+              </button>
+            </div>
+
+            <div className="fm-section">
+              <div className="fm-section__title">家庭成员</div>
+              <div className="fm-members">
+                {family.members?.map((m) => {
+                  const name = m.nickname || (m.role === 'creator' ? '创建者' : '成员');
+                  const isMe = m.user_id === (currentUser?.user_id || '');
+                  return (
+                    <div key={m.user_id} className={`fm-member ${isMe ? 'is-me' : ''}`}>
+                      {isMe && <span className="fm-member__tag">我</span>}
+                      <span className="fm-member__name">{name}</span>
+                      {isMe ? (
+                        <button className="fm-member__edit" onClick={() => { setFamilyMgmtOpen(false); setNickModal({ open: true, nickname: m.nickname || '' }); }} title="修改我的昵称">
+                          <Pencil className="icon icon--xs" />
+                        </button>
+                      ) : null}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+
+            <div className="fm-section">
+              <div className="fm-section__title">宝宝列表</div>
+              <div className="fm-babies">
+                {babies.map(b => (
+                  <div key={b.baby_id} className={`fm-baby ${b.baby_id === currentBabyId ? 'is-current' : ''}`}>
+                    <button className="fm-baby__btn" onClick={() => { switchBaby(b.baby_id); setFamilyMgmtOpen(false); }}>
+                      <span className="fm-baby__name">{b.name}</span>
+                      {b.baby_id === currentBabyId && <span className="fm-baby__cur">当前</span>}
+                    </button>
+                    <button className="fm-baby__del" onClick={(e) => { e.stopPropagation(); deleteBaby(b.baby_id, b.name); }} title={`删除 ${b.name}`}>
+                      <Trash2 className="icon icon--xs" />
+                    </button>
+                  </div>
+                ))}
+              </div>
+              <button className="btn btn--ghost btn--sm fm-add-baby" onClick={() => { setFamilyMgmtOpen(false); setForm({ name: '', gender: 'boy', birthday: '', height: '', weight: '' }); setView('baby-edit'); }}>
+                <Plus className="icon icon--xs" />添加宝宝
+              </button>
+            </div>
+
+            <button className="btn btn--ghost fm-leave" onClick={() => { setFamilyMgmtOpen(false); leaveFamily(); }}>
+              退出家庭
+            </button>
+          </div>
+        </div>
       )}
 
       {/* 成员昵称编辑弹窗 */}

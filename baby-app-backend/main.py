@@ -253,6 +253,23 @@ def init_db():
         id TEXT PRIMARY KEY, baby_id TEXT NOT NULL,
         datetime TEXT, temp REAL, note TEXT DEFAULT ''
     )""")
+    # 出行区：打包清单（生成记录 + 勾选状态）
+    db.execute("""CREATE TABLE IF NOT EXISTS travel_lists (
+        id TEXT, baby_id TEXT NOT NULL,
+        dest_type TEXT, age_months INTEGER,
+        items TEXT DEFAULT '[]',
+        created_at TEXT DEFAULT (datetime('now')),
+        PRIMARY KEY (baby_id, id)
+    )""")
+    # 出行区：出行历史（独立轻量记录，不关联清单、不记带了什么）
+    db.execute("""CREATE TABLE IF NOT EXISTS travel_records (
+        id TEXT, baby_id TEXT NOT NULL,
+        dest_name TEXT, dest_type TEXT,
+        travel_date TEXT, age_months INTEGER,
+        rating INTEGER, note TEXT DEFAULT '',
+        created_at TEXT DEFAULT (datetime('now')),
+        PRIMARY KEY (baby_id, id)
+    )""")
     # 账号体系：手机号 + 密码登录，替代 localStorage 随机 user_id
     # 注意：旧版代码可能已建过 users 表（仅 user_id + created_at），用 IF NOT EXISTS 会跳过导致缺列。
     # 先尝试建完整表（首次部署有效），再用 ALTER TABLE 补齐缺失列（已存在旧表时）。
@@ -2182,7 +2199,105 @@ async def get_dashboard(request: Request):
         stageTip=get_stage_tip(months),
     )
 
-# ---------------- 静态文件托管（生产环境） ----------------
+# ---------------- 出行区 ----------------
+class TravelListItem(BaseModel):
+    id: str = ''
+    dest_type: str = ''          # short / long / abroad
+    age_months: int = 0
+    items: str = '[]'           # JSON: [{cat, name, checked, custom}]
+
+class TravelRecord(BaseModel):
+    id: str = ''
+    dest_name: str = ''
+    dest_type: str = ''
+    travel_date: str = ''
+    age_months: int = 0
+    rating: int = 0              # 1-5
+    note: str = ''
+
+# 打包清单：GET 列表 / POST 新建 / PUT 更新 / DELETE 删除
+@app.get("/travel/lists", response_model=List[TravelListItem])
+async def get_travel_lists(request: Request):
+    bid = get_baby_id(request)
+    rs = db.execute(
+        "SELECT id, dest_type, age_months, items FROM travel_lists WHERE baby_id = ? ORDER BY created_at DESC",
+        [bid]).fetchall()
+    return [TravelListItem(id=r[0], dest_type=r[1] or '', age_months=r[2] or 0, items=r[3] or '[]') for r in rs]
+
+@app.post("/travel/lists", response_model=TravelListItem)
+async def save_travel_list(item: TravelListItem, request: Request):
+    bid = get_baby_id(request)
+    item.id = str(uuid.uuid4())[:8]
+    db.execute(
+        "INSERT INTO travel_lists (id, baby_id, dest_type, age_months, items) VALUES (?, ?, ?, ?, ?)",
+        [item.id, bid, item.dest_type, item.age_months, item.items])
+    db.sync()
+    return item
+
+@app.put("/travel/lists/{list_id}", response_model=TravelListItem)
+async def update_travel_list(list_id: str, item: TravelListItem, request: Request):
+    bid = get_baby_id(request)
+    rs = db.execute("SELECT id FROM travel_lists WHERE id = ? AND baby_id = ?", [list_id, bid]).fetchall()
+    if not rs:
+        raise HTTPException(status_code=404, detail="Travel list not found")
+    db.execute(
+        "UPDATE travel_lists SET dest_type=?, age_months=?, items=? WHERE id=? AND baby_id=?",
+        [item.dest_type, item.age_months, item.items, list_id, bid])
+    db.sync()
+    item.id = list_id
+    return item
+
+@app.delete("/travel/lists/{list_id}")
+async def delete_travel_list(list_id: str, request: Request):
+    bid = get_baby_id(request)
+    rs = db.execute("SELECT id FROM travel_lists WHERE id = ? AND baby_id = ?", [list_id, bid]).fetchall()
+    if not rs:
+        raise HTTPException(status_code=404, detail="Travel list not found")
+    db.execute("DELETE FROM travel_lists WHERE id = ? AND baby_id = ?", [list_id, bid])
+    db.sync()
+    return {"ok": True}
+
+# 出行历史：GET 列表 / POST 新建 / DELETE 删除
+@app.get("/travel/records", response_model=List[TravelRecord])
+async def get_travel_records(request: Request):
+    bid = get_baby_id(request)
+    rs = db.execute(
+        "SELECT id, dest_name, dest_type, travel_date, age_months, rating, note FROM travel_records WHERE baby_id = ? ORDER BY travel_date DESC, created_at DESC",
+        [bid]).fetchall()
+    return [TravelRecord(id=r[0], dest_name=r[1] or '', dest_type=r[2] or '', travel_date=r[3] or '', age_months=r[4] or 0, rating=r[5] or 0, note=r[6] or '') for r in rs]
+
+@app.post("/travel/records", response_model=TravelRecord)
+async def save_travel_record(item: TravelRecord, request: Request):
+    bid = get_baby_id(request)
+    item.id = str(uuid.uuid4())[:8]
+    db.execute(
+        "INSERT INTO travel_records (id, baby_id, dest_name, dest_type, travel_date, age_months, rating, note) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+        [item.id, bid, item.dest_name, item.dest_type, item.travel_date, item.age_months, item.rating, item.note])
+    db.sync()
+    return item
+
+@app.put("/travel/records/{record_id}", response_model=TravelRecord)
+async def update_travel_record(record_id: str, item: TravelRecord, request: Request):
+    bid = get_baby_id(request)
+    rs = db.execute("SELECT id FROM travel_records WHERE id = ? AND baby_id = ?", [record_id, bid]).fetchall()
+    if not rs:
+        raise HTTPException(status_code=404, detail="Travel record not found")
+    db.execute(
+        "UPDATE travel_records SET dest_name=?, dest_type=?, travel_date=?, age_months=?, rating=?, note=? WHERE id=? AND baby_id=?",
+        [item.dest_name, item.dest_type, item.travel_date, item.age_months, item.rating, item.note, record_id, bid])
+    db.sync()
+    item.id = record_id
+    return item
+
+@app.delete("/travel/records/{record_id}")
+async def delete_travel_record(record_id: str, request: Request):
+    bid = get_baby_id(request)
+    rs = db.execute("SELECT id FROM travel_records WHERE id = ? AND baby_id = ?", [record_id, bid]).fetchall()
+    if not rs:
+        raise HTTPException(status_code=404, detail="Travel record not found")
+    db.execute("DELETE FROM travel_records WHERE id = ? AND baby_id = ?", [record_id, bid])
+    db.sync()
+    return {"ok": True}
 # 兼容本地开发和 Docker 容器两种目录结构
 _here = os.path.dirname(os.path.abspath(__file__))
 DIST_DIR_CANDIDATES = [

@@ -59,3 +59,4 @@ debug.log
 baby-app-frontend/前端.txt
 baby-app-frontend/后端.txt
 db_backup_*.json
+*.bak
