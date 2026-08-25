@@ -91,8 +91,10 @@ export default function TravelMap({ months, visitedSpotNames, onSpotClick, heigh
 
   // 拖动平移
   const dragRef = useRef(null);
+  const pinchRef = useRef(null);  // 双指缩放状态（移动端捏合手势）
   const onPointerDown = (e) => {
     if (!svgRef.current) return;
+    if (pinchRef.current) return;  // 双指缩放进行中，不启动单指拖拽
     svgRef.current.setPointerCapture(e.pointerId);
     const rect = svgRef.current.getBoundingClientRect();
     dragRef.current = {
@@ -106,6 +108,7 @@ export default function TravelMap({ months, visitedSpotNames, onSpotClick, heigh
   const onPointerMove = (e) => {
     const d = dragRef.current;
     if (!d) return;
+    if (pinchRef.current) { dragRef.current = null; return; }  // 进入双指模式，终止单指拖拽
     const dx = e.clientX - d.startX, dy = e.clientY - d.startY;
     if (Math.abs(dx) < 3 && Math.abs(dy) < 3) return;
     d.moved = true;
@@ -162,6 +165,83 @@ export default function TravelMap({ months, visitedSpotNames, onSpotClick, heigh
     };
     el.addEventListener('wheel', onWheel, { passive: false });
     return () => el.removeEventListener('wheel', onWheel);
+  }, [view]);
+
+  // 双指缩放/平移（移动端捏合手势）
+  // 用原生 touch 事件（touches 数组可拿多触点），与单指 pointer 拖拽互不干扰：
+  //   - 2 指：按两指距离比缩放（以中点为锚点），同方向移动则平移
+  //   - 1 指交给 pointer 事件处理单指拖拽，这里不拦截
+  useEffect(() => {
+    const el = svgRef.current;
+    if (!el) return;
+    const dist = (t1, t2) => Math.hypot(t1.clientX - t2.clientX, t1.clientY - t2.clientY);
+    const midSvg = (t1, t2) => {
+      const rect = el.getBoundingClientRect();
+      const cx = (t1.clientX + t2.clientX) / 2;
+      const cy = (t1.clientY + t2.clientY) / 2;
+      return {
+        x: (cx - rect.left) / rect.width * view.w + view.x,
+        y: (cy - rect.top) / rect.height * view.h + view.y,
+        clientX: cx, clientY: cy,
+      };
+    };
+    const clampView = (nx, ny, nw, nh) => {
+      if (nw < 200) { nw = 200; nh = nw * (VB.h / VB.w); }
+      if (nw > VB.w) { nw = VB.w; nh = VB.h; }
+      nx = Math.max(VB.x, Math.min(nx, VB.x + VB.w - nw));
+      ny = Math.max(VB.y, Math.min(ny, VB.y + VB.h - nh));
+      return { x: nx, y: ny, w: nw, h: nh };
+    };
+    const onTouchStart = (e) => {
+      if (e.touches.length !== 2) return;
+      e.preventDefault();                 // 阻止浏览器默认缩放/滚动
+      setUserControlled(true);
+      const [t1, t2] = e.touches;
+      const m = midSvg(t1, t2);
+      pinchRef.current = {
+        startDist: dist(t1, t2),
+        startMid: m,
+        startView: { ...view },
+      };
+      el.classList.add('grabbing');
+    };
+    const onTouchMove = (e) => {
+      const p = pinchRef.current;
+      if (!p || e.touches.length !== 2) return;
+      e.preventDefault();
+      const [t1, t2] = e.touches;
+      const ratio = p.startDist > 0 ? dist(t1, t2) / p.startDist : 1;
+      // 两指分开(ratio>1)→缩小(viewBox 变大); 两指靠近(ratio<1)→放大(viewBox 变小)
+      let factor = Math.max(0.25, Math.min(4, ratio));
+      let nw = p.startView.w * factor, nh = p.startView.h * factor;
+      // 以起始中点为锚点保持不动
+      let nx = p.startMid.x - (p.startMid.x - p.startView.x) * (nw / p.startView.w);
+      let ny = p.startMid.y - (p.startMid.y - p.startView.y) * (nh / p.startView.h);
+      // 叠加平移：当前两指中点相对起始中点的位移
+      const curMid = midSvg(t1, t2);
+      // 平移量用 SVG 坐标系换算
+      const rect = el.getBoundingClientRect();
+      const dx = (curMid.clientX - p.startMid.clientX) / rect.width * p.startView.w;
+      const dy = (curMid.clientY - p.startMid.clientY) / rect.height * p.startView.h;
+      nx -= dx; ny -= dy;
+      setView(clampView(nx, ny, nw, nh));
+    };
+    const onTouchEnd = (e) => {
+      if (e.touches.length < 2) {
+        pinchRef.current = null;
+        el.classList.remove('grabbing');
+      }
+    };
+    el.addEventListener('touchstart', onTouchStart, { passive: false });
+    el.addEventListener('touchmove', onTouchMove, { passive: false });
+    el.addEventListener('touchend', onTouchEnd);
+    el.addEventListener('touchcancel', onTouchEnd);
+    return () => {
+      el.removeEventListener('touchstart', onTouchStart);
+      el.removeEventListener('touchmove', onTouchMove);
+      el.removeEventListener('touchend', onTouchEnd);
+      el.removeEventListener('touchcancel', onTouchEnd);
+    };
   }, [view]);
 
   return (
