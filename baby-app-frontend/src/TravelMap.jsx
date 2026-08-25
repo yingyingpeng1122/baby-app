@@ -211,8 +211,9 @@ export default function TravelMap({ months, visitedSpotNames, onSpotClick, heigh
       e.preventDefault();
       const [t1, t2] = e.touches;
       const ratio = p.startDist > 0 ? dist(t1, t2) / p.startDist : 1;
-      // 两指分开(ratio>1)→缩小(viewBox 变大); 两指靠近(ratio<1)→放大(viewBox 变小)
-      let factor = Math.max(0.25, Math.min(4, ratio));
+      // 标准地图手势：双指分开(ratio>1)→放大(viewBox 变小, factor<1)；双指靠近(ratio<1)→缩小(viewBox 变大, factor>1)
+      // 因此 factor = 1/ratio（反比关系）
+      let factor = 1 / Math.max(0.25, Math.min(4, ratio));
       let nw = p.startView.w * factor, nh = p.startView.h * factor;
       // 以起始中点为锚点保持不动
       let nx = p.startMid.x - (p.startMid.x - p.startView.x) * (nw / p.startView.w);
