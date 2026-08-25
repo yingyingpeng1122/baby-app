@@ -445,7 +445,12 @@ function useReveal() {
       es.forEach((e) => { if (e.isIntersecting) { e.target.classList.add('in-view'); io.unobserve(e.target); } });
     }, { threshold: 0.12 });
     io.observe(el);
-    return () => io.disconnect();
+    // 兜底：切 tab 导致 display 从 none 变 block 后，IntersectionObserver 不一定会立即重新检查，
+    // 元素可能一直停在 opacity:0（看起来空白）。200ms 后若仍未 in-view，强制显示。
+    const fallback = setTimeout(() => {
+      if (!el.classList.contains('in-view')) el.classList.add('in-view');
+    }, 250);
+    return () => { io.disconnect(); clearTimeout(fallback); };
   }, []);
   return ref;
 }
@@ -3350,7 +3355,7 @@ export default function BabyAppFullStack() {
       {/* 出行区：目的地推荐 → 打包清单 → 出行历史 */}
       {activeZone === 'travel' && (
         <div className="zone zone--travel wrap">
-          <Reveal className="section" delay={0.05}>
+          <div className="section" style={{ opacity: 1, transform: 'none' }}>
             <div className="section__head">
               <span className="section__ico section__ico--coral"><MapPin className="icon icon--sm" /></span>
               <h2 className="section__title">带娃出行</h2>
@@ -3609,7 +3614,7 @@ export default function BabyAppFullStack() {
             )}
 
             {/* ---------- 目的地推荐（占位） ---------- */}
-          </Reveal>
+          </div>
         </div>
       )}
 

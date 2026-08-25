@@ -1720,10 +1720,17 @@ button:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
 
 /* ---------- 三区域切换 Tab ---------- */
 .zone-tabs {
+  position: sticky; top: 74px; z-index: 19;
   max-width: 880px; margin: 0 auto;
-  padding: 4px 20px;
+  padding: 4px 16px;
   display: flex; gap: 4px; align-items: stretch; justify-content: space-between;
-  background: transparent; border: none;
+  background: rgba(255,255,255,.82);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  border: 1px solid rgba(227,236,233,.7);
+  border-top: none;
+  border-radius: 0 0 14px 14px;
+  box-shadow: 0 3px 12px rgba(16,48,43,.07);
 }
 .zone-tabs + .wrap { padding-top: 16px; }
 /* 出行区是独立 .wrap（在含 growth+daily 的主 .wrap 之后）。
@@ -1733,9 +1740,9 @@ button:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
 .app[data-zone="travel"] .zone-tabs + .wrap { display: none !important; }
 .zone--travel.wrap { padding-top: 16px; }
 .zone-tabs__btn {
-  flex: 1; display: inline-flex; flex-direction: row; align-items: center; justify-content: center; gap: 6px;
-  padding: 10px 8px; border: none; background: none; cursor: pointer;
-  border-radius: 999px; font-size: 14px; font-weight: 600; color: var(--muted, #6b7280);
+  flex: 1; display: inline-flex; flex-direction: row; align-items: center; justify-content: center; gap: 5px;
+  padding: 6px 8px; border: none; background: none; cursor: pointer;
+  border-radius: 999px; font-size: 13px; font-weight: 600; color: var(--muted, #6b7280);
   transition: background .15s, color .15s;
 }
 .zone-tabs__btn .icon { color: var(--muted, #6b7280); }
@@ -1757,12 +1764,16 @@ button:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
 /* 移动端：Tab 固定到底部，三等分竖排，内容区底部留白 */
 @media (max-width: 720px) {
   .zone-tabs {
-    position: fixed; left: 0; right: 0; bottom: 0; z-index: 900;
+    position: fixed; left: 0; right: 0; top: auto; bottom: 0; z-index: 900;
     margin: 0; width: 100%; max-width: 100%;
-    justify-content: space-around; gap: 0;
-    border-radius: 0; border-left: none; border-right: none; border-bottom: none;
+    border-radius: 0;
+    border: none;
+    border-top: 1px solid rgba(227,236,233,.7);
     padding: 6px 8px calc(6px + env(safe-area-inset-bottom));
-    background: #fff; box-shadow: 0 -2px 12px rgba(0,0,0,.08);
+    background: rgba(255,255,255,.92);
+    backdrop-filter: blur(14px);
+    -webkit-backdrop-filter: blur(14px);
+    box-shadow: 0 -4px 16px rgba(16,48,43,.08);
   }
   .zone-tabs__btn { flex: 1; flex-direction: column; gap: 2px; padding: 6px 0; font-size: 11px; }
   .zone-tabs__label { font-size: 11px; }
