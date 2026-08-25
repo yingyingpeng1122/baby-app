@@ -433,11 +433,19 @@ button:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
   position: fixed; inset: 0; z-index: 10000;
   background: rgba(0,0,0,.35); backdrop-filter: blur(4px);
   display: grid; place-items: center; padding: 20px;
+  /* 桌面端：顶部留出 zone-tabs(sticky, top:74, h~40) 的避让空间，
+     防止 cal-modal 居中后顶部关闭按钮被 zone-tabs 遮挡；
+     同时 cal-overlay 的 fixed 定位 + z-index:10000 已确保层级在 zone-tabs 之上，
+     这里只是视觉避让，让关闭按钮完全可见可点。 */
+  padding-top: 130px;
   animation: fadeIn .2s ease;
 }
 .cal-modal {
   background: #fff; border-radius: var(--r-card); box-shadow: var(--sh-lg);
   width: 100%; max-width: 400px; max-height: 85vh; overflow-y: auto; overflow-x: hidden;
+  /* 桌面端：max-height 减去 cal-overlay 的 padding-top(130px) + padding-bottom(20px)，
+     防止弹窗底部超出视口；移动端在 @media 内覆盖为 88vh。 */
+  max-height: calc(85vh - 150px);
   padding: 0 24px 22px; /* 顶部留白移入 sticky 头部，使头部与滚动视口顶部齐平，避免滚动后顶部镂空 */
   animation: slideUp .25s cubic-bezier(.2,.8,.3,1);
   /* 细窄自定义滚动条，避免默认滚动条突兀 */

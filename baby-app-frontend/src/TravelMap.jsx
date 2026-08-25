@@ -89,6 +89,55 @@ export default function TravelMap({ months, visitedSpotNames, onSpotClick, heigh
   };
   const reset = () => { setUserControlled(false); setView(filterActive ? focusViewBox(SPOTS_VISITABLE.filter(s => filter.matched.has(s.id)), 70) : { ...VB }); };
 
+  // 标签防重叠：贪心算法 + 四向放置（上/下/左/右）
+  // 优先级：星级高 > 已出行 > id 小（数据靠前）
+  // 对每个标签依次尝试：上方 → 下方 → 左侧 → 右侧，全部碰撞才隐藏
+  const labelLayout = useMemo(() => {
+    const visible = points.filter(s => {
+      if (filterActive && !s.matched) return false;
+      if (s.stars <= 0) return false;
+      return true;
+    });
+    const charW = 11 * (view.w / VB.w);   // 单字宽（SVG 坐标）
+    const labelH = 14 * (view.h / VB.h);  // 标签行高
+    const offsetY = 11 * (view.h / VB.h); // 标签距点位的垂直偏移
+    const offsetX = 12 * (view.w / VB.w); // 标签距点位的水平偏移（左右放置时）
+    // 每个景点生成四个候选位置：上/下/左/右
+    const candidates = visible.flatMap(s => {
+      const w = (s.name.length || 4) * charW;
+      const h = labelH;
+      return [
+        { s, pos: 'top',    x: s.x - w / 2,       y: s.y - offsetY - h, w, h },
+        { s, pos: 'bottom', x: s.x - w / 2,       y: s.y + offsetY,     w, h },
+        { s, pos: 'left',   x: s.x - w - offsetX, y: s.y - h / 2,       w, h },
+        { s, pos: 'right',  x: s.x + offsetX,     y: s.y - h / 2,       w, h },
+      ];
+    });
+    // 按优先级排序：星级降序 > 已出行优先 > id 升序
+    const sorted = [...visible].sort((a, b) => {
+      if (b.stars !== a.stars) return b.stars - a.stars;
+      if (a.visited !== b.visited) return a.visited ? -1 : 1;
+      return a.id - b.id;
+    });
+    const placed = [];
+    const result = new Map();  // id -> 'top'|'bottom'|'left'|'right' | null（隐藏）
+    for (const s of sorted) {
+      const cands = candidates.filter(c => c.s.id === s.id);
+      let chosen = null;
+      for (const c of cands) {
+        const collide = placed.some(p => !(c.x + c.w < p.x || c.x > p.x + p.w || c.y + c.h < p.y || c.y > p.y + p.h));
+        if (!collide) { chosen = c; break; }
+      }
+      if (chosen) {
+        placed.push(chosen);
+        result.set(s.id, chosen.pos);
+      } else {
+        result.set(s.id, null);
+      }
+    }
+    return result;
+  }, [points, view, filterActive]);
+
   // 拖动平移
   const dragRef = useRef(null);
   const pinchRef = useRef(null);  // 双指缩放状态（移动端捏合手势）
@@ -345,8 +394,28 @@ export default function TravelMap({ months, visitedSpotNames, onSpotClick, heigh
                     fill={dimmed ? '#d8d8d8' : (visited ? 'url(#g2)' : '#c8c2b5')}
                     stroke="#fff" strokeWidth="2"
                   />
-                  {!dimmed && stars > 0 && (
-                    <text x={s.x} y={s.y - 11} textAnchor="middle" className="map-spot-label">{s.name}</text>
+                  {!dimmed && stars > 0 && labelLayout.get(s.id) && (
+                    <text
+                      x={(() => {
+                        const pos = labelLayout.get(s.id);
+                        if (pos === 'left')  return s.x - 12;
+                        if (pos === 'right') return s.x + 12;
+                        return s.x;  // top/bottom 居中
+                      })()}
+                      y={(() => {
+                        const pos = labelLayout.get(s.id);
+                        if (pos === 'bottom') return s.y + 22;
+                        if (pos === 'left' || pos === 'right') return s.y + 4;  // 左右放置：垂直居中
+                        return s.y - 11;  // top
+                      })()}
+                      textAnchor={(() => {
+                        const pos = labelLayout.get(s.id);
+                        if (pos === 'left')  return 'end';
+                        if (pos === 'right') return 'start';
+                        return 'middle';
+                      })()}
+                      className="map-spot-label"
+                    >{s.name}</text>
                   )}
                 </g>
               );
