@@ -1604,13 +1604,13 @@ export default function BabyAppFullStack() {
       if (recoStar !== 'all' && stars !== recoStar) return false;
       return true;
     });
-    // 按当前月龄星级降序，同星级按已打卡优先
+    // 已出行排到列表最下方；未出行按当前月龄星级降序
     arr.sort((a, b) => {
-      const sa = starsForAge(a, recoMonths), sb = starsForAge(b, recoMonths);
-      if (sb !== sa) return sb - sa;
       const va = visitedSpotNames.has(a.name) ? 1 : 0;
       const vb = visitedSpotNames.has(b.name) ? 1 : 0;
-      return va - vb;
+      if (va !== vb) return va - vb;          // 未出行(0)在前，已出行(1)在后
+      const sa = starsForAge(a, recoMonths), sb = starsForAge(b, recoMonths);
+      return sb - sa;                          // 同组内按星级降序
     });
     return arr;
   }, [recoDistrict, recoStar, recoMonths, visitedSpotNames]);

@@ -1195,8 +1195,8 @@ button:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
 @media (max-width: 720px) {
   .wrap { padding: 18px 14px 80px; }
 
-  /* 顶栏：紧凑，宝宝切换器横向滚动不换行 */
-  .topbar__inner { padding: 10px 14px; gap: 8px; }
+  /* 顶栏：与底部 zone-tabs 视觉对称，主体 padding 调高（原 10px→14px）+ 顶部 safe-area 自动顶起（与底部 safe-area 对称） */
+  .topbar__inner { padding: 14px 16px; padding-top: calc(14px + env(safe-area-inset-top)); gap: 8px; }
   .brand__logo { width: 40px; height: 40px; border-radius: 12px; }
   .brand__name { font-size: 16px; }
   .brand__meta { font-size: 11px; }
@@ -1290,7 +1290,7 @@ button:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
 /* ---------- 响应式：小屏手机 ---------- */
 @media (max-width: 480px) {
   .wrap { padding: 16px 12px 72px; }
-  .topbar__inner { padding: 8px 12px; }
+  .topbar__inner { padding: 12px 14px; padding-top: calc(12px + env(safe-area-inset-top)); }
   .brand__name { font-size: 15px; }
   .baby-switcher { max-width: 36vw; }
   .hero { padding: 18px 14px; }
