@@ -430,7 +430,7 @@ button:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
 .checklist__cal-btn { margin-left: auto; flex: none; gap: 6px; }
 
 .cal-overlay {
-  position: fixed; inset: 0; z-index: 9000;
+  position: fixed; inset: 0; z-index: 10000;
   background: rgba(0,0,0,.35); backdrop-filter: blur(4px);
   display: grid; place-items: center; padding: 20px;
   animation: fadeIn .2s ease;
@@ -1263,6 +1263,18 @@ button:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
   .cal-cell { font-size: 13px; }
   .cal-weekdays__day { font-size: 11px; }
   .cal-month-nav__label { font-size: 15px; }
+  /* 移动端日历改底部抽屉式：从底部滑出、贴底显示，关闭按钮始终在顶部可见、
+     不再被 fixed zone-tabs(底部胶囊) 遮挡导致关不掉（照护/喂养/生病三个日历统一生效） */
+  .cal-overlay { place-items: flex-end; padding: 0; }
+  .cal-modal {
+    width: 100%; max-width: 100%; max-height: 88vh;
+    border-radius: 20px 20px 0 0;
+    padding-bottom: calc(18px + env(safe-area-inset-bottom));
+    animation: slideUp .25s cubic-bezier(.2,.8,.3,1);
+  }
+  /* 关闭按钮触摸区加大，移动端易点 */
+  .cal-modal__close { padding: 8px; min-width: 40px; min-height: 40px; display: grid; place-items: center; }
+  .cal-modal__sticky { border-radius: 20px 20px 0 0; }
 
   /* 手机端 family-bar 两行布局：成员+退出家庭在第一行，宝宝品牌区独占第二行 */
   .family-bar__inner { flex-wrap: wrap; gap: 6px 12px; }
