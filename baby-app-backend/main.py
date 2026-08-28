@@ -414,6 +414,7 @@ class DashboardResponse(BaseModel):
     feedingAdvice: FeedingAdvice
     activities: List[Activity]
     music: List[Activity] = []
+    stories: List[Activity] = []   # 绘本区：按月龄推荐经典绘本 + 共读示范视频
     stageTip: dict = {}   # 阶段提醒：{ featured, current, after }
 
 class ChecklistItem(BaseModel):
@@ -828,6 +829,95 @@ MUSIC_LIBRARY = [
     {'id': 230, 'title': 'London Bridge', 'desc': '经典英文童谣', 'keyword': 'London Bridge is Falling Down nursery', 'lang': '英文童谣'},
     {'id': 231, 'title': 'Itsy Bitsy Spider', 'desc': '动作英文儿歌', 'keyword': 'Itsy Bitsy Spider nursery rhyme', 'lang': '英文童谣'},
 ]
+
+STORY_LIBRARY = [
+    # —— 6-12 月：认知启蒙 / 视觉刺激 / 拟声词 ——
+    {'id': 301, 'title': '好饿的毛毛虫', 'author': '艾瑞·卡尔', 'months': [6, 24],
+     'desc': '共读要点：指认食物名称、数一数吃了几个、模仿毛毛虫爬行，认知食物/数量/星期与生命循环',
+     'keyword': '好饿的毛毛虫 绘本 朗读'},
+    {'id': 302, 'title': '棕色的熊，棕色的熊，你在看什么', 'author': '艾瑞·卡尔', 'months': [6, 18],
+     'desc': '共读要点：模仿动物叫声、指认颜色、感受重复句式的节奏，认知动物与颜色',
+     'keyword': '棕色的熊 绘本 朗读 艾瑞卡尔'},
+    {'id': 303, 'title': '蹦！', 'author': '松冈达英', 'months': [6, 18],
+     'desc': '共读要点：跟读拟声词「蹦」、模仿动物跳跃动作、指认小动物，语言萌芽与动作认知',
+     'keyword': '蹦 绘本 松冈达英 朗读'},
+    {'id': 304, 'title': '点点点', 'author': '赫维·杜雷', 'months': [9, 24],
+     'desc': '共读要点：按指令点按、摇晃、吹气，感受因果关系与互动乐趣，颜色与方向认知',
+     'keyword': '点点点 绘本 互动 朗读'},
+    # —— 12-18 月：语言萌芽 / 生活认知 / 亲子依恋 ——
+    {'id': 311, 'title': '小蓝和小黄', 'author': '李欧·李奥尼', 'months': [12, 30],
+     'desc': '共读要点：指认蓝色黄色、感受拥抱变绿的颜色混合、讨论好朋友，颜色与友谊认知',
+     'keyword': '小蓝和小黄 绘本 朗读'},
+    {'id': 312, 'title': '抱抱', 'author': '杰兹·阿波罗', 'months': [12, 24],
+     'desc': '共读要点：边读边抱宝宝、模仿动物拥抱、强化亲子依恋，情感联结与安全感',
+     'keyword': '抱抱 绘本 朗读 亲子'},
+    {'id': 313, 'title': '月亮，晚安', 'author': '玛格丽特·怀兹', 'months': [12, 30],
+     'desc': '共读要点：逐一道晚安、指认房间物品、建立睡前仪式，睡眠习惯与物体恒存',
+     'keyword': '月亮晚安 绘本 朗读 睡前'},
+    {'id': 314, 'title': '我爸爸', 'author': '安东尼·布朗', 'months': [12, 36],
+     'desc': '共读要点：指认爸爸的特征、模仿表情动作、表达对爸爸的爱，家庭关系与情感表达',
+     'keyword': '我爸爸 绘本 安东尼布朗 朗读'},
+    # —— 18-24 月：语言爆发 / 行为边界 / 观察力 ——
+    {'id': 321, 'title': '大卫，不可以', 'author': '大卫·香农', 'months': [18, 36],
+     'desc': '共读要点：讨论大卫为什么不可以、引导说出规则、模仿「不可以」语气，行为边界与规则感',
+     'keyword': '大卫不可以 绘本 朗读'},
+    {'id': 322, 'title': '好饿的小蛇', 'author': '宫西达也', 'months': [12, 30],
+     'desc': '共读要点：猜小蛇吃了什么、指认颜色形状、模仿吃东西的声音，颜色形状与食物认知',
+     'keyword': '好饿的小蛇 绘本 宫西达也 朗读'},
+    {'id': 323, 'title': '小金鱼逃走了', 'author': '五味太郎', 'months': [12, 30],
+     'desc': '共读要点：一起找小金鱼、指认躲藏位置、感受寻找的成就感，观察力与寻找游戏',
+     'keyword': '小金鱼逃走了 绘本 朗读 五味太郎'},
+    {'id': 324, 'title': '是谁嗯嗯在我的头上', 'author': '维尔纳·霍尔茨瓦特', 'months': [18, 36],
+     'desc': '共读要点：认识不同动物的便便、讨论如厕、模仿小鼹鼠生气的样子，如厕认知与幽默感',
+     'keyword': '是谁嗯嗯在我的头上 绘本 朗读'},
+    # —— 24+ 月：语言丰富 / 情绪管理 / 想象力 ——
+    {'id': 331, 'title': '猜猜我有多爱你', 'author': '山姆·麦克布雷尼', 'months': [24, 48],
+     'desc': '共读要点：用手臂比划有多爱、模仿兔子对话、表达对彼此的爱，情感表达与比较概念',
+     'keyword': '猜猜我有多爱你 绘本 朗读'},
+    {'id': 332, 'title': '逃家小兔', 'author': '玛格丽特·怀兹', 'months': [24, 48],
+     'desc': '共读要点：玩「如果你变成…我就变成…」游戏、感受妈妈永远追得上，安全感与依恋',
+     'keyword': '逃家小兔 绘本 朗读'},
+    {'id': 333, 'title': '好忙的蜘蛛', 'author': '艾瑞·卡尔', 'months': [18, 36],
+     'desc': '共读要点：模仿织网动作、感受蜘蛛的专注、指认来访动物，专注力与重复句式',
+     'keyword': '好忙的蜘蛛 绘本 朗读 艾瑞卡尔'},
+    {'id': 334, 'title': '菲菲生气了', 'author': '莫莉·卞', 'months': [24, 48],
+     'desc': '共读要点：讨论菲菲为什么生气、模仿深呼吸平静下来、说说自己生气时怎么办，情绪管理',
+     'keyword': '菲菲生气了 绘本 朗读'},
+]
+
+def get_stories(months: int) -> List[Activity]:
+    """绘本区：按宝宝月龄筛 3-4 本经典绘本，附共读要点与共读示范视频。
+    AAP / Zero to Three：共读真正"受益"从约 6 个月开始（宝宝能看到全彩、能坐、能抓握、
+    开始理解图片代表物体）。<6 个月返回空列表，前端不渲染绘本区。
+    """
+    if months < 6:
+        return []
+    pool = [s for s in STORY_LIBRARY if s['months'][0] <= months <= s['months'][1]]
+    if not pool:
+        pool = STORY_LIBRARY[:]   # 兜底：月龄范围没命中就全量
+    n = min(random.choice([3, 4]), len(pool))
+    chosen = random.sample(pool, n)
+
+    results = []
+    for item in chosen:
+        a = Activity(
+            id=item['id'],
+            type='story',
+            title=item['title'],
+            desc=item['desc'],
+            ageRange=item['months'],
+            videoUrl='#',
+            icon='reading',
+            keyword=item['keyword'],
+            stage='',
+            lang=f"{item['author']} · 适合 {item['months'][0]}–{item['months'][1]} 月",
+        )
+        if not a.videoUrl or a.videoUrl == '#':
+            a.videoUrl = search_bilibili(item['keyword'])
+        if a.id in activity_videos:
+            a.videoUrl = activity_videos[a.id]
+        results.append(a)
+    return results
 
 def get_music() -> List[Activity]:
     """音乐区：每次随机 3-4 个，且中英文都会覆盖到。全阶段适用。"""
@@ -2196,6 +2286,7 @@ async def get_dashboard(request: Request):
         feedingAdvice=get_feeding_advice(months),
         activities=get_activities(months),
         music=get_music(),
+        stories=get_stories(months),
         stageTip=get_stage_tip(months),
     )
 

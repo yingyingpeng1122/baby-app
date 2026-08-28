@@ -394,6 +394,13 @@ export default function TravelMap({ months, visitedSpotNames, onSpotClick, heigh
                     fill={dimmed ? '#d8d8d8' : (visited ? 'url(#g2)' : '#c8c2b5')}
                     stroke="#fff" strokeWidth="2"
                   />
+                  {/* 已出行：紫色圆里加白色 √ */}
+                  {visited && !dimmed && (
+                    <path
+                      d={`M${s.x - 2.6},${s.y + 0.2} L${s.x - 0.6},${s.y + 2.2} L${s.x + 3},${s.y - 2.4}`}
+                      stroke="#fff" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" fill="none"
+                    />
+                  )}
                   {!dimmed && stars > 0 && labelLayout.get(s.id) && (
                     <text
                       x={(() => {

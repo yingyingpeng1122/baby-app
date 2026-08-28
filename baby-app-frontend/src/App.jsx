@@ -1041,10 +1041,13 @@ export default function BabyAppFullStack() {
   // 目的地推荐：区筛选 + 星级筛选 + 已打卡状态来自 travelRecords（按 dest_name 匹配）
   const [recoDistrict, setRecoDistrict] = useState('all');   // 'all' | 区名
   const [recoStar, setRecoStar] = useState('all');           // 'all' | 1-5
+  const [recoVisited, setRecoVisited] = useState('all');     // 'all' | 'visited' | 'unvisited'
   // 标记出行的弹窗（从地点详情"标记出行"按钮打开）
   const [markModal, setMarkModal] = useState(null);          // { spot } | null
   // 地点详情弹窗（从地图点位点击打开）
   const [spotModal, setSpotModal] = useState(null);          // { spot } | null
+  // 退出登录二次确认弹窗（自建 Modal，不用原生 confirm，避免移动端 PWA 不响应）
+  const [logoutConfirm, setLogoutConfirm] = useState(false);
   // 生病模式：体温记录（按宝宝同步到后端，跨设备一致）
   const [sickMode, setSickMode] = useState(false);
   const [tempRecords, setTempRecords] = useState([]);
@@ -1115,6 +1118,7 @@ export default function BabyAppFullStack() {
   };
 
   const logout = async () => {
+    setLogoutConfirm(false);            // 关闭确认弹窗
     try { await authFetch(`${API_BASE}/auth/logout`, { method: 'POST', headers: { Authorization: `Bearer ${getToken()}` } }); } catch {}
     setToken('');
     setCurrentUser(null);
@@ -1602,6 +1606,9 @@ export default function BabyAppFullStack() {
       if (recoDistrict !== 'all' && s.district !== recoDistrict) return false;
       const stars = starsForAge(s, recoMonths);
       if (recoStar !== 'all' && stars !== recoStar) return false;
+      const visited = visitedSpotNames.has(s.name);
+      if (recoVisited === 'visited' && !visited) return false;
+      if (recoVisited === 'unvisited' && visited) return false;
       return true;
     });
     // 已出行排到列表最下方；未出行按当前月龄星级降序
@@ -1613,7 +1620,7 @@ export default function BabyAppFullStack() {
       return sb - sa;                          // 同组内按星级降序
     });
     return arr;
-  }, [recoDistrict, recoStar, recoMonths, visitedSpotNames]);
+  }, [recoDistrict, recoStar, recoVisited, recoMonths, visitedSpotNames]);
   // 打卡统计
   const recoStats = useMemo(() => {
     const total = SPOTS_VISITABLE.length;
@@ -2100,7 +2107,7 @@ export default function BabyAppFullStack() {
       </div>
     );
   }
-  const { profile, months, growthStandard: g, isWeightNormal, isHeightNormal, weightStatus: wStat, heightStatus: hStat, feedingAdvice: f, activities, music = [], stageTip: st = {} } = data;
+  const { profile, months, growthStandard: g, isWeightNormal, isHeightNormal, weightStatus: wStat, heightStatus: hStat, feedingAdvice: f, activities, music = [], stories = [], stageTip: st = {} } = data;
   const stFeatured = st.featured || null;
   const stCurrent = st.current || [];
   const stAfter = st.after || null;
@@ -2187,7 +2194,7 @@ export default function BabyAppFullStack() {
                 <button className="topbar__icon-btn" onClick={() => setEditProfileModal(true)} title="修改昵称和密码" aria-label="修改信息">
                   <User className="icon icon--sm" />
                 </button>
-                <button className="topbar__icon-btn" onClick={logout} title={`退出登录（${currentUser.nickname || currentUser.phone}）`} aria-label="退出登录">
+                <button className="topbar__icon-btn" onClick={() => setLogoutConfirm(true)} title={`退出登录（${currentUser.nickname || currentUser.phone}）`} aria-label="退出登录">
                   <LogOut className="icon icon--sm" />
                 </button>
               </>
@@ -3350,6 +3357,16 @@ export default function BabyAppFullStack() {
           <ActList items={music} onPlay={(a) => setModal({ open: true, title: a.title, src: a.videoUrl || '' })} />
         </Reveal>
 
+        {months >= 6 && stories.length > 0 && (
+          <Reveal className="section zone zone--daily" delay={0.11}>
+            <div className="section__head">
+              <span className="section__ico section__ico--honey"><BookOpen className="icon icon--sm" /></span>
+              <h2 className="section__title">绘本推荐</h2>
+              <span className="section__hint">每日精选 · 共读示范</span>
+            </div>
+            <ActList items={stories} onPlay={(a) => setModal({ open: true, title: `${a.title} · 共读示范`, src: a.videoUrl || '' })} />
+          </Reveal>
+        )}
       </div>
 
       {/* 出行区：目的地推荐 → 打包清单 → 出行历史 */}
@@ -3400,16 +3417,21 @@ export default function BabyAppFullStack() {
                   months={recoMonths}
                   visitedSpotNames={visitedSpotNames}
                   onSpotClick={(s) => setSpotModal({ spot: s })}
-                  filter={{ district: recoDistrict, star: recoStar, matched: (recoDistrict !== 'all' || recoStar !== 'all') ? new Set(filteredSpots.map(s => s.id)) : null }}
+                  filter={{ district: recoDistrict, star: recoStar, visited: recoVisited, matched: (recoDistrict !== 'all' || recoStar !== 'all' || recoVisited !== 'all') ? new Set(filteredSpots.map(s => s.id)) : null }}
                 />
 
-                {/* 筛选器：区 + 星级 */}
+                {/* 筛选器：区 + 出行状态 + 星级 */}
                 <div className="reco-filters">
                   <div className="reco-filter-row">
                     <button className={`reco-chip ${recoDistrict === 'all' ? 'is-on' : ''}`} onClick={() => setRecoDistrict('all')}>全部区</button>
                     {DISTRICTS.map(d => (
                       <button key={d.name} className={`reco-chip ${recoDistrict === d.name ? 'is-on' : ''}`} onClick={() => setRecoDistrict(d.name)}>{d.name}</button>
                     ))}
+                  </div>
+                  <div className="reco-filter-row reco-filter-row--visited">
+                    <button className={`reco-chip reco-chip--visited ${recoVisited === 'all' ? 'is-on' : ''}`} onClick={() => setRecoVisited('all')}>全部</button>
+                    <button className={`reco-chip reco-chip--visited ${recoVisited === 'visited' ? 'is-on' : ''}`} onClick={() => setRecoVisited('visited')}>去过 ✓</button>
+                    <button className={`reco-chip reco-chip--visited ${recoVisited === 'unvisited' ? 'is-on' : ''}`} onClick={() => setRecoVisited('unvisited')}>没去过</button>
                   </div>
                   <div className="reco-filter-row reco-filter-row--star">
                     <button className={`reco-chip reco-chip--star ${recoStar === 'all' ? 'is-on' : ''}`} onClick={() => setRecoStar('all')}>全部星级</button>
@@ -3732,6 +3754,21 @@ export default function BabyAppFullStack() {
           onClose={() => setEditProfileModal(false)}
           onSave={saveProfile}
         />
+      )}
+
+      {/* 退出登录二次确认弹窗 */}
+      {logoutConfirm && (
+        <div className="modal modal--confirm" role="dialog" aria-modal="true">
+          <div className="modal__backdrop" onClick={() => setLogoutConfirm(false)} />
+          <div className="modal__card modal__card--confirm">
+            <div className="confirm__title">退出登录</div>
+            <div className="confirm__msg">确定要退出当前账号吗？</div>
+            <div className="confirm__actions">
+              <button className="btn btn--ghost btn--sm" onClick={() => setLogoutConfirm(false)}>取消</button>
+              <button className="btn btn--primary btn--sm" onClick={logout}>退出</button>
+            </div>
+          </div>
+        </div>
       )}
 
       {/* 家庭管理弹窗（家庭名/ID/成员/退出家庭/添加宝宝） */}

@@ -143,6 +143,7 @@ button:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
 /* ---------- 区块标题 ---------- */
 .section { position: relative; margin-bottom: 26px; }
 .section__head { display: flex; align-items: center; flex-wrap: wrap; gap: 10px; margin: 0 0 14px 2px; }
+.section__hint { margin-left: auto; font-size: 12px; color: var(--muted); font-weight: 400; }
 .section__toggle { margin-left: auto; display: inline-flex; align-items: center; gap: 4px; font-size: 13px; font-weight: 800; color: var(--primary-600); background: var(--primary-soft); border: none; padding: 6px 13px; border-radius: 999px; cursor: pointer; }
 .section__toggle .icon { transition: transform .2s ease; }
 .section__toggle.is-open .icon { transform: rotate(180deg); }
@@ -1162,6 +1163,19 @@ button:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
 }
 .modal__close:hover { background: var(--coral-soft); color: var(--coral); }
 .fm-head { display: flex; flex-direction: column; align-items: center; gap: 8px; padding: 8px 0 16px; border-bottom: 1px solid var(--line); }
+
+/* ---------- 二次确认弹窗（退出登录等） ---------- */
+.modal--confirm { z-index: 10001; }
+.modal__card--confirm {
+  position: relative; z-index: 1; width: min(320px, 88vw);
+  background: #fff; border-radius: 18px; box-shadow: var(--sh-lg);
+  padding: 22px 20px 18px; text-align: center;
+}
+.confirm__title { font-family: var(--font-display); font-size: 17px; font-weight: 700; color: var(--ink); margin-bottom: 6px; }
+.confirm__msg { font-size: 14px; color: var(--muted, #6b7280); line-height: 1.5; margin-bottom: 18px; }
+.confirm__actions { display: flex; gap: 10px; justify-content: center; }
+.confirm__actions .btn { min-width: 88px; }
+
 .fm-head .icon { color: var(--honey, #f59e0b); }
 .fm-head__name { font-family: var(--font-display); font-size: 18px; font-weight: 700; color: var(--ink); }
 .fm-head__fid {
@@ -1840,6 +1854,7 @@ button:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
 
 .reco-filters { display: flex; flex-direction: column; gap: 6px; }
 .reco-filter-row { display: flex; flex-wrap: wrap; gap: 6px; }
+.reco-filter-row--visited { padding-top: 4px; border-top: 1px dashed rgba(216,90,48,.12); }
 .reco-filter-row--star { padding-top: 4px; border-top: 1px dashed rgba(216,90,48,.12); }
 .reco-chip {
   padding: 4px 10px; border: 1px solid rgba(216,90,48,.14); border-radius: 999px;
@@ -1848,6 +1863,7 @@ button:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
 .reco-chip:hover { border-color: #F0997B; color: #d85a30; }
 .reco-chip.is-on { background: #F0997B; color: #fff; border-color: #F0997B; }
 .reco-chip--star.is-on { background: #f5a623; border-color: #f5a623; }
+.reco-chip--visited.is-on { background: #6bb07b; border-color: #6bb07b; }
 
 .reco-cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 8px; }
 
@@ -1897,8 +1913,10 @@ button:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
 .modal--mark { position: fixed; inset: 0; z-index: 1100; display: flex; align-items: center; justify-content: center; padding: 20px; }
 .modal__backdrop { position: absolute; inset: 0; background: rgba(45,42,38,.5); backdrop-filter: blur(6px); }
 .modal__card--mark { position: relative; max-width: 420px; width: 100%; max-height: 90vh; overflow-y: auto; background: #fff; border-radius: 20px; box-shadow: 0 20px 60px rgba(0,0,0,.25); }
-.modal__close { position: absolute; top: 14px; right: 14px; width: 30px; height: 30px; border-radius: 50%; border: none; background: rgba(255,255,255,.8); cursor: pointer; display: flex; align-items: center; justify-content: center; color: var(--muted, #6b7280); z-index: 2; }
-.modal__close:hover { background: #F0997B; color: #fff; }
+/* 仅 mark / spot 弹窗（无 .modal__head flex 容器）的关闭按钮走绝对定位；
+   视频弹窗等用 .modal__head-actions flex 布局的关闭按钮不在此列，避免与全屏按钮重叠 */
+.modal__card--mark .modal__close, .modal__card--spot .modal__close { position: absolute; top: 14px; right: 14px; width: 30px; height: 30px; border-radius: 50%; border: none; background: rgba(255,255,255,.8); cursor: pointer; display: flex; align-items: center; justify-content: center; color: var(--muted, #6b7280); z-index: 2; }
+.modal__card--mark .modal__close:hover, .modal__card--spot .modal__close:hover { background: #F0997B; color: #fff; }
 .mark-head { padding: 22px 22px 16px; background: linear-gradient(135deg, #fff7f0, #fce8f5); border-bottom: 1px solid rgba(216,90,48,.10); border-radius: 20px 20px 0 0; }
 .mark-head__badge { display: inline-flex; padding: 3px 10px; border-radius: 999px; background: rgba(240,153,123,.16); color: #b85a3a; font-size: 11px; font-weight: 700; margin-bottom: 8px; }
 .mark-head__name { font-size: 20px; font-weight: 800; color: var(--text, #1f2937); margin: 0 0 2px; }
