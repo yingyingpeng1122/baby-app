@@ -1069,7 +1069,7 @@ export default function BabyAppFullStack() {
   const [recoDistrict, setRecoDistrict] = useState('all');   // 'all' | 区名
   const [recoStar, setRecoStar] = useState('all');           // 'all' | 1-5
   const [recoVisited, setRecoVisited] = useState('all');     // 'all' | 'visited' | 'unvisited'
-  const [recoCategory, setRecoCategory] = useState('all');   // 'all' | park/amusement/farm/mall/museum/beach/mountain/ancient/garden
+  const [recoCategory, setRecoCategory] = useState('park');   // 默认选中'公园'，避免一进来 50+ 点太多
   // 标记出行的弹窗（从地点详情"标记出行"按钮打开）
   const [markModal, setMarkModal] = useState(null);          // { spot } | null
   // 夜间作息弹窗（从睡眠图"作息"按钮打开，独立于档案表单）
@@ -3800,11 +3800,16 @@ export default function BabyAppFullStack() {
                   months={recoMonths}
                   visitedSpotNames={visitedSpotNames}
                   onSpotClick={(s) => setSpotModal({ spot: s })}
-                  filter={{ district: recoDistrict, category: recoCategory, star: recoStar, visited: recoVisited, matched: (recoDistrict !== 'all' || recoCategory !== 'all' || recoStar !== 'all' || recoVisited !== 'all') ? new Set(filteredSpots.map(s => s.id)) : null }}
-                />
+                  filter={{ district: recoDistrict, category: recoCategory, star: recoStar, visited: recoVisited, matched: (recoDistrict !== 'all' || recoCategory !== 'all' || recoStar !== 'all' || recoVisited !== 'all') ? new Set(filteredSpots.map(s => s.id)) : null }}                />
 
-                {/* 筛选器：区 + 出行状态 + 星级 */}
+                {/* 筛选器：类型(首行，默认公园) + 区 + 出行状态 + 星级 */}
                 <div className="reco-filters">
+                  <div className="reco-filter-row reco-filter-row--cat">
+                    <button className={`reco-chip reco-chip--cat ${recoCategory === 'all' ? 'is-on' : ''}`} onClick={() => setRecoCategory('all')}>全部类型</button>
+                    {CATEGORIES.map(c => (
+                      <button key={c.value} className={`reco-chip reco-chip--cat ${recoCategory === c.value ? 'is-on' : ''}`} onClick={() => setRecoCategory(c.value)}>{c.emoji} {c.label}</button>
+                    ))}
+                  </div>
                   <div className="reco-filter-row">
                     <button className={`reco-chip ${recoDistrict === 'all' ? 'is-on' : ''}`} onClick={() => setRecoDistrict('all')}>全部区</button>
                     {DISTRICTS.map(d => (
@@ -3820,12 +3825,6 @@ export default function BabyAppFullStack() {
                     <button className={`reco-chip reco-chip--star ${recoStar === 'all' ? 'is-on' : ''}`} onClick={() => setRecoStar('all')}>全部星级</button>
                     {[5,4,3,2,1].map(n => (
                       <button key={n} className={`reco-chip reco-chip--star ${recoStar === n ? 'is-on' : ''}`} onClick={() => setRecoStar(n)}>{'★'.repeat(n)}</button>
-                    ))}
-                  </div>
-                  <div className="reco-filter-row reco-filter-row--cat">
-                    <button className={`reco-chip reco-chip--cat ${recoCategory === 'all' ? 'is-on' : ''}`} onClick={() => setRecoCategory('all')}>全部类型</button>
-                    {CATEGORIES.map(c => (
-                      <button key={c.value} className={`reco-chip reco-chip--cat ${recoCategory === c.value ? 'is-on' : ''}`} onClick={() => setRecoCategory(c.value)}>{c.emoji} {c.label}</button>
                     ))}
                   </div>
                 </div>

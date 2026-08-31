@@ -125,6 +125,20 @@ export const SPOTS = [
   { id: 49, name: '较场尾', district: '大鹏新区', x: 918, y: 446, type: 'spot', category: 'beach', ratings: [2,2,3,3,4,5,5], feel: '海边渔村民宿群，娃1岁前沙地推车难，2岁+玩沙玩水玩到天黑。', reason: '沙滩+渔村,婴儿需遮阳+推车不便(沙地),海景视觉OK' },
   { id: 50, name: '杨梅坑', district: '大鹏新区', x: 934, y: 483, type: 'spot', category: 'beach', ratings: [1,1,2,2,3,4,5], feel: '《美人鱼》拍摄地，礁石海岸+骑车环岛，3岁+能玩能潜水才值。', reason: '海岸+礁石+需抱+偏远,婴儿不适合' },
 
+  // —— 2026-08-31 扩充：覆盖更多遛娃类型（游乐园/展馆/古镇/商场） ——
+  { id: 59, name: '深圳野生动物园', district: '南山', x: 282, y: 470, type: 'spot', category: 'amusement', ratings: [3,3,4,4,5,5,5], feel: '西丽湖旁国家级动物园，300+种动物，1岁+会指认就值票价，2岁+看表演能坐住。', reason: '动物园+有表演+平地为主+推车友好+视觉刺激强(动物)' },
+  { id: 60, name: '深圳欢乐谷', district: '南山', x: 310, y: 533, type: 'spot', category: 'amusement', ratings: [2,2,3,3,4,5,5], feel: '华侨城主题乐园，低幼项目(旋转木马/小火车)免费玩，3岁+才能上刺激项目。', reason: '主题乐园+有低幼区+平地+推车友好,主要靠3岁+项目' },
+  { id: 61, name: '小梅沙海洋世界', district: '盐田', x: 670, y: 440, type: 'spot', category: 'amusement', ratings: [3,4,4,5,5,5,5], feel: '2024重开的海洋主题公园，5大展区+200+种海洋生物，1岁+视觉互动爆击，看白鲸海狮表演。', reason: '海洋馆+室内+有表演+推车友好+视觉刺激极强(海洋生物/表演)' },
+  { id: 62, name: '东部华侨城茶溪谷', district: '盐田', x: 665, y: 430, type: 'spot', category: 'amusement', ratings: [3,3,4,4,5,5,5], feel: '瑞士小镇+花海+湿地+森林小火车，1岁+推车逛全程可达，拍照美。', reason: '主题公园+花海+小火车+推车友好+视觉丰富(欧式建筑/花海)' },
+  { id: 63, name: '卡鲁冰雪世界', district: '龙华', x: 442, y: 215, type: 'spot', category: 'amusement', ratings: [2,2,3,3,4,5,5], feel: '深圳最大室内滑雪场，零下3-5度，3岁+娱雪区玩雪圈螺旋滑梯，夏天遛娃避暑神器。', reason: '室内冰雪+避暑+有低幼娱雪区,3岁+才适合,需备防寒服' },
+  { id: 64, name: '观澜山水田园', district: '龙华', x: 432, y: 205, type: 'spot', category: 'amusement', ratings: [3,3,4,4,4,5,5], feel: '客家水乡+山水湖景+艾尼摩神奇乐园(太空主题20+设施)，1岁+能看动物，2岁+能玩。', reason: '水乡+主题乐园+有动物+推车部分路段OK+视觉丰富(客家风情/游乐)' },
+  { id: 65, name: '大鹏云海天使湾', district: '大鹏新区', x: 920, y: 470, type: 'spot', category: 'beach', ratings: [2,2,3,4,4,5,5], feel: '临崖胶囊小火车+天使海滩+水上运动，2岁+玩沙看海，3岁+坐小火车俯瞰海景。', reason: '海滩+小火车+视觉震撼(海景),2岁+适合,偏远需自驾' },
+  { id: 66, name: '深圳博物馆', district: '福田', x: 418, y: 502, type: 'spot', category: 'museum', ratings: [2,2,3,3,4,5,5], feel: '免费历史展+古代艺术馆+常设亲子特展，空调+母婴室，雨天遛娃首选，3岁+能聊历史。', reason: '博物馆+免费+室内+母婴室+雨天首选,3岁+才有趣味' },
+  { id: 67, name: '深圳少年宫', district: '福田', x: 420, y: 499, type: 'spot', category: 'museum', ratings: [3,3,4,4,5,5,5], feel: '免费科普展+互动科学+球幕影院，1岁+看光影2岁+玩互动，需公众号提前预约。', reason: '少年宫+免费+科普互动+室内推车+视觉刺激(光影/互动展)' },
+  { id: 68, name: '深圳科学技术馆(新馆)', district: '光明', x: 250, y: 215, type: 'spot', category: 'museum', ratings: [3,3,4,5,5,5,5], feel: '光明新地标，未来世界科普乐园+濒危动物大展，1岁+互动展2岁+玩科普，母婴室干净。', reason: '科技馆+互动展+母婴室+室内推车+视觉刺激强(科技/灯光)' },
+  { id: 69, name: '南头古城', district: '南山', x: 240, y: 530, type: 'spot', category: 'ancient', ratings: [2,2,3,3,4,4,5], feel: '1700年古城+城门祠堂+创意市集+博物馆，3岁+能看历史能玩穿汉服，婴儿推车颠。', reason: '古城+免费+有博物馆,3岁+才有趣味,石板路推车不便' },
+  { id: 70, name: '中洲湾 C Future City', district: '福田', x: 395, y: 520, type: 'spot', category: 'mall', ratings: [3,3,4,4,4,5,5], feel: '130万㎡未来主题商场，teamLab共创未来园(常设)+蔦屋书店，1岁+沉浸光影2岁+玩互动。', reason: '商场+teamLab光影+母婴室+室内推车+视觉刺激极强(光影艺术)' },
+
   // 我的家（type='home'，不计入打卡，地图上特殊标记）
   { id: 101, name: '宝民花园', district: '宝安', x: 218, y: 502, type: 'home', address: '宝安区新安街道宝民花园', feel: '我们的家，工作日住所。', reason: '工作日过渡房，靠近宝安中心。' },
   { id: 102, name: '万象天成', district: '龙岗', x: 535, y: 280, type: 'home', address: '龙岗区万象天成', feel: '我们的家，周末团聚住所。', reason: '周末团聚住所，靠近龙岗中心城。' },
