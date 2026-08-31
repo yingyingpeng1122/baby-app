@@ -1884,6 +1884,10 @@ button:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
 .reco-filter-row { display: flex; flex-wrap: wrap; gap: 6px; }
 .reco-filter-row--visited { padding-top: 4px; border-top: 1px dashed rgba(216,90,48,.12); }
 .reco-filter-row--star { padding-top: 4px; border-top: 1px dashed rgba(216,90,48,.12); }
+.reco-filter-row--cat { padding-top: 4px; border-top: 1px dashed rgba(216,90,48,.12); }
+.reco-chip--cat { display: inline-flex; align-items: center; gap: 3px; }
+.reco-chip--cat .cat-emoji { font-size: 13px; line-height: 1; }
+.reco-chip--cat.is-on { background: #7c8cf8; border-color: #7c8cf8; color: #fff; }
 .reco-chip {
   padding: 4px 10px; border: 1px solid rgba(216,90,48,.14); border-radius: 999px;
   background: #fff; color: var(--muted, #6b7280); font-size: 12px; cursor: pointer; transition: all .15s;
@@ -1929,6 +1933,8 @@ button:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
 .reco-card__head { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 .reco-card__name { font-size: 15px; font-weight: 700; color: var(--text, #1f2937); }
 .reco-card__dist { font-size: 11px; color: #d85a30; background: rgba(240,153,123,.12); padding: 1px 8px; border-radius: 999px; }
+.reco-card__cat { display: inline-flex; align-items: center; gap: 3px; font-size: 11px; color: #5a6cf0; background: rgba(124,140,248,.12); padding: 1px 8px; border-radius: 999px; }
+.reco-card__cat .cat-emoji { font-size: 12px; line-height: 1; }
 .reco-card__stars { margin-left: auto; font-size: 12px; color: #f5a623; letter-spacing: -1px; }
 .reco-card__stars-dim { color: #d1d5db; }
 .reco-card__feel { font-size: 13px; color: var(--text, #1f2937); line-height: 1.55; font-style: italic; border-left: 3px solid rgba(240,153,123,.30); padding-left: 10px; }
@@ -2050,6 +2056,8 @@ button:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
 .travel-rec-card__head { display: flex; align-items: center; gap: 8px; margin-bottom: 4px; }
 .travel-rec-card__name { font-size: 15px; font-weight: 700; color: var(--text, #1f2937); }
 .travel-rec-card__type { font-size: 12px; color: #d85a30; background: rgba(240,153,123,.12); padding: 1px 8px; border-radius: 999px; }
+.travel-rec-card__cat { display: inline-flex; align-items: center; gap: 3px; font-size: 11px; color: #5a6cf0; background: rgba(124,140,248,.12); padding: 1px 8px; border-radius: 999px; }
+.travel-rec-card__cat .cat-emoji { font-size: 12px; line-height: 1; }
 .travel-rec-card__date { margin-left: auto; font-size: 12px; color: var(--muted, #6b7280); }
 .travel-rec-card__stars { color: #f5a623; font-size: 13px; margin-bottom: 4px; }
 .travel-rec-card__stars-dim { color: #d1d5db; }
@@ -2128,6 +2136,10 @@ button:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
   font-size: 12px; color: var(--ink-2);
 }
 .sweetspot__legend-item { display: inline-flex; align-items: center; gap: 4px; }
+.sweetspot__routine { margin-left: auto; padding: 4px 10px; height: 24px; }
+@media (max-width: 540px) {
+  .sweetspot__routine { margin-left: 0; }
+}
 .sweetspot__dot {
   display: inline-block; width: 8px; height: 8px; border-radius: 50%;
 }
@@ -2145,6 +2157,9 @@ button:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
   position: absolute; top: 0; bottom: 0;
   background: rgba(124, 131, 230, 0.32);
   border-radius: 2px;
+}
+.sweetspot__seg--night {
+  background: rgba(99, 102, 241, 0.55);
 }
 .sweetspot__win {
   position: absolute; top: -3px; bottom: -3px;

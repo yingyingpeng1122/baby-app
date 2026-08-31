@@ -239,6 +239,15 @@ def init_db():
         db.execute("ALTER TABLE babies ADD COLUMN sick_mode INTEGER DEFAULT 0")
     except Exception:
         pass
+    # 新增夜间作息时间列（每日作息规律：入睡时间 / 起床时间，HH:MM）
+    try:
+        db.execute("ALTER TABLE babies ADD COLUMN night_bedtime TEXT DEFAULT ''")
+    except Exception:
+        pass
+    try:
+        db.execute("ALTER TABLE babies ADD COLUMN night_wake_time TEXT DEFAULT ''")
+    except Exception:
+        pass
     db.execute("""CREATE TABLE IF NOT EXISTS checklist_items_v2 (
         baby_id TEXT, date TEXT, item_id TEXT, checked INTEGER,
         PRIMARY KEY (baby_id, date, item_id)
@@ -271,6 +280,11 @@ def init_db():
         created_at TEXT DEFAULT (datetime('now')),
         PRIMARY KEY (baby_id, id)
     )""")
+    # travel_records 兼容旧库：补 category 列（地点类型 park/amusement/farm/mall/museum/beach/mountain/ancient/garden）
+    try:
+        db.execute("ALTER TABLE travel_records ADD COLUMN category TEXT DEFAULT ''")
+    except Exception:
+        pass
     # 成长区：疫苗实际接种记录（VACCINE_LIBRARY 是静态表，存内存即可）
     db.execute("""CREATE TABLE IF NOT EXISTS vaccine_records (
         id TEXT PRIMARY KEY,
@@ -499,11 +513,11 @@ def get_family_id(request: Request) -> str:
 
 def _get_baby_profile(baby_id: str) -> Optional[dict]:
     """按 baby_id 获取宝宝档案（返回 dict，兼容旧代码）"""
-    rs = db.execute("SELECT name, gender, birthday, height, weight FROM babies WHERE baby_id = ?", [baby_id]).fetchall()
+    rs = db.execute("SELECT name, gender, birthday, height, weight, night_bedtime, night_wake_time FROM babies WHERE baby_id = ?", [baby_id]).fetchall()
     if not rs:
         return None
     r = rs[0]
-    return {"name": r[0], "gender": r[1], "birthday": r[2], "height": r[3], "weight": r[4]}
+    return {"name": r[0], "gender": r[1], "birthday": r[2], "height": r[3], "weight": r[4], "night_bedtime": r[5] or "", "night_wake_time": r[6] or ""}
 
 # ---------------- B 站视频自动检索 ----------------
 UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
@@ -1435,6 +1449,8 @@ class BabyUpdateRequest(BaseModel):
     height: float = None
     weight: float = None
     sick_mode: int = None
+    night_bedtime: str = None
+    night_wake_time: str = None
 
 @app.post("/family")
 async def create_family(req: FamilyCreateRequest, request: Request):
@@ -1519,8 +1535,8 @@ async def update_my_member(request: Request):
 async def list_babies(request: Request):
     """获取当前家庭的所有宝宝"""
     fid = get_family_id(request)
-    babies = db.execute("SELECT baby_id, name, gender, birthday, height, weight, sick_mode FROM babies WHERE family_id = ?", [fid]).fetchall()
-    return [{"baby_id": b[0], "name": b[1], "gender": b[2], "birthday": b[3], "height": b[4], "weight": b[5], "sick_mode": b[6] or 0} for b in babies]
+    babies = db.execute("SELECT baby_id, name, gender, birthday, height, weight, sick_mode, night_bedtime, night_wake_time FROM babies WHERE family_id = ?", [fid]).fetchall()
+    return [{"baby_id": b[0], "name": b[1], "gender": b[2], "birthday": b[3], "height": b[4], "weight": b[5], "sick_mode": b[6] or 0, "night_bedtime": b[7] or "", "night_wake_time": b[8] or ""} for b in babies]
 
 @app.post("/family/babies")
 async def add_baby(req: BabyCreateRequest, request: Request):
@@ -1557,6 +1573,8 @@ async def update_baby(baby_id: str, req: BabyUpdateRequest, request: Request):
     if req.height is not None: updates["height"] = req.height
     if req.weight is not None: updates["weight"] = req.weight
     if req.sick_mode is not None: updates["sick_mode"] = req.sick_mode
+    if req.night_bedtime is not None: updates["night_bedtime"] = req.night_bedtime
+    if req.night_wake_time is not None: updates["night_wake_time"] = req.night_wake_time
     if updates:
         cols = ", ".join(f"{k}=?" for k in updates)
         vals = list(updates.values()) + [baby_id, fid]
@@ -2560,6 +2578,7 @@ class TravelRecord(BaseModel):
     id: str = ''
     dest_name: str = ''
     dest_type: str = ''
+    category: str = ''        # 地点类型 park/amusement/farm/mall/museum/beach/mountain/ancient/garden
     travel_date: str = ''
     age_months: int = 0
     rating: int = 0              # 1-5
@@ -2612,17 +2631,17 @@ async def delete_travel_list(list_id: str, request: Request):
 async def get_travel_records(request: Request):
     bid = get_baby_id(request)
     rs = db.execute(
-        "SELECT id, dest_name, dest_type, travel_date, age_months, rating, note FROM travel_records WHERE baby_id = ? ORDER BY travel_date DESC, created_at DESC",
+        "SELECT id, dest_name, dest_type, category, travel_date, age_months, rating, note FROM travel_records WHERE baby_id = ? ORDER BY travel_date DESC, created_at DESC",
         [bid]).fetchall()
-    return [TravelRecord(id=r[0], dest_name=r[1] or '', dest_type=r[2] or '', travel_date=r[3] or '', age_months=r[4] or 0, rating=r[5] or 0, note=r[6] or '') for r in rs]
+    return [TravelRecord(id=r[0], dest_name=r[1] or '', dest_type=r[2] or '', category=r[3] or '', travel_date=r[4] or '', age_months=r[5] or 0, rating=r[6] or 0, note=r[7] or '') for r in rs]
 
 @app.post("/travel/records", response_model=TravelRecord)
 async def save_travel_record(item: TravelRecord, request: Request):
     bid = get_baby_id(request)
     item.id = str(uuid.uuid4())[:8]
     db.execute(
-        "INSERT INTO travel_records (id, baby_id, dest_name, dest_type, travel_date, age_months, rating, note) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
-        [item.id, bid, item.dest_name, item.dest_type, item.travel_date, item.age_months, item.rating, item.note])
+        "INSERT INTO travel_records (id, baby_id, dest_name, dest_type, category, travel_date, age_months, rating, note) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+        [item.id, bid, item.dest_name, item.dest_type, item.category, item.travel_date, item.age_months, item.rating, item.note])
     db.sync()
     return item
 
@@ -2633,8 +2652,8 @@ async def update_travel_record(record_id: str, item: TravelRecord, request: Requ
     if not rs:
         raise HTTPException(status_code=404, detail="Travel record not found")
     db.execute(
-        "UPDATE travel_records SET dest_name=?, dest_type=?, travel_date=?, age_months=?, rating=?, note=? WHERE id=? AND baby_id=?",
-        [item.dest_name, item.dest_type, item.travel_date, item.age_months, item.rating, item.note, record_id, bid])
+        "UPDATE travel_records SET dest_name=?, dest_type=?, category=?, travel_date=?, age_months=?, rating=?, note=? WHERE id=? AND baby_id=?",
+        [item.dest_name, item.dest_type, item.category, item.travel_date, item.age_months, item.rating, item.note, record_id, bid])
     db.sync()
     item.id = record_id
     return item
@@ -2960,6 +2979,27 @@ async def get_sleep_stats(request: Request):
     today_sleep_count = len(today_sleeps)
     today_sleep_total = sum(d for _, d in today_sleeps)
 
+    # 夜间作息时长（跨午夜，如 20:00 入睡 → 07:00 起床 = 11h = 660min）
+    baby_row = db.execute("SELECT night_bedtime, night_wake_time FROM babies WHERE baby_id = ?", [bid]).fetchall()
+    night_bedtime = baby_row[0][0] if baby_row else ""
+    night_wake_time = baby_row[0][1] if baby_row else ""
+    night_sleep_min = 0
+    if night_bedtime and night_wake_time:
+        try:
+            bh, bm = night_bedtime.split(':')
+            wh, wm = night_wake_time.split(':')
+            b_min = int(bh) * 60 + int(bm)
+            w_min = int(wh) * 60 + int(wm)
+            diff = w_min - b_min
+            if diff <= 0: diff += 24 * 60  # 跨午夜
+            # 仅当夜间睡眠合理（5~16h）才采纳，过滤脏数据
+            if 5 * 60 <= diff <= 16 * 60:
+                night_sleep_min = diff
+        except Exception:
+            night_sleep_min = 0
+    # 今日总睡眠 = 今日小睡片段 + 夜间作息时长（夜间作息是规律性参考，不重复计入片段）
+    today_sleep_total_with_night = today_sleep_total + night_sleep_min
+
     # 月龄建议小睡次数（参考：6 月以下 4-5 次、6-12 月 2-3 次、12 月以上 1-2 次）
     rec_naps = 5
     if months < 3: rec_naps = 5
@@ -2984,7 +3024,10 @@ async def get_sleep_stats(request: Request):
         "stdWakeMin": std_wake_min,
         "avgSleepMin": round(avg_sleep_min),
         "todaySleepCount": today_sleep_count,
-        "todaySleepTotalMin": round(today_sleep_total),
+        "todaySleepTotalMin": round(today_sleep_total_with_night),
+        "nightSleepMin": night_sleep_min,
+        "nightBedtime": night_bedtime,
+        "nightWakeTime": night_wake_time,
         "recNaps": rec_naps,
         "recSleepMin": rec_sleep_min,
         "recSleepText": rec_sleep_text,

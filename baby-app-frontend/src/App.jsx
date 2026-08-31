@@ -1,6 +1,6 @@
 import './App.css';
 import { useState, useEffect, useRef, useMemo } from 'react';
-import { SPOTS, SPOTS_VISITABLE, DISTRICTS, AGE_BANDS, starsForAge, reasonForAge, getBandIdx, getBandLabel, ageMonthsLabel } from './travelSpots.js';
+import { SPOTS, SPOTS_VISITABLE, DISTRICTS, AGE_BANDS, CATEGORIES, starsForAge, reasonForAge, getBandIdx, getBandLabel, ageMonthsLabel, categoryLabel, categoryEmoji } from './travelSpots.js';
 import TravelMap from './TravelMap.jsx';
 import {
   Baby, Ruler, Scale, Milk, Utensils, Music, Gamepad2, Video, Save,
@@ -975,7 +975,7 @@ export default function BabyAppFullStack() {
   const [connError, setConnError] = useState(null); // 初始化连接失败（超时/网络不可达）
   const [data, setData] = useState(null);
   const [modal, setModal] = useState({ open: false, title: '' });
-  const [form, setForm] = useState({ name: '', gender: 'boy', birthday: '', height: '', weight: '' });
+  const [form, setForm] = useState({ name: '', gender: 'boy', birthday: '', height: '', weight: '', night_bedtime: '', night_wake_time: '' });
   // 账号系统
   const [currentUser, setCurrentUser] = useState(null); // { user_id, phone, nickname }
   const [authView, setAuthView] = useState(null); // 'login' | 'register' | null
@@ -1062,15 +1062,19 @@ export default function BabyAppFullStack() {
   const [travelRecords, setTravelRecords] = useState([]);  // [{id, dest_name, dest_type, travel_date, age_months, rating, note}]
   const [travelTab, setTravelTab] = useState('reco');      // 'reco' | 'list' | 'history'
   const [travelListDraft, setTravelListDraft] = useState(null); // 当前编辑的清单 {id?, dest_type, age_months, items:[]}
-  const [travelRecordDraft, setTravelRecordDraft] = useState({ dest_name: '', dest_type: 'short', travel_date: todayISO(), age_months: 0, rating: 0, note: '' });
+  const [travelRecordDraft, setTravelRecordDraft] = useState({ dest_name: '', dest_type: 'short', category: '', travel_date: todayISO(), age_months: 0, rating: 0, note: '' });
   const [editingTravelRecordId, setEditingTravelRecordId] = useState(null);
   const [travelLoading, setTravelLoading] = useState(false);
   // 目的地推荐：区筛选 + 星级筛选 + 已打卡状态来自 travelRecords（按 dest_name 匹配）
   const [recoDistrict, setRecoDistrict] = useState('all');   // 'all' | 区名
   const [recoStar, setRecoStar] = useState('all');           // 'all' | 1-5
   const [recoVisited, setRecoVisited] = useState('all');     // 'all' | 'visited' | 'unvisited'
+  const [recoCategory, setRecoCategory] = useState('all');   // 'all' | park/amusement/farm/mall/museum/beach/mountain/ancient/garden
   // 标记出行的弹窗（从地点详情"标记出行"按钮打开）
   const [markModal, setMarkModal] = useState(null);          // { spot } | null
+  // 夜间作息弹窗（从睡眠图"作息"按钮打开，独立于档案表单）
+  const [nightModal, setNightModal] = useState(null);        // { bedtime, wake } | null
+  const [nightSaving, setNightSaving] = useState(false);
   // 地点详情弹窗（从地图点位点击打开）
   const [spotModal, setSpotModal] = useState(null);          // { spot } | null
   // 退出登录二次确认弹窗（自建 Modal，不用原生 confirm，避免移动端 PWA 不响应）
@@ -1093,6 +1097,33 @@ export default function BabyAppFullStack() {
         body: JSON.stringify({ sick_mode: next ? 1 : 0 }),
       });
     } catch (e) { console.error('sync sick_mode failed', e); }
+  };
+
+  // 保存夜间作息（从睡眠图右上角"作息"按钮触发，独立于档案表单）
+  const saveNightRoutine = async () => {
+    if (!currentBabyId || !nightModal) return;
+    // 简单校验：要么都填、要么都空
+    const { bedtime, wake } = nightModal;
+    if ((bedtime && !wake) || (!bedtime && wake)) {
+      alert('入睡时间和起床时间需要同时填写，或同时留空');
+      return;
+    }
+    setNightSaving(true);
+    try {
+      const res = await apiFetch(`${API_BASE}/family/babies/${currentBabyId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ night_bedtime: bedtime || null, night_wake_time: wake || null }),
+      });
+      if (!res.ok) throw new Error(`保存失败 (${res.status})`);
+      await fetchDashboard();
+      await loadSleepStats();
+      setNightModal(null);
+    } catch (e) {
+      alert('保存夜间作息失败：' + (e.message || '请确认后端已启动'));
+    } finally {
+      setNightSaving(false);
+    }
   };
 
   // 同步 currentBabyId 到模块级变量
@@ -1298,7 +1329,7 @@ export default function BabyAppFullStack() {
       setBabies(prev => [...prev, newBaby]);
       _currentBabyId = newBaby.baby_id;
       setCurrentBabyId(newBaby.baby_id);
-      setForm({ name: '', gender: 'boy', birthday: '', height: '', weight: '' });
+      setForm({ name: '', gender: 'boy', birthday: '', height: '', weight: '', night_bedtime: '', night_wake_time: '' });
       fetchDashboard();
     } catch (e) { setError('添加失败：' + (e.message || '请确认后端已启动')); }
   };
@@ -1672,7 +1703,7 @@ export default function BabyAppFullStack() {
         : await apiFetch(`${API_BASE}/travel/records`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
       if (!res.ok) { const e = await res.json().catch(() => ({})); throw new Error(e.detail || '保存失败'); }
       showToast(editingTravelRecordId ? '出行记录已更新 ✓' : '出行记录已保存 ✓');
-      setTravelRecordDraft({ dest_name: '', dest_type: 'short', travel_date: todayISO(), age_months: 0, rating: 0, note: '' });
+      setTravelRecordDraft({ dest_name: '', dest_type: 'short', category: '', travel_date: todayISO(), age_months: 0, rating: 0, note: '' });
       setEditingTravelRecordId(null);
       setMarkModal(null);
       await loadTravel();
@@ -1681,7 +1712,7 @@ export default function BabyAppFullStack() {
   };
   const editTravelRecord = (r) => {
     setEditingTravelRecordId(r.id);
-    setTravelRecordDraft({ dest_name: r.dest_name || '', dest_type: r.dest_type || 'short', travel_date: r.travel_date || todayISO(), age_months: r.age_months || 0, rating: r.rating || 0, note: r.note || '' });
+    setTravelRecordDraft({ dest_name: r.dest_name || '', dest_type: r.dest_type || 'short', category: r.category || '', travel_date: r.travel_date || todayISO(), age_months: r.age_months || 0, rating: r.rating || 0, note: r.note || '' });
   };
   const delTravelRecord = async (id) => {
     if (!window.confirm('删除这条出行记录？')) return;
@@ -1704,6 +1735,7 @@ export default function BabyAppFullStack() {
   const filteredSpots = useMemo(() => {
     let arr = SPOTS_VISITABLE.filter(s => {
       if (recoDistrict !== 'all' && s.district !== recoDistrict) return false;
+      if (recoCategory !== 'all' && s.category !== recoCategory) return false;
       const stars = starsForAge(s, recoMonths);
       if (recoStar !== 'all' && stars !== recoStar) return false;
       const visited = visitedSpotNames.has(s.name);
@@ -1720,7 +1752,7 @@ export default function BabyAppFullStack() {
       return sb - sa;                          // 同组内按星级降序
     });
     return arr;
-  }, [recoDistrict, recoStar, recoVisited, recoMonths, visitedSpotNames]);
+  }, [recoDistrict, recoCategory, recoStar, recoVisited, recoMonths, visitedSpotNames]);
   // 打卡统计
   const recoStats = useMemo(() => {
     const total = SPOTS_VISITABLE.length;
@@ -1729,7 +1761,7 @@ export default function BabyAppFullStack() {
   }, [visitedSpotNames]);
   // 从目的地推荐点击"标记出行" → 打开弹窗预填
   const openMarkModal = (spot) => {
-    setTravelRecordDraft({ dest_name: spot.name, dest_type: 'daily', travel_date: todayISO(), age_months: recoMonths, rating: starsForAge(spot, recoMonths), note: '' });
+    setTravelRecordDraft({ dest_name: spot.name, dest_type: 'daily', category: spot.category || '', travel_date: todayISO(), age_months: recoMonths, rating: starsForAge(spot, recoMonths), note: '' });
     setEditingTravelRecordId(null);
     setMarkModal({ spot });
   };
@@ -2342,7 +2374,7 @@ export default function BabyAppFullStack() {
               {devOpen ? '收起' : '详情'}
               <ChevronDown className="icon icon--xs" />
             </button>
-            <button className="btn btn--ghost btn--sm section__edit" onClick={() => { setForm({ name: profile.name, gender: profile.gender, birthday: profile.birthday, height: String(profile.height), weight: String(profile.weight) }); setView('edit'); }} title="编辑宝宝档案">
+            <button className="btn btn--ghost btn--sm section__edit" onClick={() => { setForm({ name: profile.name, gender: profile.gender, birthday: profile.birthday, height: String(profile.height), weight: String(profile.weight), night_bedtime: profile.night_bedtime || '', night_wake_time: profile.night_wake_time || '' }); setView('edit'); }} title="编辑宝宝档案">
               <Pencil className="icon icon--xs" />编辑
             </button>
           </div>
@@ -2719,14 +2751,35 @@ export default function BabyAppFullStack() {
             // SweetSpot 时间条：横向 24h 进度，已睡时段填充，当前时间指针，预测下次窗口
             const toPct = (min) => (min / (24 * 60)) * 100;
             const nowPct = toPct(toMin(nowHM));
-            const sleepSegs = sleeps.map(s => {
+            const napSegs = sleeps.map(s => {
               const sStart = toMin(s.time);
               const sEnd = sStart + s.duration;
               return { start: sStart, end: sEnd, startPct: toPct(sStart), endPct: toPct(Math.min(sEnd, 24*60)) };
             });
+            // 夜间作息段（跨午夜拆成两段：入睡→24:00 和 00:00→起床）
+            const nightSegs = [];
+            const nbTime = ssStats.nightBedtime || profile.night_bedtime || '';
+            const nwTime = ssStats.nightWakeTime || profile.night_wake_time || '';
+            if (nbTime && nwTime) {
+              const nb = toMin(nbTime);
+              const nw = toMin(nwTime);
+              if (nb >= 0 && nb < 24 * 60 && nw >= 0 && nw < 24 * 60 && nb !== nw) {
+                // 入睡点在起床点之前 → 跨午夜：入睡→24:00 + 00:00→起床
+                // 入睡点在起床点之后 → 不跨午夜（如 13:00 入睡 15:00 起床，午睡作息）：入睡→起床
+                if (nb < nw) {
+                  nightSegs.push({ start: 0, end: nw, startPct: toPct(0), endPct: toPct(nw), isNight: true });
+                  nightSegs.push({ start: nb, end: 24 * 60, startPct: toPct(nb), endPct: toPct(24 * 60), isNight: true });
+                } else {
+                  nightSegs.push({ start: nb, end: 24 * 60, startPct: toPct(nb), endPct: toPct(24 * 60), isNight: true });
+                  nightSegs.push({ start: 0, end: nw, startPct: toPct(0), endPct: toPct(nw), isNight: true });
+                }
+              }
+            }
+            const sleepSegs = [...napSegs, ...nightSegs];
             const nextSleepPct = nextSleepHM ? toPct(toMin(nextSleepHM)) : null;
             const todaySleepTotal = ssStats.todaySleepTotalMin || (sleeps.reduce((acc, s) => acc + s.duration, 0));
             const todaySleepCnt = ssStats.todaySleepCount || sleeps.length;
+            const nightSleepText = (nbTime && nwTime) ? `夜间 ${nbTime}-${nwTime}` : '';
 
             return (
               <>
@@ -2750,6 +2803,7 @@ export default function BabyAppFullStack() {
                       <div className="advice-card__v">{ssStats.recSleepText || '—'}</div>
                       <div className="advice-card__sub">
                         {todaySleepTotal > 0 ? `今日已睡 ${fmtH(todaySleepTotal)}` : '含夜间 + 小睡'}
+                        {nightSleepText ? ` · ${nightSleepText}` : ''}
                       </div>
                     </div>
                     <div className="advice-card__tile">
@@ -2765,14 +2819,21 @@ export default function BabyAppFullStack() {
                   {/* SweetSpot 时间条 */}
                   <div className="advice-card__sweetspot">
                     <div className="sweetspot__legend">
-                      <span className="sweetspot__legend-item"><i className="sweetspot__dot sweetspot__dot--sleep"></i>今日睡眠 {fmtH(todaySleepTotal)} · {todaySleepCnt}/{recNaps} 次</span>
+                      <span className="sweetspot__legend-item"><i className="sweetspot__dot sweetspot__dot--sleep"></i>今日睡眠 {fmtH(todaySleepTotal)} · {todaySleepCnt}/{recNaps} 次{nightSleepText ? ` · ${nightSleepText}` : ''}</span>
                       <span className="sweetspot__legend-item"><i className="sweetspot__dot sweetspot__dot--win"></i>预测窗口 {nextSleepHM || '—'}</span>
+                      <button
+                        className="btn btn--ghost btn--sm sweetspot__routine"
+                        onClick={() => setNightModal({ bedtime: profile.night_bedtime || '', wake: profile.night_wake_time || '' })}
+                        title="设置夜间作息时间"
+                      >
+                        <Moon className="icon icon--xs" />作息
+                      </button>
                     </div>
                     <div className="sweetspot__bar">
                       {sleepSegs.map((seg, i) => (
                         <div
                           key={i}
-                          className="sweetspot__seg"
+                          className={`sweetspot__seg${seg.isNight ? ' sweetspot__seg--night' : ''}`}
                           style={{ left: `${seg.startPct}%`, width: `${seg.endPct - seg.startPct}%` }}
                         />
                       ))}
@@ -3739,7 +3800,7 @@ export default function BabyAppFullStack() {
                   months={recoMonths}
                   visitedSpotNames={visitedSpotNames}
                   onSpotClick={(s) => setSpotModal({ spot: s })}
-                  filter={{ district: recoDistrict, star: recoStar, visited: recoVisited, matched: (recoDistrict !== 'all' || recoStar !== 'all' || recoVisited !== 'all') ? new Set(filteredSpots.map(s => s.id)) : null }}
+                  filter={{ district: recoDistrict, category: recoCategory, star: recoStar, visited: recoVisited, matched: (recoDistrict !== 'all' || recoCategory !== 'all' || recoStar !== 'all' || recoVisited !== 'all') ? new Set(filteredSpots.map(s => s.id)) : null }}
                 />
 
                 {/* 筛选器：区 + 出行状态 + 星级 */}
@@ -3761,6 +3822,12 @@ export default function BabyAppFullStack() {
                       <button key={n} className={`reco-chip reco-chip--star ${recoStar === n ? 'is-on' : ''}`} onClick={() => setRecoStar(n)}>{'★'.repeat(n)}</button>
                     ))}
                   </div>
+                  <div className="reco-filter-row reco-filter-row--cat">
+                    <button className={`reco-chip reco-chip--cat ${recoCategory === 'all' ? 'is-on' : ''}`} onClick={() => setRecoCategory('all')}>全部类型</button>
+                    {CATEGORIES.map(c => (
+                      <button key={c.value} className={`reco-chip reco-chip--cat ${recoCategory === c.value ? 'is-on' : ''}`} onClick={() => setRecoCategory(c.value)}>{c.emoji} {c.label}</button>
+                    ))}
+                  </div>
                 </div>
 
                 {/* 地点卡片列表 */}
@@ -3775,6 +3842,7 @@ export default function BabyAppFullStack() {
                         <div key={s.id} className={`reco-card ${visited ? 'is-visited' : ''}`}>
                           <div className="reco-card__head">
                             <span className="reco-card__name">{s.name}</span>
+                            {s.category && <span className="reco-card__cat">{categoryEmoji(s.category)} {categoryLabel(s.category)}</span>}
                             <span className="reco-card__dist">{s.district}</span>
                             {stars > 0 && <span className="reco-card__stars">{'★'.repeat(stars)}<span className="reco-card__stars-dim">{'★'.repeat(5 - stars)}</span></span>}
                           </div>
@@ -3902,6 +3970,15 @@ export default function BabyAppFullStack() {
                       </select>
                     </label>
                     <label className="field">
+                      <span>地点类型</span>
+                      <select value={travelRecordDraft.category} onChange={(e) => setTravelRecordDraft({ ...travelRecordDraft, category: e.target.value })}>
+                        <option value="">不指定</option>
+                        {CATEGORIES.map(c => (
+                          <option key={c.value} value={c.value}>{c.emoji} {c.label}</option>
+                        ))}
+                      </select>
+                    </label>
+                    <label className="field">
                       <span>出行日期</span>
                       <input type="date" value={travelRecordDraft.travel_date} onChange={(e) => setTravelRecordDraft({ ...travelRecordDraft, travel_date: e.target.value })} />
                     </label>
@@ -3919,7 +3996,7 @@ export default function BabyAppFullStack() {
                     <textarea rows={2} value={travelRecordDraft.note} onChange={(e) => setTravelRecordDraft({ ...travelRecordDraft, note: e.target.value })} placeholder="宝宝表现 / 有趣的事 / 注意事项" />
                   </label>
                   <div className="travel-rec-form__actions">
-                    {editingTravelRecordId && <button className="btn btn--ghost btn--sm" onClick={() => { setEditingTravelRecordId(null); setTravelRecordDraft({ dest_name: '', dest_type: 'short', travel_date: todayISO(), age_months: 0, rating: 0, note: '' }); }}>取消编辑</button>}
+                    {editingTravelRecordId && <button className="btn btn--ghost btn--sm" onClick={() => { setEditingTravelRecordId(null); setTravelRecordDraft({ dest_name: '', dest_type: 'short', category: '', travel_date: todayISO(), age_months: 0, rating: 0, note: '' }); }}>取消编辑</button>}
                     <button className="btn btn--primary btn--sm" disabled={travelLoading} onClick={saveTravelRecord}>
                       {travelLoading ? '保存中…' : editingTravelRecordId ? '更新记录' : '保存记录'}
                     </button>
@@ -3937,6 +4014,7 @@ export default function BabyAppFullStack() {
                         <div key={r.id} className="travel-rec-card">
                           <div className="travel-rec-card__head">
                             <span className="travel-rec-card__name">{r.dest_name}</span>
+                            {r.category && <span className="travel-rec-card__cat">{categoryEmoji(r.category)} {categoryLabel(r.category)}</span>}
                             <span className="travel-rec-card__type">{typeLabel}</span>
                             <span className="travel-rec-card__date">{r.travel_date}</span>
                           </div>
@@ -4259,6 +4337,15 @@ export default function BabyAppFullStack() {
                 </select>
               </label>
               <label className="field">
+                <span>地点类型</span>
+                <select value={travelRecordDraft.category} onChange={(e) => setTravelRecordDraft({ ...travelRecordDraft, category: e.target.value })}>
+                  <option value="">不指定</option>
+                  {CATEGORIES.map(c => (
+                    <option key={c.value} value={c.value}>{c.emoji} {c.label}</option>
+                  ))}
+                </select>
+              </label>
+              <label className="field">
                 <span>评分（按月龄自动）</span>
                 <div className="stars stars--readonly">
                   {[1,2,3,4,5].map(n => (
@@ -4274,6 +4361,40 @@ export default function BabyAppFullStack() {
                 <button className="btn btn--ghost btn--sm" onClick={() => setMarkModal(null)}>取消</button>
                 <button className="btn btn--primary btn--sm" disabled={travelLoading} onClick={saveTravelRecord}>
                   {travelLoading ? '保存中…' : '确认标记出行'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 夜间作息弹窗（从睡眠图"作息"按钮打开，独立于档案表单） */}
+      {nightModal && (
+        <div className="modal modal--mark" role="dialog" aria-modal="true">
+          <div className="modal__backdrop" onClick={() => setNightModal(null)} />
+          <div className="modal__card modal__card--mark">
+            <button className="modal__close" onClick={() => setNightModal(null)} aria-label="关闭"><X className="icon icon--sm" /></button>
+            <div className="mark-head">
+              <div className="mark-head__badge">夜间作息</div>
+              <h3 className="mark-head__name">规律的夜间睡眠时间</h3>
+              <div className="mark-head__sub">用于计算今日已睡总时长与睡眠图夜间段</div>
+            </div>
+            <div className="mark-body">
+              <div className="field field__row">
+                <div>
+                  <span>入睡时间</span>
+                  <input type="time" value={nightModal.bedtime} onChange={(e) => setNightModal({ ...nightModal, bedtime: e.target.value })} />
+                </div>
+                <div>
+                  <span>起床时间</span>
+                  <input type="time" value={nightModal.wake} onChange={(e) => setNightModal({ ...nightModal, wake: e.target.value })} />
+                </div>
+              </div>
+              <p style={{ fontSize: 12, color: 'var(--ink-2)', margin: '4px 0 8px' }}>填宝宝规律的夜间睡眠时间，跨午夜自动处理（如 20:00 入睡 → 07:00 起床算作 11 小时）。两个都留空表示清除设置。</p>
+              <div className="mark-actions">
+                <button className="btn btn--ghost btn--sm" onClick={() => setNightModal(null)}>取消</button>
+                <button className="btn btn--primary btn--sm" disabled={nightSaving} onClick={saveNightRoutine}>
+                  {nightSaving ? '保存中…' : '保存'}
                 </button>
               </div>
             </div>
@@ -4354,7 +4475,7 @@ export default function BabyAppFullStack() {
                   </div>
                 ))}
               </div>
-              <button className="btn btn--ghost btn--sm fm-add-baby" onClick={() => { setFamilyMgmtOpen(false); setForm({ name: '', gender: 'boy', birthday: '', height: '', weight: '' }); setView('baby-edit'); }}>
+              <button className="btn btn--ghost btn--sm fm-add-baby" onClick={() => { setFamilyMgmtOpen(false); setForm({ name: '', gender: 'boy', birthday: '', height: '', weight: '', night_bedtime: '', night_wake_time: '' }); setView('baby-edit'); }}>
                 <Plus className="icon icon--xs" />添加宝宝
               </button>
             </div>
