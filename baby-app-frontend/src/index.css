@@ -2199,10 +2199,26 @@ button:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
   background: var(--surface); color: var(--ink-2);
   border: 1px solid var(--line);
 }
+.vax-summary__item--btn {
+  cursor: pointer; transition: transform 0.12s, box-shadow 0.12s;
+  font-weight: 500;
+}
+.vax-summary__item--btn:hover { transform: translateY(-1px); }
+.vax-summary__item--btn:active { transform: translateY(0); }
+.vax-summary__item--active {
+  box-shadow: 0 0 0 2px var(--surface), 0 0 0 4px currentColor;
+  font-weight: 700;
+}
+.vax-summary__item--action { color: var(--coral); border-color: var(--coral-soft); background: var(--coral-soft); }
 .vax-summary__item--done { color: var(--green); border-color: var(--green-soft); background: var(--green-soft); }
 .vax-summary__item--overdue { color: var(--coral); border-color: var(--coral-soft); background: var(--coral-soft); }
 .vax-summary__item--pending { color: var(--primary-600); border-color: var(--primary-soft); background: var(--primary-soft); }
 .vax-summary__item--upcoming { color: var(--ink-3); background: var(--surface); }
+.vax-summary__item--all { color: var(--ink-3); background: var(--bg); font-weight: 400; }
+.vax-empty {
+  padding: 24px 12px; text-align: center; color: var(--ink-3);
+  font-size: 13px; background: var(--surface); border-radius: var(--r-card);
+}
 
 .vax-group { margin-bottom: 16px; }
 .vax-group__head {
@@ -2272,11 +2288,14 @@ button:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
   background: var(--bg); padding: 8px 10px; border-radius: 8px;
   margin-top: 8px; line-height: 1.6;
 }
+.form-row { display: flex; flex-direction: column; gap: 4px; margin-bottom: 12px; }
+.form-label { font-size: 13px; font-weight: 600; color: var(--ink-2); }
+.form-hint { font-size: 11px; color: var(--ink-3); line-height: 1.5; }
 
 @media (max-width: 720px) {
   .vax-group__list { grid-template-columns: 1fr; }
   .vax-summary { gap: 6px; }
-  .vax-summary__item { font-size: 11px; padding: 3px 8px; }
+  .vax-summary__item { font-size: 11px; padding: 3px 8px; min-height: 26px; }
 }
 /* ===== 疫苗日历 END ===== */
 
@@ -2290,10 +2309,30 @@ button:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
   background: var(--surface); color: var(--ink-2);
   border: 1px solid var(--line);
 }
+.ms-summary__item--btn {
+  cursor: pointer; user-select: none;
+  transition: transform 0.12s, box-shadow 0.12s;
+  font-weight: 500;
+}
+.ms-summary__item--btn:hover { transform: translateY(-1px); }
+.ms-summary__item--btn:active { transform: translateY(0); }
+.ms-summary__item--active {
+  box-shadow: 0 0 0 2px var(--primary-soft), 0 0 0 4px rgba(0,0,0,0.04);
+  font-weight: 600;
+  border-color: transparent;
+}
 .ms-summary__item--done { color: var(--green); border-color: var(--green-soft); background: var(--green-soft); }
 .ms-summary__item--pending { color: var(--primary-600); border-color: var(--primary-soft); background: var(--primary-soft); }
 .ms-summary__item--upcoming { color: var(--ink-3); background: var(--surface); }
 .ms-summary__item--alert { color: var(--coral); border-color: var(--coral-soft); background: var(--coral-soft); font-weight: 600; }
+.ms-summary__item--all { color: var(--ink-3); background: var(--bg); }
+
+.ms-empty {
+  text-align: center; padding: 24px 12px;
+  font-size: 13px; color: var(--ink-3);
+  background: var(--surface); border: 1px dashed var(--line);
+  border-radius: var(--r-card);
+}
 
 .ms-domain { margin-bottom: 18px; }
 .ms-domain__head {
@@ -2361,6 +2400,7 @@ button:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
 @media (max-width: 720px) {
   .ms-domain__list { grid-template-columns: 1fr; }
   .ms-summary { gap: 6px; }
-  .ms-summary__item { font-size: 11px; padding: 3px 8px; }
+  .ms-summary__item { font-size: 11px; padding: 4px 9px; min-height: 26px; }
+  .ms-summary__item--btn { line-height: 1.4; }
 }
 /* ===== 里程碑打卡 END ===== */

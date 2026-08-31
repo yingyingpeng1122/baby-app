@@ -253,6 +253,20 @@ const addMinutesHM = (hm, mins) => {
   const t = (((h * 60 + m) + mins) % (24 * 60) + 24 * 60) % (24 * 60);
   return `${String(Math.floor(t / 60)).padStart(2, '0')}:${String(t % 60).padStart(2, '0')}`;
 };
+// 根据宝宝生日 + 建议月龄算建议日期（YYYY-MM-DD），用于疫苗/里程碑弹窗的日期默认值
+// 例：birthday='2026-01-08', months=6 → '2026-07-08'
+// 若算出的日期早于今天，返回今天（已逾期或正好到月龄的，用今天更合理）
+const suggestDate = (birthday, months) => {
+  try {
+    const d = new Date(birthday + 'T00:00:00'); // 按本地时区解析
+    if (isNaN(d.getTime())) return todayISO();
+    d.setMonth(d.getMonth() + months);
+    const suggested = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+    return suggested < todayISO() ? todayISO() : suggested;
+  } catch {
+    return todayISO();
+  }
+};
 // 分钟数转中文时长
 const fmtDur = (m) => {
   const h = Math.floor(m / 60), mm = m % 60;
@@ -998,9 +1012,12 @@ export default function BabyAppFullStack() {
   // 疫苗日历
   const [vaccines, setVaccines] = useState([]);
   const [vaccineModal, setVaccineModal] = useState(null); // { vaccine, administeredDate, note } 或 null
+  const [vxFilter, setVxFilter] = useState('action'); // 'action' 默认(逾期+待打) | 'administered' | 'upcoming' | 'all'
+  const [vaxFilter, setVaxFilter] = useState('todo'); // 'todo' 默认(逾期+待打) | 'administered' | 'upcoming' | 'all'
   // 里程碑打卡
   const [milestones, setMilestones] = useState([]);
   const [milestoneModal, setMilestoneModal] = useState(null); // { milestone, achievedDate, note } 或 null
+  const [msFilter, setMsFilter] = useState('pending'); // 'pending' 默认 | 'achieved' | 'upcoming' | 'all'
   // 睡眠 SweetSpot 预测
   const [sleepStats, setSleepStats] = useState(null);
   // 提交成功反馈 toast
@@ -3469,25 +3486,44 @@ export default function BabyAppFullStack() {
             <div className="section__sub">加载中...</div>
           ) : (
             <>
-              {/* 统计条 */}
+              {/* 统计条 · 可点击切换显示 */}
               {(() => {
                 const done = vaccines.filter(v => v.status === 'administered').length;
                 const overdue = vaccines.filter(v => v.status === 'overdue').length;
                 const upcoming = vaccines.filter(v => v.status === 'upcoming').length;
                 const pending = vaccines.filter(v => v.status === 'pending').length;
+                const action = overdue + pending;
+                const chip = (key, label, count, modifier) => (
+                  <button
+                    type="button"
+                    className={`vax-summary__item vax-summary__item--btn ${modifier} ${vxFilter === key ? 'vax-summary__item--active' : ''}`}
+                    onClick={() => setVxFilter(prev => prev === key ? 'all' : key)}
+                    title={vxFilter === key ? '再次点击显示全部' : `只显示${label}`}
+                  >
+                    {label} {count}
+                  </button>
+                );
                 return (
                   <div className="vax-summary">
-                    <span className="vax-summary__item vax-summary__item--done">已接种 {done}</span>
-                    <span className="vax-summary__item vax-summary__item--overdue">逾期 {overdue}</span>
-                    <span className="vax-summary__item vax-summary__item--pending">待打 {pending}</span>
-                    <span className="vax-summary__item vax-summary__item--upcoming">未到月龄 {upcoming}</span>
+                    {chip('action', '需接种', action, 'vax-summary__item--action')}
+                    {chip('administered', '已接种', done, 'vax-summary__item--done')}
+                    {chip('upcoming', '未到月龄', upcoming, 'vax-summary__item--upcoming')}
+                    {vxFilter === 'all' && <span className="vax-summary__item vax-summary__item--all">全部 {vaccines.length}</span>}
                   </div>
                 );
               })()}
-              {/* 疫苗列表：按月龄分组 */}
+              {/* 疫苗列表：按月龄分组（按 vxFilter 过滤） */}
               {(() => {
+                const visible = vaccines.filter(v => {
+                  if (vxFilter === 'all') return true;
+                  if (vxFilter === 'action') return v.status === 'overdue' || v.status === 'pending';
+                  return v.status === vxFilter;
+                });
+                if (visible.length === 0) {
+                  return <div className="vax-empty">该筛选下暂无疫苗</div>;
+                }
                 const groups = {};
-                vaccines.forEach(v => {
+                visible.forEach(v => {
                   const m = v.month;
                   if (!groups[m]) groups[m] = [];
                   groups[m].push(v);
@@ -3522,7 +3558,7 @@ export default function BabyAppFullStack() {
                             {v.status === 'administered' ? (
                               <button className="vax-btn vax-btn--undo" onClick={() => unmarkVaccine(v.recordId)}>撤销</button>
                             ) : (
-                              <button className="vax-btn vax-btn--mark" onClick={() => setVaccineModal({ vaccine: v, administeredDate: new Date().toISOString().slice(0, 10), note: '' })}>标记接种</button>
+                              <button className="vax-btn vax-btn--mark" onClick={() => setVaccineModal({ vaccine: v, administeredDate: suggestDate(profile.birthday, v.month), note: '' })}>标记接种</button>
                             )}
                           </div>
                         </div>
@@ -3546,22 +3582,34 @@ export default function BabyAppFullStack() {
             <div className="section__sub">加载中...</div>
           ) : (
             <>
-              {/* 统计条 */}
+              {/* 统计条 · 可点击切换显示 */}
               {(() => {
                 const achieved = milestones.filter(m => m.status === 'achieved').length;
                 const pending = milestones.filter(m => m.status === 'pending').length;
                 const upcoming = milestones.filter(m => m.status === 'upcoming').length;
                 const redFlagPending = milestones.filter(m => m.red_flag && m.status === 'pending').length;
+                const chip = (key, label, count, modifier) => (
+                  <button
+                    key={key}
+                    type="button"
+                    className={`ms-summary__item ms-summary__item--btn ${modifier} ${msFilter === key ? 'ms-summary__item--active' : ''}`}
+                    onClick={() => setMsFilter(prev => (prev === key ? 'all' : key))}
+                    title={msFilter === key ? '再次点击显示全部' : `只显示${label}`}
+                  >
+                    {label} {count}
+                  </button>
+                );
                 return (
                   <div className="ms-summary">
-                    <span className="ms-summary__item ms-summary__item--done">已达成 {achieved}</span>
-                    <span className="ms-summary__item ms-summary__item--pending">待打卡 {pending}</span>
-                    <span className="ms-summary__item ms-summary__item--upcoming">未到月龄 {upcoming}</span>
+                    {chip('achieved', '已达成', achieved, 'ms-summary__item--done')}
+                    {chip('pending', '待打卡', pending, 'ms-summary__item--pending')}
+                    {chip('upcoming', '未到月龄', upcoming, 'ms-summary__item--upcoming')}
+                    {msFilter === 'all' && <span className="ms-summary__item ms-summary__item--all">全部 {milestones.length}</span>}
                     {redFlagPending > 0 && <span className="ms-summary__item ms-summary__item--alert">⚠ 警惕 {redFlagPending}</span>}
                   </div>
                 );
               })()}
-              {/* 按领域分组 */}
+              {/* 按领域分组（按 msFilter 过滤） */}
               {(() => {
                 const DOMAIN_META = {
                   motor: { label: '粗大动作', icon: 'Footprints' },
@@ -3570,18 +3618,23 @@ export default function BabyAppFullStack() {
                   social: { label: '社交情感', icon: 'Smile' },
                 };
                 const domains = ['motor', 'fine', 'language', 'social'];
+                const visible = milestones.filter(m => msFilter === 'all' ? true : m.status === msFilter);
+                if (visible.length === 0) {
+                  return <div className="ms-empty">当前筛选下没有里程碑</div>;
+                }
                 return domains.map(dom => {
-                  const items = milestones.filter(m => m.domain === dom).sort((a, b) => a.month - b.month);
+                  const items = visible.filter(m => m.domain === dom).sort((a, b) => a.month - b.month);
                   if (items.length === 0) return null;
                   const meta = DOMAIN_META[dom];
                   const IconCmp = { Footprints, Hand, MessageCircle, Smile }[meta.icon];
-                  const domDone = items.filter(m => m.status === 'achieved').length;
+                  const domDone = milestones.filter(m => m.domain === dom && m.status === 'achieved').length;
+                  const domTotal = milestones.filter(m => m.domain === dom).length;
                   return (
                     <div key={dom} className="ms-domain">
                       <div className="ms-domain__head">
                         <IconCmp className="icon icon--sm" />
                         <span className="ms-domain__label">{meta.label}</span>
-                        <span className="ms-domain__count">{domDone}/{items.length}</span>
+                        <span className="ms-domain__count">{domDone}/{domTotal}</span>
                       </div>
                       <div className="ms-domain__list">
                         {items.map(m => (
@@ -3603,7 +3656,7 @@ export default function BabyAppFullStack() {
                                 <button
                                   className="ms-btn ms-btn--mark"
                                   disabled={m.status === 'upcoming'}
-                                  onClick={() => setMilestoneModal({ milestone: m, achievedDate: new Date().toISOString().slice(0, 10), note: '' })}
+                                  onClick={() => setMilestoneModal({ milestone: m, achievedDate: suggestDate(profile.birthday, m.month), note: '' })}
                                 >{m.status === 'upcoming' ? '未到月龄' : '打卡'}</button>
                               )}
                             </div>
@@ -4041,6 +4094,7 @@ export default function BabyAppFullStack() {
                   value={vaccineModal.administeredDate}
                   onChange={(e) => setVaccineModal({ ...vaccineModal, administeredDate: e.target.value })}
                 />
+                <div className="form-hint">默认为宝宝 {vaccineModal.vaccine.month} 月龄的建议日期，可按实际接种日修改</div>
               </div>
               <div className="form-row">
                 <label className="form-label">备注（可选）</label>
@@ -4094,6 +4148,7 @@ export default function BabyAppFullStack() {
                   value={milestoneModal.achievedDate}
                   onChange={(e) => setMilestoneModal({ ...milestoneModal, achievedDate: e.target.value })}
                 />
+                <div className="form-hint">默认为宝宝 {milestoneModal.milestone.month} 月龄的建议日期，可按实际达成日修改</div>
               </div>
               <div className="form-row">
                 <label className="form-label">备注（可选）</label>

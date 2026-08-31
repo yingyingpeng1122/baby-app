@@ -872,7 +872,7 @@ MUSIC_LIBRARY = [
     {'id': 225, 'title': 'If You Are Happy', 'desc': '情绪动作儿歌', 'keyword': 'If You are Happy and You Know It nursery rhyme sing along', 'lang': '英文童谣'},
     {'id': 226, 'title': 'Head Shoulders Knees and Toes', 'desc': '指认身体部位英文歌', 'keyword': 'Head Shoulders Knees and Toes song sing along kids', 'lang': '英文童谣'},
     {'id': 227, 'title': 'The ABC Song', 'desc': '字母启蒙英文歌', 'keyword': 'ABC song alphabet nursery rhyme sing', 'lang': '英文童谣'},
-    {'id': 228, 'title': 'Five Little Monkeys', 'desc': '数数英文儿歌', 'keyword': 'Five Little Monkeys jumping nursery rhyme sing along', 'lang': '英文童谣'},
+    # —— Five Little Monkeys 已迁移到绘本区（id=339）——本质是 Eileen Christelow 的经典绘本
     {'id': 229, 'title': 'Row Your Boat', 'desc': '轻柔英文摇篮曲', 'keyword': 'Row Row Row Your Boat nursery rhyme sing along', 'lang': '英文童谣'},
     {'id': 230, 'title': 'London Bridge', 'desc': '经典英文童谣', 'keyword': 'London Bridge is Falling Down nursery rhyme sing along', 'lang': '英文童谣'},
     {'id': 231, 'title': 'Itsy Bitsy Spider', 'desc': '动作英文儿歌', 'keyword': 'Itsy Bitsy Spider nursery rhyme sing along kids', 'lang': '英文童谣'},
@@ -1104,6 +1104,11 @@ STORY_LIBRARY = [
     {'id': 338, 'title': '爱心树', 'author': '谢尔·希尔弗斯坦', 'months': [24, 60],
      'desc': '共读要点：讨论树的付出、感受无条件的爱、指认成长变化，给予与爱的认知',
      'keyword': '爱心树 绘本 朗读'},
+
+    # —— 英文经典绘本（适合 2-5 岁，借共读示范视频进入绘本区）——
+    {'id': 339, 'title': 'Five Little Monkeys', 'author': '艾琳·克里斯泰洛', 'months': [24, 60],
+     'desc': '共读要点：跟读 5→1 倒数、模仿猴子跳床掉下床、讨论"医生说不能再跳了"的规则意识，数数与边界认知',
+     'keyword': 'Five Little Monkeys Jumping on the Bed 绘本 朗读 picture book read aloud'},
 ]
 
 def get_stories(months: int) -> List[Activity]:
