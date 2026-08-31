@@ -53,7 +53,15 @@ pnpm-debug.log*
 
 # 运行时缓存
 baby-app-backend/video_cache.json
+baby-app-backend/baby.db
+baby-app-backend/backend.err
+baby-app-backend/backend.log
+baby-app-backend/uvicorn.log
+baby-app-backend/uvicicorn.err
 debug.log
+
+# 预览/调试页（mock 数据，不入仓）
+baby-app-frontend/preview-*.html
 
 # 历史临时源码副本
 baby-app-frontend/前端.txt

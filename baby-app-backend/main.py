@@ -4,7 +4,7 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
 from pydantic import BaseModel
 from typing import List, Optional
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 import calendar as _calendar
 import uvicorn
 import urllib.request
@@ -18,6 +18,7 @@ import html as _html
 import hashlib
 import secrets
 import hmac
+from collections import deque
 
 # ---------------- 应用 & 跨域 ----------------
 app = FastAPI(title="Baby Growth Assistant API")
@@ -270,6 +271,32 @@ def init_db():
         created_at TEXT DEFAULT (datetime('now')),
         PRIMARY KEY (baby_id, id)
     )""")
+    # 成长区：疫苗实际接种记录（VACCINE_LIBRARY 是静态表，存内存即可）
+    db.execute("""CREATE TABLE IF NOT EXISTS vaccine_records (
+        id TEXT PRIMARY KEY,
+        baby_id TEXT NOT NULL,
+        vaccine_id INTEGER NOT NULL,   -- 对应 VACCINE_LIBRARY.id
+        administered_date TEXT NOT NULL,
+        note TEXT DEFAULT '',
+        created_at TEXT DEFAULT (datetime('now'))
+    )""")
+    try:
+        db.execute("CREATE INDEX IF NOT EXISTS idx_vaccine_baby ON vaccine_records(baby_id, vaccine_id)")
+    except Exception:
+        pass
+    # 成长区：里程碑首达记录（MILESTONE_LIBRARY 是静态库）
+    db.execute("""CREATE TABLE IF NOT EXISTS milestone_records (
+        id TEXT PRIMARY KEY,
+        baby_id TEXT NOT NULL,
+        milestone_id INTEGER NOT NULL,
+        achieved_date TEXT NOT NULL,
+        note TEXT DEFAULT '',
+        created_at TEXT DEFAULT (datetime('now'))
+    )""")
+    try:
+        db.execute("CREATE INDEX IF NOT EXISTS idx_milestone_baby ON milestone_records(baby_id, milestone_id)")
+    except Exception:
+        pass
     # 账号体系：手机号 + 密码登录，替代 localStorage 随机 user_id
     # 注意：旧版代码可能已建过 users 表（仅 user_id + created_at），用 IF NOT EXISTS 会跳过导致缺列。
     # 先尝试建完整表（首次部署有效），再用 ALTER TABLE 补齐缺失列（已存在旧表时）。
@@ -402,6 +429,9 @@ class FeedingEvaluation(BaseModel):
     targetDiversity: int = 4            # WHO 最低食物种类
     solidsAmountPerMeal: float = 0      # 平均每餐克数
     solidsGroupsLogged: bool = False    # 是否记录了食物种类
+    # 今日建议卡专用字段（批次4）
+    recommendFeeds: int = 0            # 建议每日喂奶次数（5 if months>=6 else 6）
+    perFeedMl: float = 0               # 建议单次奶量 = effectiveTargetMilk / recommendFeeds
 
 class DashboardResponse(BaseModel):
     profile: BabyProfile
@@ -526,11 +556,29 @@ def search_bilibili(keyword):
         if cand:
             kw = re.sub(r'\s+', '', keyword).lower()
             tokens = [t for t in re.split(r'[，,。、\s]+', kw) if t]
+            # 音乐/儿歌相关度加成词：标题含这些词的视频是演唱版/演奏版，加分
+            _music_pos = ['儿歌', '童谣', '演唱', '唱歌', '演奏', '律动', '摇篮曲',
+                          'song', 'sing', 'nursery', 'rhyme', 'lullaby', 'kids', 'children']
+            # 降分词：标题含这些词的视频多半是动画/故事片/配音版，不是纯音乐
+            _music_neg = ['动画', '故事', '配音', '中文版', '英文版', '全集', 'episode',
+                           'cartoon', 'story', 'dubbed', 'full episode']
             def _score(t):
                 if not t:
                     return 0
                 t2 = re.sub(r'\s+', '', t).lower()
-                return sum(1 for tok in tokens if tok and tok in t2)
+                base = sum(1 for tok in tokens if tok and tok in t2)
+                tl = t.lower()
+                # 音乐相关度加成
+                for w in _music_pos:
+                    if w in tl:
+                        base += 0.5
+                        break
+                # 非音乐降分
+                for w in _music_neg:
+                    if w in tl:
+                        base -= 0.6
+                        break
+                return base
             cand.sort(key=lambda x: _score(x[1]), reverse=True)
             bvid = cand[0][0]
             player = f"https://player.bilibili.com/player.html?bvid={bvid}&page=1&high_quality=1&danmaku=0"
@@ -799,39 +847,161 @@ def get_activities(months: int) -> List[Activity]:
 # ---------------- 音乐区（中文儿歌/童谣 + 英文 nursery rhymes，每次随机 3-4 个，中英文都有）----------------
 # lang 用于前端标签（中文儿歌 / 英文童谣）；keyword 走 B 站搜索；icon 统一用 music
 MUSIC_LIBRARY = [
-    # —— 中文儿歌 / 童谣 ——
-    {'id': 201, 'title': '小星星',       'desc': '一闪一闪亮晶晶，经典中文儿歌', 'keyword': '小星星 儿歌 中文 宝宝', 'lang': '中文儿歌'},
-    {'id': 202, 'title': '两只老虎',     'desc': '简单旋律，认识动物', 'keyword': '两只老虎 儿歌 中文', 'lang': '中文儿歌'},
-    {'id': 203, 'title': '摇篮曲',       'desc': '轻柔哼唱，安抚入睡', 'keyword': '摇篮曲 宝宝 催眠 儿歌', 'lang': '中文儿歌'},
-    {'id': 204, 'title': '找朋友',       'desc': '互动游戏，培养社交', 'keyword': '找朋友 儿歌 宝宝 互动', 'lang': '中文儿歌'},
-    {'id': 205, 'title': '小毛驴',       'desc': '俏皮节奏，跟唱律动', 'keyword': '小毛驴 儿歌 中文', 'lang': '中文儿歌'},
-    {'id': 206, 'title': '数鸭子',       'desc': '数数启蒙，欢快好记', 'keyword': '数鸭子 儿歌 中文', 'lang': '中文儿歌'},
-    {'id': 207, 'title': '拔萝卜',       'desc': '合作主题，亲子共唱', 'keyword': '拔萝卜 儿歌 中文 宝宝', 'lang': '中文儿歌'},
-    {'id': 208, 'title': '小白兔白又白', 'desc': '认识小动物，轻快童谣', 'keyword': '小白兔白又白 童谣 儿歌', 'lang': '中文儿歌'},
-    {'id': 209, 'title': '身体音阶歌',   'desc': '指认身体部位，边唱边动', 'keyword': '身体音阶歌 儿歌 认识身体', 'lang': '中文儿歌'},
-    {'id': 210, 'title': '刷牙歌',       'desc': '养成刷牙好习惯', 'keyword': '刷牙歌 儿歌 宝宝 习惯', 'lang': '中文儿歌'},
-    {'id': 211, 'title': '三只小熊',     'desc': '中文版亲子律动', 'keyword': '三只小熊 儿歌 中文 宝宝', 'lang': '中文儿歌'},
+    # —— 中文儿歌 / 童谣（keyword 末尾统一加"演唱"限定，避免 B 站返回动画/故事片）——
+    {'id': 201, 'title': '小星星',       'desc': '一闪一闪亮晶晶，经典中文儿歌', 'keyword': '小星星 儿歌 演唱 中文', 'lang': '中文儿歌'},
+    {'id': 202, 'title': '两只老虎',     'desc': '简单旋律，认识动物', 'keyword': '两只老虎 儿歌 演唱', 'lang': '中文儿歌'},
+    {'id': 203, 'title': '摇篮曲',       'desc': '轻柔哼唱，安抚入睡', 'keyword': '摇篮曲 儿歌 演唱 催眠', 'lang': '中文儿歌'},
+    {'id': 204, 'title': '找朋友',       'desc': '互动游戏，培养社交', 'keyword': '找朋友 儿歌 演唱 互动', 'lang': '中文儿歌'},
+    {'id': 205, 'title': '小毛驴',       'desc': '俏皮节奏，跟唱律动', 'keyword': '小毛驴 儿歌 演唱', 'lang': '中文儿歌'},
+    {'id': 206, 'title': '数鸭子',       'desc': '数数启蒙，欢快好记', 'keyword': '数鸭子 儿歌 演唱', 'lang': '中文儿歌'},
+    {'id': 207, 'title': '拔萝卜',       'desc': '合作主题，亲子共唱', 'keyword': '拔萝卜 儿歌 演唱', 'lang': '中文儿歌'},
+    {'id': 208, 'title': '小白兔白又白', 'desc': '认识小动物，轻快童谣', 'keyword': '小白兔白又白 童谣 演唱 儿歌', 'lang': '中文儿歌'},
+    {'id': 209, 'title': '身体音阶歌',   'desc': '指认身体部位，边唱边动', 'keyword': '身体音阶歌 儿歌 演唱 认识身体', 'lang': '中文儿歌'},
+    {'id': 210, 'title': '刷牙歌',       'desc': '养成刷牙好习惯', 'keyword': '刷牙歌 儿歌 演唱 习惯', 'lang': '中文儿歌'},
+    {'id': 211, 'title': '三只小熊',     'desc': '中文版亲子律动', 'keyword': '三只小熊 儿歌 演唱', 'lang': '中文儿歌'},
     # —— 从早教活动区迁移过来的音乐律动类（中文）——
-    {'id': 102, 'title': '莫扎特安睡曲', 'desc': '轻柔古典乐安抚情绪助眠', 'keyword': '莫扎特 摇篮曲 宝宝 安睡曲', 'lang': '中文儿歌'},
-    {'id': 115, 'title': '儿歌律动',     'desc': '跟儿歌拍手律动', 'keyword': '儿歌律动 认识身体 宝宝', 'lang': '中文儿歌'},
-    {'id': 125, 'title': '节奏打击',     'desc': '敲打乐器感受节奏', 'keyword': '宝宝 打击乐 节奏', 'lang': '中文儿歌'},
-    {'id': 138, 'title': '律动跳舞',     'desc': '随音乐自由舞动', 'keyword': '幼儿 律动 跳舞', 'lang': '中文儿歌'},
-    # —— 英文 nursery rhymes / songs ——
-    {'id': 221, 'title': 'Twinkle Twinkle Little Star', 'desc': '英文经典摇篮曲', 'keyword': 'Twinkle Twinkle Little Star nursery rhyme', 'lang': '英文童谣'},
-    {'id': 222, 'title': 'Old MacDonald Had a Farm', 'desc': '认识农场动物与叫声', 'keyword': 'Old MacDonald Had a Farm nursery rhyme', 'lang': '英文童谣'},
-    {'id': 223, 'title': 'Wheels on the Bus', 'desc': '交通工具拟声儿歌', 'keyword': 'Wheels on the Bus nursery rhyme', 'lang': '英文童谣'},
-    {'id': 224, 'title': 'Baby Shark', 'desc': '活泼洗脑，亲子共舞', 'keyword': 'Baby Shark song nursery', 'lang': '英文童谣'},
-    {'id': 225, 'title': 'If You Are Happy', 'desc': '情绪动作儿歌', 'keyword': 'If You are Happy and You Know It nursery', 'lang': '英文童谣'},
-    {'id': 226, 'title': 'Head Shoulders Knees and Toes', 'desc': '指认身体部位英文歌', 'keyword': 'Head Shoulders Knees and Toes song', 'lang': '英文童谣'},
-    {'id': 227, 'title': 'The ABC Song', 'desc': '字母启蒙英文歌', 'keyword': 'ABC song alphabet nursery', 'lang': '英文童谣'},
-    {'id': 228, 'title': 'Five Little Monkeys', 'desc': '数数英文儿歌', 'keyword': 'Five Little Monkeys jump nursery rhyme', 'lang': '英文童谣'},
-    {'id': 229, 'title': 'Row Your Boat', 'desc': '轻柔英文摇篮曲', 'keyword': 'Row Row Row Your Boat nursery rhyme', 'lang': '英文童谣'},
-    {'id': 230, 'title': 'London Bridge', 'desc': '经典英文童谣', 'keyword': 'London Bridge is Falling Down nursery', 'lang': '英文童谣'},
-    {'id': 231, 'title': 'Itsy Bitsy Spider', 'desc': '动作英文儿歌', 'keyword': 'Itsy Bitsy Spider nursery rhyme', 'lang': '英文童谣'},
+    {'id': 102, 'title': '莫扎特安睡曲', 'desc': '轻柔古典乐安抚情绪助眠', 'keyword': '莫扎特 摇篮曲 安睡曲 演奏', 'lang': '中文儿歌'},
+    {'id': 115, 'title': '儿歌律动',     'desc': '跟儿歌拍手律动', 'keyword': '儿歌律动 演唱 认识身体', 'lang': '中文儿歌'},
+    {'id': 125, 'title': '节奏打击',     'desc': '敲打乐器感受节奏', 'keyword': '宝宝 打击乐 节奏 演奏', 'lang': '中文儿歌'},
+    {'id': 138, 'title': '律动跳舞',     'desc': '随音乐自由舞动', 'keyword': '幼儿 律动 跳舞 儿歌', 'lang': '中文儿歌'},
+    # —— 英文 nursery rhymes / songs（keyword 加 "sing along" 让 B 站返回演唱版而非动画故事）——
+    {'id': 221, 'title': 'Twinkle Twinkle Little Star', 'desc': '英文经典摇篮曲', 'keyword': 'Twinkle Twinkle Little Star nursery rhyme sing along', 'lang': '英文童谣'},
+    {'id': 222, 'title': 'Old MacDonald Had a Farm', 'desc': '认识农场动物与叫声', 'keyword': 'Old MacDonald Had a Farm nursery rhyme sing along', 'lang': '英文童谣'},
+    {'id': 223, 'title': 'Wheels on the Bus', 'desc': '交通工具拟声儿歌', 'keyword': 'Wheels on the Bus nursery rhyme sing along', 'lang': '英文童谣'},
+    {'id': 224, 'title': 'Baby Shark', 'desc': '活泼洗脑，亲子共舞', 'keyword': 'Baby Shark song sing along kids', 'lang': '英文童谣'},
+    {'id': 225, 'title': 'If You Are Happy', 'desc': '情绪动作儿歌', 'keyword': 'If You are Happy and You Know It nursery rhyme sing along', 'lang': '英文童谣'},
+    {'id': 226, 'title': 'Head Shoulders Knees and Toes', 'desc': '指认身体部位英文歌', 'keyword': 'Head Shoulders Knees and Toes song sing along kids', 'lang': '英文童谣'},
+    {'id': 227, 'title': 'The ABC Song', 'desc': '字母启蒙英文歌', 'keyword': 'ABC song alphabet nursery rhyme sing', 'lang': '英文童谣'},
+    {'id': 228, 'title': 'Five Little Monkeys', 'desc': '数数英文儿歌', 'keyword': 'Five Little Monkeys jumping nursery rhyme sing along', 'lang': '英文童谣'},
+    {'id': 229, 'title': 'Row Your Boat', 'desc': '轻柔英文摇篮曲', 'keyword': 'Row Row Row Your Boat nursery rhyme sing along', 'lang': '英文童谣'},
+    {'id': 230, 'title': 'London Bridge', 'desc': '经典英文童谣', 'keyword': 'London Bridge is Falling Down nursery rhyme sing along', 'lang': '英文童谣'},
+    {'id': 231, 'title': 'Itsy Bitsy Spider', 'desc': '动作英文儿歌', 'keyword': 'Itsy Bitsy Spider nursery rhyme sing along kids', 'lang': '英文童谣'},
+]
+
+# ---------------- 成长区：疫苗日历 ----------------
+# 中国《国家免疫规划疫苗儿童免疫程序表》及 commonly 接种的自费替代苗（按月龄排序）
+# month: 接种起始月龄（0 = 出生时；-1 表示按年龄复种，如 6 岁 booster）
+# doses: 该疫苗总共需要的剂次数（同一种疫苗多次接种）
+# seq: 当前剂次序号（1-based）
+# is_nip: True = 国家免疫规划（免费，必须打）；False = 自费替代苗（推荐）
+# prevent: 预防的疾病
+# 来源：国家疾控局《国家免疫规划疫苗儿童免疫程序表（2021 版）》
+VACCINE_LIBRARY = [
+    # —— 0 月（出生时）——
+    {'id': 1,  'name': '乙肝疫苗',         'seq': 1, 'month': 0,  'doses': 3, 'is_nip': True,  'prevent': '乙型病毒性肝炎',         'note': '出生 24h 内接种第 1 剂'},
+    {'id': 2,  'name': '卡介苗',           'seq': 1, 'month': 0,  'doses': 1, 'is_nip': True,  'prevent': '结核病',               'note': '出生 24h 内接种 1 剂'},
+    # —— 1 月 ——
+    {'id': 3,  'name': '乙肝疫苗',         'seq': 2, 'month': 1,  'doses': 3, 'is_nip': True,  'prevent': '乙型病毒性肝炎',         'note': '第 2 剂'},
+    # —— 2 月 ——
+    {'id': 4,  'name': '脊灰灭活疫苗',      'seq': 1, 'month': 2,  'doses': 4, 'is_nip': True,  'prevent': '脊髓灰质炎',            'note': 'IPV，第 1 剂'},
+    # —— 3 月 ——
+    {'id': 5,  'name': '脊灰减毒疫苗',      'seq': 2, 'month': 3,  'doses': 4, 'is_nip': True,  'prevent': '脊髓灰质炎',            'note': 'bOPV，第 2 剂（滴剂/糖丸）'},
+    {'id': 6,  'name': '百白破疫苗',        'seq': 1, 'month': 3,  'doses': 4, 'is_nip': True,  'prevent': '百日咳/白喉/破伤风',     'note': 'DTaP，第 1 剂'},
+    # —— 4 月 ——
+    {'id': 7,  'name': '脊灰减毒疫苗',      'seq': 3, 'month': 4,  'doses': 4, 'is_nip': True,  'prevent': '脊髓灰质炎',            'note': 'bOPV，第 3 剂'},
+    {'id': 8,  'name': '百白破疫苗',        'seq': 2, 'month': 4,  'doses': 4, 'is_nip': True,  'prevent': '百日咳/白喉/破伤风',     'note': 'DTaP，第 2 剂'},
+    # —— 5 月 ——
+    {'id': 9,  'name': '百白破疫苗',        'seq': 3, 'month': 5,  'doses': 4, 'is_nip': True,  'prevent': '百日咳/白喉/破伤风',     'note': 'DTaP，第 3 剂'},
+    # —— 6 月 ——
+    {'id': 10, 'name': '乙肝疫苗',         'seq': 3, 'month': 6,  'doses': 3, 'is_nip': True,  'prevent': '乙型病毒性肝炎',         'note': '第 3 剂'},
+    {'id': 11, 'name': 'A 群流脑多糖疫苗', 'seq': 1, 'month': 6,  'doses': 2, 'is_nip': True,  'prevent': '流行性脑脊髓膜炎',       'note': 'A 群，第 1 剂'},
+    # —— 8 月 ——
+    {'id': 12, 'name': '麻腮风疫苗',       'seq': 1, 'month': 8,  'doses': 2, 'is_nip': True,  'prevent': '麻疹/流行性腮腺炎/风疹', 'note': 'MMR，第 1 剂'},
+    {'id': 13, 'name': '乙脑减毒疫苗',     'seq': 1, 'month': 8,  'doses': 2, 'is_nip': True,  'prevent': '流行性乙型脑炎',        'note': 'JE-L，第 1 剂'},
+    # —— 9 月 ——
+    {'id': 14, 'name': 'A 群流脑多糖疫苗', 'seq': 2, 'month': 9,  'doses': 2, 'is_nip': True,  'prevent': '流行性脑脊髓膜炎',       'note': 'A 群，第 2 剂'},
+    # —— 18 月（1 岁半）——
+    {'id': 15, 'name': '百白破疫苗',        'seq': 4, 'month': 18, 'doses': 4, 'is_nip': True,  'prevent': '百日咳/白喉/破伤风',     'note': 'DTaP，第 4 剂（加强）'},
+    {'id': 16, 'name': '麻腮风疫苗',       'seq': 2, 'month': 18, 'doses': 2, 'is_nip': True,  'prevent': '麻疹/流行性腮腺炎/风疹', 'note': 'MMR，第 2 剂'},
+    {'id': 17, 'name': '甲肝减毒疫苗',     'seq': 1, 'month': 18, 'doses': 1, 'is_nip': True,  'prevent': '甲型病毒性肝炎',         'note': 'HepA-L，1 剂'},
+    # —— 2 岁 ——
+    {'id': 18, 'name': '乙脑减毒疫苗',     'seq': 2, 'month': 24, 'doses': 2, 'is_nip': True,  'prevent': '流行性乙型脑炎',        'note': 'JE-L，第 2 剂'},
+    {'id': 19, 'name': '甲肝灭活疫苗',     'seq': 1, 'month': 24, 'doses': 2, 'is_nip': False, 'prevent': '甲型病毒性肝炎',         'note': '自费替代苗：HepA-I 第 1 剂（替代减毒）'},
+    # —— 3 岁 ——
+    {'id': 20, 'name': 'A+C 群流脑多糖疫苗', 'seq': 1, 'month': 36, 'doses': 1, 'is_nip': True,  'prevent': '流行性脑脊髓膜炎',       'note': 'A+C 群，1 剂'},
+    # —— 4 岁 ——
+    {'id': 21, 'name': '脊灰减毒疫苗',      'seq': 4, 'month': 48, 'doses': 4, 'is_nip': True,  'prevent': '脊髓灰质炎',            'note': 'bOPV，第 4 剂（加强）'},
+    # —— 6 岁 ——
+    {'id': 22, 'name': '百白破疫苗',        'seq': 5, 'month': 72, 'doses': 5, 'is_nip': True,  'prevent': '百日咳/白喉/破伤风',     'note': 'DTaP，第 5 剂（6 岁加强）'},
+    {'id': 23, 'name': 'A+C 群流脑多糖疫苗', 'seq': 2, 'month': 72, 'doses': 2, 'is_nip': True,  'prevent': '流行性脑脊髓膜炎',       'note': 'A+C 群，第 2 剂（6 岁加强）'},
+    # —— 自费推荐（13 价肺炎 / 23 价肺炎 / 轮状 / 手足口 / 流感 / HPV 等）——
+    {'id': 31, 'name': '13 价肺炎球菌疫苗',  'seq': 1, 'month': 2,  'doses': 4, 'is_nip': False, 'prevent': '肺炎链球菌疾病',         'note': 'PCV13，自费推荐，6 月龄前完成基础免疫'},
+    {'id': 32, 'name': '轮状病毒疫苗',      'seq': 1, 'month': 2,  'doses': 3, 'is_nip': False, 'prevent': '轮状病毒肠炎',          'note': '自费推荐，2-6 月龄口服 3 剂'},
+    {'id': 33, 'name': 'Hib 疫苗',         'seq': 1, 'month': 2,  'doses': 4, 'is_nip': False, 'prevent': 'b 型流感嗜血杆菌',      'note': '自费推荐，2-6 月龄 3 剂基础 + 1 剂加强'},
+    {'id': 34, 'name': '手足口 EV71 疫苗',  'seq': 1, 'month': 6,  'doses': 2, 'is_nip': False, 'prevent': 'EV71 引起的手足口病',   'note': '自费推荐，6 月龄-5 岁，2 剂间隔 1 月'},
+    {'id': 35, 'name': '流感疫苗',         'seq': 1, 'month': 6,  'doses': 2, 'is_nip': False, 'prevent': '流行性感冒',            'note': '自费推荐，6 月龄以上，每年接种'},
+    {'id': 36, 'name': '水痘疫苗',         'seq': 1, 'month': 12, 'doses': 2, 'is_nip': False, 'prevent': '水痘',                 'note': '自费推荐，1-12 岁接种 2 剂'},
+    {'id': 37, 'name': '23 价肺炎疫苗',     'seq': 1, 'month': 24, 'doses': 1, 'is_nip': False, 'prevent': '肺炎链球菌疾病',         'note': '自费推荐，2 岁以上高危儿童'},
+]
+
+# ---------------- 成长区：里程碑打卡 ----------------
+# 依据美国 CDC「Learn the Signs. Act Early.」（2022 修订版）+ WHO 多中心研究 + 香港卫生署
+# 按 4 大领域分组：motor（粗大动作）/ fine（精细动作）/ language（语言）/ social（社交情感）
+# month: 多数宝宝达成该里程碑的月龄（中位数）；窗口约 ±2 个月都正常
+# red_flag: True = 该里程碑未达成需警惕（建议咨询儿科医生）
+MILESTONE_LIBRARY = [
+    # —— 0-2 月 ——
+    {'id': 1,  'domain': 'motor',     'month': 1,  'desc': '俯卧抬头短暂（下巴离床）',            'red_flag': False},
+    {'id': 2,  'domain': 'motor',     'month': 2,  'desc': '俯卧抬头 45°',                       'red_flag': False},
+    {'id': 3,  'domain': 'fine',      'month': 2,  'desc': '注视人脸/高对比图案',                 'red_flag': False},
+    {'id': 4,  'domain': 'social',    'month': 2,  'desc': '社交性微笑（被逗引时微笑回应）',      'red_flag': True},
+    {'id': 5,  'domain': 'language',  'month': 2,  'desc': '发出 a/o 等元音声',                  'red_flag': False},
+    # —— 3-5 月 ——
+    {'id': 6,  'domain': 'motor',     'month': 3,  'desc': '俯卧抬头 90° + 用前臂支撑',           'red_flag': False},
+    {'id': 7,  'domain': 'motor',     'month': 4,  'desc': '仰卧翻身到俯卧',                      'red_flag': False},
+    {'id': 8,  'domain': 'fine',      'month': 4,  'desc': '双手凑到中线 / 抓握拨浪鼓',          'red_flag': False},
+    {'id': 9,  'domain': 'language',  'month': 4,  'desc': '笑出声 / 尖叫',                       'red_flag': False},
+    {'id': 10, 'domain': 'social',    'month': 4,  'desc': '回应互动（被逗引时大声笑）',          'red_flag': False},
+    {'id': 11, 'domain': 'motor',     'month': 5,  'desc': '俯卧翻身到仰卧（双向翻身）',         'red_flag': True},
+    {'id': 12, 'domain': 'fine',      'month': 5,  'desc': '伸手抓物（主动够物）',               'red_flag': True},
+    # —— 6-8 月 ——
+    {'id': 13, 'domain': 'motor',     'month': 6,  'desc': '不需支撑能独坐片刻',                  'red_flag': True},
+    {'id': 14, 'domain': 'fine',      'month': 6,  'desc': '双手传递物品',                        'red_flag': False},
+    {'id': 15, 'domain': 'language',  'month': 6,  'desc': '连续辅音 bababa/mamama',             'red_flag': False},
+    {'id': 16, 'domain': 'social',    'month': 6,  'desc': '认生（区分熟悉/陌生人）',             'red_flag': False},
+    {'id': 17, 'domain': 'motor',     'month': 7,  'desc': '独坐稳（手可自由玩物）',              'red_flag': True},
+    {'id': 18, 'domain': 'motor',     'month': 8,  'desc': '扶站（扶家具站立）',                  'red_flag': False},
+    {'id': 19, 'domain': 'fine',      'month': 8,  'desc': '拇食指捏取（pincer grasp）',         'red_flag': True},
+    {'id': 20, 'domain': 'language',  'month': 8,  'desc': '懂得「不」/ 听到自己名字转头',        'red_flag': False},
+    # —— 9-11 月 ——
+    {'id': 21, 'domain': 'motor',     'month': 9,  'desc': '爬行（手膝爬行）',                    'red_flag': True},
+    {'id': 22, 'domain': 'social',    'month': 9,  'desc': '躲猫猫 / 物体永恒概念',               'red_flag': False},
+    {'id': 23, 'domain': 'fine',      'month': 10, 'desc': '用食指指物（proto-declarative）',     'red_flag': True},
+    {'id': 24, 'domain': 'language',  'month': 10, 'desc': '说「妈妈/爸爸」有所指',               'red_flag': True},
+    {'id': 25, 'domain': 'motor',     'month': 11, 'desc': '扶物横走（cruising）',                'red_flag': False},
+    # —— 12-17 月 ——
+    {'id': 26, 'domain': 'motor',     'month': 12, 'desc': '独走几步',                            'red_flag': True},
+    {'id': 27, 'domain': 'fine',      'month': 12, 'desc': '把物品放入容器',                      'red_flag': False},
+    {'id': 28, 'domain': 'language',  'month': 12, 'desc': '说 1-3 个有意义单词',                 'red_flag': True},
+    {'id': 29, 'domain': 'social',    'month': 12, 'desc': '模仿动作（如挥手再见）',              'red_flag': False},
+    {'id': 30, 'domain': 'language',  'month': 15, 'desc': '说 4-6 个单词',                      'red_flag': False},
+    {'id': 31, 'domain': 'fine',      'month': 15, 'desc': '用蜡笔涂鸦',                          'red_flag': False},
+    {'id': 32, 'domain': 'social',    'month': 15, 'desc': '指认身体部位',                        'red_flag': False},
+    # —— 18-23 月 ——
+    {'id': 33, 'domain': 'motor',     'month': 18, 'desc': '稳走 / 跑（虽易摔）',                 'red_flag': True},
+    {'id': 34, 'domain': 'fine',      'month': 18, 'desc': '叠 3-4 块积木',                       'red_flag': False},
+    {'id': 35, 'domain': 'language',  'month': 18, 'desc': '说 10-20 个词',                       'red_flag': False},
+    {'id': 36, 'domain': 'social',    'month': 18, 'desc': '用勺子吃饭（虽撒）',                  'red_flag': False},
+    {'id': 37, 'domain': 'language',  'month': 20, 'desc': '说 2 词短语（「妈妈抱」）',           'red_flag': True},
+    # —— 24-35 月 ——
+    {'id': 38, 'domain': 'motor',     'month': 24, 'desc': '双脚跳',                              'red_flag': True},
+    {'id': 39, 'domain': 'fine',      'month': 24, 'desc': '叠 6-7 块积木 / 旋开瓶盖',            'red_flag': False},
+    {'id': 40, 'domain': 'language',  'month': 24, 'desc': '说 50+ 词 / 2-3 词句',                'red_flag': True},
+    {'id': 41, 'domain': 'social',    'month': 24, 'desc': '与其他孩子并行游戏',                  'red_flag': False},
+    {'id': 42, 'domain': 'motor',     'month': 30, 'desc': '单脚站 1 秒',                          'red_flag': False},
+    {'id': 43, 'domain': 'language',  'month': 30, 'desc': '说 3 词句 / 用「我」',                'red_flag': False},
+    # —— 36-48 月 ——
+    {'id': 44, 'domain': 'motor',     'month': 36, 'desc': '单脚站 3 秒 / 骑三轮车',              'red_flag': False},
+    {'id': 45, 'domain': 'fine',      'month': 36, 'desc': '画圆 / 穿珠子',                       'red_flag': False},
+    {'id': 46, 'domain': 'language',  'month': 36, 'desc': '说清陌生人能听懂 75% 的话',           'red_flag': True},
+    {'id': 47, 'domain': 'social',    'month': 36, 'desc': '与其他孩子合作游戏 / 分享',           'red_flag': False},
+    {'id': 48, 'domain': 'fine',      'month': 42, 'desc': '画十字 / 画 V',                        'red_flag': False},
+    {'id': 49, 'domain': 'motor',     'month': 48, 'desc': '单脚跳',                              'red_flag': False},
+    {'id': 50, 'domain': 'language',  'month': 48, 'desc': '讲简单故事 / 用 5-6 词句',            'red_flag': False},
 ]
 
 STORY_LIBRARY = [
-    # —— 6-12 月：认知启蒙 / 视觉刺激 / 拟声词 ——
+    # —— 6-12 月：认知启蒙 / 视觉刺激 / 拟声词（8 本）——
     {'id': 301, 'title': '好饿的毛毛虫', 'author': '艾瑞·卡尔', 'months': [6, 24],
      'desc': '共读要点：指认食物名称、数一数吃了几个、模仿毛毛虫爬行，认知食物/数量/星期与生命循环',
      'keyword': '好饿的毛毛虫 绘本 朗读'},
@@ -844,59 +1014,140 @@ STORY_LIBRARY = [
     {'id': 304, 'title': '点点点', 'author': '赫维·杜雷', 'months': [9, 24],
      'desc': '共读要点：按指令点按、摇晃、吹气，感受因果关系与互动乐趣，颜色与方向认知',
      'keyword': '点点点 绘本 互动 朗读'},
-    # —— 12-18 月：语言萌芽 / 生活认知 / 亲子依恋 ——
+    {'id': 305, 'title': '哇！', 'author': '松冈达英', 'months': [6, 18],
+     'desc': '共读要点：模仿各种动物「哇」的惊讶表情、翻页制造惊喜，情绪表达与翻页期待',
+     'keyword': '哇 松冈达英 绘本 朗读'},
+    {'id': 306, 'title': '舔一舔', 'author': '宫西达也', 'months': [6, 18],
+     'desc': '共读要点：模仿动物舔东西的动作、感受不同舌头的触感，动物认知与拟态游戏',
+     'keyword': '舔一舔 宫西达也 绘本'},
+    {'id': 307, 'title': '噗噗噗', 'author': '谷川俊太郎', 'months': [6, 18],
+     'desc': '共读要点：模仿拟声词「噗」、感受形状变化、指认颜色块，声音与形状认知',
+     'keyword': '噗噗噗 绘本 谷川俊太郎 朗读'},
+    {'id': 308, 'title': '抱抱', 'author': '杰兹·阿波罗', 'months': [6, 18],
+     'desc': '共读要点：边读边抱宝宝、模仿动物拥抱、强化亲子依恋，情感联结与安全感',
+     'keyword': '抱抱 绘本 朗读 亲子'},
+
+    # —— 12-18 月：语言萌芽 / 生活认知 / 亲子依恋（8 本）——
     {'id': 311, 'title': '小蓝和小黄', 'author': '李欧·李奥尼', 'months': [12, 30],
      'desc': '共读要点：指认蓝色黄色、感受拥抱变绿的颜色混合、讨论好朋友，颜色与友谊认知',
      'keyword': '小蓝和小黄 绘本 朗读'},
-    {'id': 312, 'title': '抱抱', 'author': '杰兹·阿波罗', 'months': [12, 24],
-     'desc': '共读要点：边读边抱宝宝、模仿动物拥抱、强化亲子依恋，情感联结与安全感',
-     'keyword': '抱抱 绘本 朗读 亲子'},
+    {'id': 312, 'title': '连在一起', 'author': '三浦太郎', 'months': [12, 24],
+     'desc': '共读要点：指认动物和宝宝连在一起、感受亲子联结、模仿贴脸动作，亲子依恋与共同感',
+     'keyword': '连在一起 绘本 三浦太郎 朗读'},
     {'id': 313, 'title': '月亮，晚安', 'author': '玛格丽特·怀兹', 'months': [12, 30],
      'desc': '共读要点：逐一道晚安、指认房间物品、建立睡前仪式，睡眠习惯与物体恒存',
      'keyword': '月亮晚安 绘本 朗读 睡前'},
     {'id': 314, 'title': '我爸爸', 'author': '安东尼·布朗', 'months': [12, 36],
      'desc': '共读要点：指认爸爸的特征、模仿表情动作、表达对爸爸的爱，家庭关系与情感表达',
      'keyword': '我爸爸 绘本 安东尼布朗 朗读'},
-    # —— 18-24 月：语言爆发 / 行为边界 / 观察力 ——
+    {'id': 315, 'title': '我妈妈', 'author': '安东尼·布朗', 'months': [12, 36],
+     'desc': '共读要点：指认妈妈的特征、模仿表情动作、表达对妈妈的爱，家庭关系与情感表达',
+     'keyword': '我妈妈 绘本 安东尼布朗 朗读'},
+    {'id': 316, 'title': '好饿的小蛇', 'author': '宫西达也', 'months': [12, 30],
+     'desc': '共读要点：猜小蛇吃了什么、指认颜色形状、模仿吃东西的声音，颜色形状与食物认知',
+     'keyword': '好饿的小蛇 绘本 宫西达也 朗读'},
+    {'id': 317, 'title': '小金鱼逃走了', 'author': '五味太郎', 'months': [12, 30],
+     'desc': '共读要点：一起找小金鱼、指认躲藏位置、感受寻找的成就感，观察力与寻找游戏',
+     'keyword': '小金鱼逃走了 绘本 朗读 五味太郎'},
+    {'id': 318, 'title': '首先有一个苹果', 'author': '伊东宽', 'months': [12, 30],
+     'desc': '共读要点：数数 1-10、指认动物、感受递增节奏，数量启蒙与序列认知',
+     'keyword': '首先有一个苹果 绘本 朗读 数数'},
+
+    # —— 18-24 月：语言爆发 / 行为边界 / 观察力（8 本）——
     {'id': 321, 'title': '大卫，不可以', 'author': '大卫·香农', 'months': [18, 36],
      'desc': '共读要点：讨论大卫为什么不可以、引导说出规则、模仿「不可以」语气，行为边界与规则感',
      'keyword': '大卫不可以 绘本 朗读'},
-    {'id': 322, 'title': '好饿的小蛇', 'author': '宫西达也', 'months': [12, 30],
-     'desc': '共读要点：猜小蛇吃了什么、指认颜色形状、模仿吃东西的声音，颜色形状与食物认知',
-     'keyword': '好饿的小蛇 绘本 宫西达也 朗读'},
-    {'id': 323, 'title': '小金鱼逃走了', 'author': '五味太郎', 'months': [12, 30],
-     'desc': '共读要点：一起找小金鱼、指认躲藏位置、感受寻找的成就感，观察力与寻找游戏',
-     'keyword': '小金鱼逃走了 绘本 朗读 五味太郎'},
-    {'id': 324, 'title': '是谁嗯嗯在我的头上', 'author': '维尔纳·霍尔茨瓦特', 'months': [18, 36],
+    {'id': 322, 'title': '是谁嗯嗯在我的头上', 'author': '维尔纳·霍尔茨瓦特', 'months': [18, 36],
      'desc': '共读要点：认识不同动物的便便、讨论如厕、模仿小鼹鼠生气的样子，如厕认知与幽默感',
      'keyword': '是谁嗯嗯在我的头上 绘本 朗读'},
-    # —— 24+ 月：语言丰富 / 情绪管理 / 想象力 ——
+    {'id': 323, 'title': '好忙的蜘蛛', 'author': '艾瑞·卡尔', 'months': [18, 36],
+     'desc': '共读要点：模仿织网动作、感受蜘蛛的专注、指认来访动物，专注力与重复句式',
+     'keyword': '好忙的蜘蛛 绘本 朗读 艾瑞卡尔'},
+    {'id': 324, 'title': '变色龙卡梅拉', 'author': '艾瑞·卡尔', 'months': [18, 36],
+     'desc': '共读要点：指认变色龙的颜色变化、讨论动物如何伪装、模仿变色龙慢动作，颜色与动物认知',
+     'keyword': '变色龙 绘本 艾瑞卡尔 朗读'},
+    {'id': 325, 'title': '我绝对绝对不吃番茄', 'author': '罗伦·乔尔德', 'months': [18, 36],
+     'desc': '共读要点：讨论挑食、想象番茄是别的食物、鼓励尝试新食物，饮食习惯与想象力',
+     'keyword': '我绝对绝对不吃番茄 绘本 朗读'},
+    {'id': 326, 'title': '彩虹色的花', 'author': '麦克·格雷涅茨', 'months': [18, 36],
+     'desc': '共读要点：指认花瓣颜色、讨论分享与帮助、感受四季变化，颜色与分享认知',
+     'keyword': '彩虹色的花 绘本 朗读'},
+    {'id': 327, 'title': '阿罗有支彩色笔', 'author': '克罗格特·约翰逊', 'months': [18, 36],
+     'desc': '共读要点：跟着阿罗画线条、想象月光下的冒险、鼓励宝宝自己涂鸦，想象力与绘画启蒙',
+     'keyword': '阿罗有支彩色笔 绘本 朗读'},
+    {'id': 328, 'title': '活了100万次的猫', 'author': '佐野洋子', 'months': [18, 48],
+     'desc': '共读要点：讨论猫为什么不爱主人、感受爱的力量、指认不同主人，生命教育与情感认知',
+     'keyword': '活了100万次的猫 绘本 朗读'},
+
+    # —— 24+ 月：语言丰富 / 情绪管理 / 想象力（8 本）——
     {'id': 331, 'title': '猜猜我有多爱你', 'author': '山姆·麦克布雷尼', 'months': [24, 48],
      'desc': '共读要点：用手臂比划有多爱、模仿兔子对话、表达对彼此的爱，情感表达与比较概念',
      'keyword': '猜猜我有多爱你 绘本 朗读'},
     {'id': 332, 'title': '逃家小兔', 'author': '玛格丽特·怀兹', 'months': [24, 48],
      'desc': '共读要点：玩「如果你变成…我就变成…」游戏、感受妈妈永远追得上，安全感与依恋',
      'keyword': '逃家小兔 绘本 朗读'},
-    {'id': 333, 'title': '好忙的蜘蛛', 'author': '艾瑞·卡尔', 'months': [18, 36],
-     'desc': '共读要点：模仿织网动作、感受蜘蛛的专注、指认来访动物，专注力与重复句式',
-     'keyword': '好忙的蜘蛛 绘本 朗读 艾瑞卡尔'},
-    {'id': 334, 'title': '菲菲生气了', 'author': '莫莉·卞', 'months': [24, 48],
+    {'id': 333, 'title': '菲菲生气了', 'author': '莫莉·卞', 'months': [24, 48],
      'desc': '共读要点：讨论菲菲为什么生气、模仿深呼吸平静下来、说说自己生气时怎么办，情绪管理',
      'keyword': '菲菲生气了 绘本 朗读'},
+    {'id': 334, 'title': '爷爷一定有办法', 'author': '菲比·吉尔曼', 'months': [24, 48],
+     'desc': '共读要点：讨论毯子变成什么、感受爷爷的爱与智慧、指认物品变化，亲情与物尽其用',
+     'keyword': '爷爷一定有办法 绘本 朗读'},
+    {'id': 335, 'title': '花婆婆', 'author': '芭芭拉·库尼', 'months': [24, 48],
+     'desc': '共读要点：讨论让世界更美丽的方法、指认不同风景、感受一生的追求，人生意义与美育',
+     'keyword': '花婆婆 绘本 朗读'},
+    {'id': 336, 'title': '蚯蚓的日记', 'author': '朵琳·克罗宁', 'months': [24, 48],
+     'desc': '共读要点：讨论蚯蚓的一天、模仿写日记、感受小动物的视角，观察力与日记启蒙',
+     'keyword': '蚯蚓的日记 绘本 朗读'},
+    {'id': 337, 'title': '母鸡萝丝去散步', 'author': '佩特·哈群斯', 'months': [24, 48],
+     'desc': '共读要点：讨论狐狸为什么抓不到、指认农场动物、感受画面对比，观察力与幽默感',
+     'keyword': '母鸡萝丝去散步 绘本 朗读'},
+    {'id': 338, 'title': '爱心树', 'author': '谢尔·希尔弗斯坦', 'months': [24, 60],
+     'desc': '共读要点：讨论树的付出、感受无条件的爱、指认成长变化，给予与爱的认知',
+     'keyword': '爱心树 绘本 朗读'},
 ]
 
 def get_stories(months: int) -> List[Activity]:
     """绘本区：按宝宝月龄筛 3-4 本经典绘本，附共读要点与共读示范视频。
     AAP / Zero to Three：共读真正"受益"从约 6 个月开始（宝宝能看到全彩、能坐、能抓握、
     开始理解图片代表物体）。<6 个月返回空列表，前端不渲染绘本区。
+
+    随机性优化：用全局 deque 记录最近推过的 id（长度 = 月龄档可用书数的一半向下取整，
+    至少 2 最多 6），优先从"最近没推过"的书里选，避免每次打开都看到相同几本。
     """
+    global _recent_story_ids
     if months < 6:
         return []
     pool = [s for s in STORY_LIBRARY if s['months'][0] <= months <= s['months'][1]]
     if not pool:
         pool = STORY_LIBRARY[:]   # 兜底：月龄范围没命中就全量
+
+    # 记忆窗口：档内书数的一半向下取整，最少 2 最多 6
+    import math
+    window = max(2, min(6, math.floor(len(pool) / 2)))
+    if not hasattr(get_stories, '_recent'):
+        get_stories._recent = deque(maxlen=window)
+    _recent = get_stories._recent
+    # 如果窗口长度跟当前 pool 不匹配（pool 大小变了），重建 deque
+    if _recent.maxlen != window:
+        get_stories._recent = deque(_recent, maxlen=window)
+        _recent = get_stories._recent
+
+    # 优先从最近没推过的里选
+    fresh = [s for s in pool if s['id'] not in _recent]
+    if not fresh:
+        fresh = pool[:]
     n = min(random.choice([3, 4]), len(pool))
-    chosen = random.sample(pool, n)
+    # 如果 fresh 不够 n 个，从 pool 里补
+    if len(fresh) < n:
+        chosen = fresh[:]
+        rest = [s for s in pool if s not in chosen]
+        random.shuffle(rest)
+        chosen += rest[:n - len(fresh)]
+    else:
+        chosen = random.sample(fresh, n)
+    # 记录本次推的 id
+    for s in chosen:
+        _recent.append(s['id'])
 
     results = []
     for item in chosen:
@@ -1503,9 +1754,9 @@ async def get_feeding_evaluation(request: Request, date_str: str = Query(default
     d = date_str or date.today().isoformat()
 
     rs = db.execute(
-        "SELECT id, time, amount, type, note, food_groups FROM feeding_records_v2 WHERE baby_id = ? AND date = ?",
+        "SELECT id, time, amount, type, note, food_groups, duration, kind FROM feeding_records_v2 WHERE baby_id = ? AND date = ?",
         [bid, d]).fetchall()
-    records = [FeedingRecord(id=r[0], time=r[1], amount=r[2], type=_norm_feed_type(r[3]), note=r[4] or '', foodGroups=r[5] or '') for r in rs]
+    records = [FeedingRecord(id=r[0], time=r[1], amount=r[2], type=_norm_feed_type(r[3]), note=r[4] or '', foodGroups=r[5] or '', duration=r[6] or 0, kind=r[7] or '') for r in rs]
 
     milk_records = [r for r in records if r.type == 'milk']
     solids_records = [r for r in records if r.type == 'solids']
@@ -1589,14 +1840,16 @@ async def get_feeding_evaluation(request: Request, date_str: str = Query(default
         avg_m = int(avg_min % 60)
         avg_interval = f"{avg_h}h{avg_m:02d}m"
 
+    # 今日建议卡：建议每日喂奶次数 + 单次奶量（与 suggestions 内逻辑一致，独立暴露给前端）
+    recommend_feeds = 5 if months >= 6 else 6
+    per_feed_ml = effective_target / recommend_feeds if effective_target > 0 else 0
+
     # 动态建议
     suggestions = []
     if milk_status == 'low':
         if feed_count < 5 and months < 12:
             # 按「建议每日喂奶次数」拆分每日总量，得到合理的单次奶量（避免把全天总量当成单次量）
-            recommend_feeds = 5 if months >= 6 else 6
-            per_feed = effective_target / recommend_feeds
-            suggestions.append(f"今日仅喂奶 {len(milk_records)} 次，建议每日喂奶约 {recommend_feeds} 次，每次约 {per_feed:.0f}ml")
+            suggestions.append(f"今日仅喂奶 {len(milk_records)} 次，建议每日喂奶约 {recommend_feeds} 次，每次约 {per_feed_ml:.0f}ml")
         else:
             suggestions.append(f"可适当增加单次奶量，当前平均每次 {total_milk/max(len(milk_records),1):.0f}ml")
     elif milk_status == 'high':
@@ -1658,6 +1911,7 @@ async def get_feeding_evaluation(request: Request, date_str: str = Query(default
         targetSolidsMeals=target_meals, solidsMealCount=meal_count,
         solidsDiversity=diversity, targetDiversity=4,
         solidsAmountPerMeal=per_meal, solidsGroupsLogged=groups_logged,
+        recommendFeeds=recommend_feeds, perFeedMl=per_feed_ml,
     )
 
 # ---------------- 喂养月历 & 统计 ----------------
@@ -2389,6 +2643,350 @@ async def delete_travel_record(record_id: str, request: Request):
     db.execute("DELETE FROM travel_records WHERE id = ? AND baby_id = ?", [record_id, bid])
     db.sync()
     return {"ok": True}
+
+# ---------------- 疫苗日历：GET 列表 + POST 标记接种 + DELETE 撤销 ----------------
+class VaccineItem(BaseModel):
+    id: int
+    name: str
+    seq: int = 1                    # 第几剂（1-based）
+    month: int = 0                  # 接种起始月龄（72 = 6 岁）
+    doses: int = 1                  # 该疫苗总剂次
+    isNip: bool = True              # 是否国家免疫规划（免费）
+    prevent: str = ''                # 预防疾病
+    note: str = ''                  # 接种说明
+    status: str = 'pending'         # 'administered' | 'pending' | 'overdue'
+    administeredDate: str = ''      # 实际接种日期（ISO），status=administered 时有值
+    recordId: str = ''              # vaccine_records.id，用于撤销
+
+def _calc_vaccine_status(month: int, administered_date: str, age_months: int) -> str:
+    """根据接种起始月龄 + 实际月龄判断状态：
+    - 已接种 -> 'administered'
+    - 未接种 + 已到月龄 -> 'pending'（可打未打）-> 若超过 30 天再变 'overdue'
+    - 未接种 + 未到月龄 -> 'upcoming'（前端统一显示 'pending'，到月龄后用户自判）
+    """
+    if administered_date:
+        return 'administered'
+    if age_months < month:
+        return 'upcoming'
+    # 已到月龄未打：超过 30 天标记 overdue（年长儿已远超的也算 overdue）
+    if age_months - month >= 1:
+        return 'overdue'
+    return 'pending'
+
+@app.get("/vaccines", response_model=List[VaccineItem])
+async def get_vaccines(request: Request):
+    bid = get_baby_id(request)
+    # 查宝宝月龄
+    baby = db.execute("SELECT birthday FROM babies WHERE baby_id = ?", [bid]).fetchall()
+    if not baby:
+        raise HTTPException(status_code=404, detail="Baby not found")
+    from datetime import date
+    bd = baby[0][0]
+    try:
+        bd_dt = date.fromisoformat(bd[:10])
+        age_months = (date.today().year - bd_dt.year) * 12 + (date.today().month - bd_dt.month)
+        if date.today().day < bd_dt.day:
+            age_months -= 1
+    except Exception:
+        age_months = 0
+    # 查接种记录
+    recs = db.execute(
+        "SELECT id, vaccine_id, administered_date, note FROM vaccine_records WHERE baby_id = ?",
+        [bid]).fetchall()
+    rec_map = {r[1]: (r[0], r[2], r[3] or '') for r in recs}
+    # 组装返回
+    result = []
+    for v in VACCINE_LIBRARY:
+        rec = rec_map.get(v['id'])
+        admin_date = rec[1] if rec else ''
+        status = _calc_vaccine_status(v['month'], admin_date, age_months)
+        result.append(VaccineItem(
+            id=v['id'], name=v['name'], seq=v['seq'], month=v['month'],
+            doses=v['doses'], isNip=v['is_nip'], prevent=v['prevent'],
+            note=v['note'], status=status,
+            administeredDate=admin_date,
+            recordId=rec[0] if rec else '',
+        ))
+    return result
+
+class VaccineRecordPayload(BaseModel):
+    administeredDate: str
+    note: str = ''
+
+@app.post("/vaccines/{vaccine_id}/record", response_model=VaccineItem)
+async def mark_vaccine_administered(vaccine_id: int, payload: VaccineRecordPayload, request: Request):
+    bid = get_baby_id(request)
+    # 校验 vaccine_id 合法
+    v = next((x for x in VACCINE_LIBRARY if x['id'] == vaccine_id), None)
+    if not v:
+        raise HTTPException(status_code=404, detail="Vaccine not found")
+    if not payload.administeredDate:
+        raise HTTPException(status_code=400, detail="administeredDate required")
+    # 已存在则更新，否则插入（同一宝宝同一疫苗只保留一条记录）
+    existing = db.execute(
+        "SELECT id FROM vaccine_records WHERE baby_id = ? AND vaccine_id = ?",
+        [bid, vaccine_id]).fetchall()
+    if existing:
+        rec_id = existing[0][0]
+        db.execute(
+            "UPDATE vaccine_records SET administered_date = ?, note = ? WHERE id = ?",
+            [payload.administeredDate, payload.note, rec_id])
+    else:
+        rec_id = str(uuid.uuid4())[:8]
+        db.execute(
+            "INSERT INTO vaccine_records (id, baby_id, vaccine_id, administered_date, note) VALUES (?, ?, ?, ?, ?)",
+            [rec_id, bid, vaccine_id, payload.administeredDate, payload.note])
+    db.sync()
+    # 重新计算状态返回
+    baby = db.execute("SELECT birthday FROM babies WHERE baby_id = ?", [bid]).fetchall()
+    from datetime import date
+    bd = baby[0][0]
+    try:
+        bd_dt = date.fromisoformat(bd[:10])
+        age_months = (date.today().year - bd_dt.year) * 12 + (date.today().month - bd_dt.month)
+        if date.today().day < bd_dt.day:
+            age_months -= 1
+    except Exception:
+        age_months = 0
+    return VaccineItem(
+        id=v['id'], name=v['name'], seq=v['seq'], month=v['month'],
+        doses=v['doses'], isNip=v['is_nip'], prevent=v['prevent'],
+        note=v['note'], status='administered',
+        administeredDate=payload.administeredDate, recordId=rec_id,
+    )
+
+@app.delete("/vaccine-records/{record_id}")
+async def delete_vaccine_record(record_id: str, request: Request):
+    bid = get_baby_id(request)
+    rs = db.execute(
+        "SELECT id FROM vaccine_records WHERE id = ? AND baby_id = ?",
+        [record_id, bid]).fetchall()
+    if not rs:
+        raise HTTPException(status_code=404, detail="Vaccine record not found")
+    db.execute("DELETE FROM vaccine_records WHERE id = ? AND baby_id = ?", [record_id, bid])
+    db.sync()
+    return {"ok": True}
+
+# ---------------- 里程碑打卡：GET 列表 + POST 标记首达 + DELETE 撤销 ----------------
+class MilestoneItem(BaseModel):
+    id: int
+    domain: str                  # motor / fine / language / social
+    month: int = 0               # 多数宝宝达成的月龄
+    desc: str = ''
+    red_flag: bool = False       # 未达成需警惕
+    status: str = 'pending'      # 'achieved' | 'pending' | 'upcoming'
+    achievedDate: str = ''       # 首达日期（ISO）
+    recordId: str = ''
+
+DOMAIN_LABELS = {
+    'motor': '粗大动作',
+    'fine': '精细动作',
+    'language': '语言',
+    'social': '社交情感',
+}
+
+@app.get("/milestones", response_model=List[MilestoneItem])
+async def get_milestones(request: Request):
+    bid = get_baby_id(request)
+    baby = db.execute("SELECT birthday FROM babies WHERE baby_id = ?", [bid]).fetchall()
+    if not baby:
+        raise HTTPException(status_code=404, detail="Baby not found")
+    from datetime import date
+    bd = baby[0][0]
+    try:
+        bd_dt = date.fromisoformat(bd[:10])
+        age_months = (date.today().year - bd_dt.year) * 12 + (date.today().month - bd_dt.month)
+        if date.today().day < bd_dt.day:
+            age_months -= 1
+    except Exception:
+        age_months = 0
+    recs = db.execute(
+        "SELECT id, milestone_id, achieved_date, note FROM milestone_records WHERE baby_id = ?",
+        [bid]).fetchall()
+    rec_map = {r[1]: (r[0], r[2], r[3] or '') for r in recs}
+    result = []
+    for m in MILESTONE_LIBRARY:
+        rec = rec_map.get(m['id'])
+        ach_date = rec[1] if rec else ''
+        if ach_date:
+            status = 'achieved'
+        elif age_months < m['month']:
+            status = 'upcoming'
+        else:
+            status = 'pending'
+        result.append(MilestoneItem(
+            id=m['id'], domain=m['domain'], month=m['month'],
+            desc=m['desc'], red_flag=m['red_flag'], status=status,
+            achievedDate=ach_date, recordId=rec[0] if rec else '',
+        ))
+    return result
+
+class MilestoneRecordPayload(BaseModel):
+    achievedDate: str
+    note: str = ''
+
+@app.post("/milestones/{milestone_id}/record", response_model=MilestoneItem)
+async def mark_milestone_achieved(milestone_id: int, payload: MilestoneRecordPayload, request: Request):
+    bid = get_baby_id(request)
+    m = next((x for x in MILESTONE_LIBRARY if x['id'] == milestone_id), None)
+    if not m:
+        raise HTTPException(status_code=404, detail="Milestone not found")
+    if not payload.achievedDate:
+        raise HTTPException(status_code=400, detail="achievedDate required")
+    existing = db.execute(
+        "SELECT id FROM milestone_records WHERE baby_id = ? AND milestone_id = ?",
+        [bid, milestone_id]).fetchall()
+    if existing:
+        rec_id = existing[0][0]
+        db.execute(
+            "UPDATE milestone_records SET achieved_date = ?, note = ? WHERE id = ?",
+            [payload.achievedDate, payload.note, rec_id])
+    else:
+        rec_id = str(uuid.uuid4())[:8]
+        db.execute(
+            "INSERT INTO milestone_records (id, baby_id, milestone_id, achieved_date, note) VALUES (?, ?, ?, ?, ?)",
+            [rec_id, bid, milestone_id, payload.achievedDate, payload.note])
+    db.sync()
+    return MilestoneItem(
+        id=m['id'], domain=m['domain'], month=m['month'],
+        desc=m['desc'], red_flag=m['red_flag'], status='achieved',
+        achievedDate=payload.achievedDate, recordId=rec_id,
+    )
+
+@app.delete("/milestone-records/{record_id}")
+async def delete_milestone_record(record_id: str, request: Request):
+    bid = get_baby_id(request)
+    rs = db.execute(
+        "SELECT id FROM milestone_records WHERE id = ? AND baby_id = ?",
+        [record_id, bid]).fetchall()
+    if not rs:
+        raise HTTPException(status_code=404, detail="Milestone record not found")
+    db.execute("DELETE FROM milestone_records WHERE id = ? AND baby_id = ?", [record_id, bid])
+    db.sync()
+    return {"ok": True}
+
+
+@app.get("/sleep-stats")
+async def get_sleep_stats(request: Request):
+    """睡眠 SweetSpot 预测数据：基于最近 7 天 sleep 记录算实际平均清醒时长 + 月龄标准清醒时长 + 犯困信号清单。"""
+    bid = get_baby_id(request)
+    # 月龄
+    babies = db.execute("SELECT birthday FROM babies WHERE baby_id = ?", [bid]).fetchall()
+    if not babies:
+        raise HTTPException(status_code=404, detail="Baby not found")
+    birthday_str = babies[0][0]
+    months = calculate_months(birthday_str)
+
+    # 月龄对应的标准清醒时长（分钟）
+    std_wake_min = 120
+    if months < 3: std_wake_min = 60
+    elif months < 6: std_wake_min = 90
+    elif months < 9: std_wake_min = 150
+    elif months < 12: std_wake_min = 180
+    elif months < 18: std_wake_min = 210
+    elif months < 24: std_wake_min = 240
+    else: std_wake_min = 300
+
+    # 月龄对应的犯困信号
+    sleep_signals = []
+    if months < 3:
+        sleep_signals = ["打哈欠", "眼神呆滞", "抓耳朵", "烦躁哭闹"]
+    elif months < 6:
+        sleep_signals = ["揉眼睛", "打哈欠", "目光躲闪", "拱背"]
+    elif months < 12:
+        sleep_signals = ["揉眼睛", "抓耳朵", "打哈欠", "变得粘人"]
+    elif months < 18:
+        sleep_signals = ["揉眼睛", "打哈欠", "变得安静", "指着床"]
+    else:
+        sleep_signals = ["打哈欠", "揉眼睛", "变得粘人", "说想睡觉"]
+
+    # 取最近 7 天 sleep 记录，按日期分组算每日清醒间隔
+    today = date.today()
+    seven_days_ago = today - timedelta(days=7)
+    rs = db.execute(
+        "SELECT date, time, duration FROM feeding_records_v2 WHERE baby_id = ? AND type = ? AND date >= ? ORDER BY date ASC, time ASC",
+        [bid, "sleep", seven_days_ago.isoformat()]
+    ).fetchall()
+
+    # 算每日内相邻 sleep 之间的清醒时长（醒时 = 上一次睡 time + duration，到下一次睡 time）
+    # 同时算平均睡眠时长
+    wake_intervals = []
+    sleep_durations = []
+    daily_sleeps = {}  # date -> list of (time, duration)
+    for r in rs:
+        d_str = r[0]
+        t_str = r[1]
+        dur = r[2] or 0
+        if dur <= 0:
+            continue
+        sleep_durations.append(dur)
+        daily_sleeps.setdefault(d_str, []).append((t_str, dur))
+
+    # 算每日内清醒间隔
+    def _hm_to_min(s):
+        h, m = s.split(':')
+        return int(h) * 60 + int(m)
+    def _add_min(hm, mins):
+        h, m = hm.split(':')
+        t = (((int(h) * 60 + int(m)) + mins) % (24 * 60) + 24 * 60) % (24 * 60)
+        return f"{t // 60:02d}:{t % 60:02d}"
+    for d_str, sleeps in daily_sleeps.items():
+        sleeps.sort(key=lambda x: x[0])
+        for i in range(1, len(sleeps)):
+            prev_time, prev_dur = sleeps[i-1]
+            curr_time = sleeps[i][0]
+            wake_at = _add_min(prev_time, prev_dur)
+            wake_min = _hm_to_min(wake_at)
+            curr_min = _hm_to_min(curr_time)
+            interval = curr_min - wake_min
+            if interval < 0:
+                interval += 24 * 60  # 跨午夜
+            # 排除异常值（< 15min 或 > 8h 视为脏数据）
+            if 15 <= interval <= 8 * 60:
+                wake_intervals.append(interval)
+
+    # 实际平均清醒时长（≥3 条数据时启用，否则用月龄标准值）
+    avg_wake_min = sum(wake_intervals) / len(wake_intervals) if len(wake_intervals) >= 3 else std_wake_min
+    avg_sleep_min = sum(sleep_durations) / len(sleep_durations) if sleep_durations else 0
+
+    # 今日已睡次数 + 总时长
+    today_str = today.isoformat()
+    today_sleeps = daily_sleeps.get(today_str, [])
+    today_sleep_count = len(today_sleeps)
+    today_sleep_total = sum(d for _, d in today_sleeps)
+
+    # 月龄建议小睡次数（参考：6 月以下 4-5 次、6-12 月 2-3 次、12 月以上 1-2 次）
+    rec_naps = 5
+    if months < 3: rec_naps = 5
+    elif months < 6: rec_naps = 4
+    elif months < 9: rec_naps = 3
+    elif months < 18: rec_naps = 2
+    else: rec_naps = 1
+
+    # 月龄建议每日总睡眠时长（含夜间 + 小睡），参考 NSF/AASM（取范围中位值为建议量）
+    if months < 3:
+        rec_sleep_min, rec_sleep_text = 930, "14-17h"
+    elif months < 12:
+        rec_sleep_min, rec_sleep_text = 810, "12-15h"
+    elif months < 24:
+        rec_sleep_min, rec_sleep_text = 750, "11-14h"
+    else:
+        rec_sleep_min, rec_sleep_text = 690, "10-13h"
+
+    return {
+        "months": months,
+        "avgWakeMin": round(avg_wake_min),
+        "stdWakeMin": std_wake_min,
+        "avgSleepMin": round(avg_sleep_min),
+        "todaySleepCount": today_sleep_count,
+        "todaySleepTotalMin": round(today_sleep_total),
+        "recNaps": rec_naps,
+        "recSleepMin": rec_sleep_min,
+        "recSleepText": rec_sleep_text,
+        "sleepSignals": sleep_signals,
+        "sampleCount": len(wake_intervals),
+    }
+
 # 兼容本地开发和 Docker 容器两种目录结构
 _here = os.path.dirname(os.path.abspath(__file__))
 DIST_DIR_CANDIDATES = [

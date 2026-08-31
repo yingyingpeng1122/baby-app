@@ -995,6 +995,14 @@ export default function BabyAppFullStack() {
   const [feedForm, setFeedForm] = useState({ time: nowHM(), amount: '', type: 'milk', note: '', foodGroups: [], kind: '', duration: 0, wakeTime: '' });
   const [feedLoading, setFeedLoading] = useState(false);
   const [editingId, setEditingId] = useState(null);
+  // 疫苗日历
+  const [vaccines, setVaccines] = useState([]);
+  const [vaccineModal, setVaccineModal] = useState(null); // { vaccine, administeredDate, note } 或 null
+  // 里程碑打卡
+  const [milestones, setMilestones] = useState([]);
+  const [milestoneModal, setMilestoneModal] = useState(null); // { milestone, achievedDate, note } 或 null
+  // 睡眠 SweetSpot 预测
+  const [sleepStats, setSleepStats] = useState(null);
   // 提交成功反馈 toast
   const [toast, setToast] = useState(null); // { msg, key }
   const [activeZone, setActiveZone] = useState('daily'); // 'daily' | 'growth' | 'travel'
@@ -1006,6 +1014,8 @@ export default function BabyAppFullStack() {
   };
   // 录入表单类型 tab：feed / diaper / sleep
   const [recordTab, setRecordTab] = useState('feed');
+  // 「添加记录」弹窗显隐（只控制开关，表单数据仍走 feedForm）
+  const [recordModalOpen, setRecordModalOpen] = useState(false);
   // 每日照护清单
   const [checklist, setChecklist] = useState([]);
   // 照护日历
@@ -1327,6 +1337,9 @@ export default function BabyAppFullStack() {
       loadGrowth();
       loadTemps();
       loadTravel();
+      loadVaccines();
+      loadMilestones();
+      loadSleepStats();
       // 拉取宝宝列表，同步生病模式状态（跨设备一致）
       try {
         const bres = await apiFetch(`${API_BASE}/family/babies`);
@@ -1495,6 +1508,76 @@ export default function BabyAppFullStack() {
       if (listRes.ok) setTravelLists(await listRes.json());
       if (recRes.ok) setTravelRecords(await recRes.json());
     } catch (e) { console.error('fetch travel failed', e); }
+  };
+
+  // 疫苗日历
+  const loadVaccines = async () => {
+    try {
+      const res = await apiFetch(`${API_BASE}/vaccines`);
+      if (res.ok) setVaccines(await res.json());
+    } catch (e) { console.error('fetch vaccines failed', e); }
+  };
+  // 标记疫苗已接种
+  const markVaccine = async (vaccineId, administeredDate, note = '') => {
+    try {
+      const res = await apiFetch(`${API_BASE}/vaccines/${vaccineId}/record`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ administeredDate, note }),
+      });
+      if (res.ok) {
+        showToast('已记录接种');
+        loadVaccines();
+      }
+    } catch (e) { console.error('mark vaccine failed', e); }
+  };
+  // 撤销疫苗接种记录
+  const unmarkVaccine = async (recordId) => {
+    try {
+      const res = await apiFetch(`${API_BASE}/vaccine-records/${recordId}`, { method: 'DELETE' });
+      if (res.ok) {
+        showToast('已撤销');
+        loadVaccines();
+      }
+    } catch (e) { console.error('unmark vaccine failed', e); }
+  };
+
+  // 里程碑打卡
+  const loadMilestones = async () => {
+    try {
+      const res = await apiFetch(`${API_BASE}/milestones`);
+      if (res.ok) setMilestones(await res.json());
+    } catch (e) { console.error('fetch milestones failed', e); }
+  };
+  const markMilestone = async (milestoneId, achievedDate, note = '') => {
+    try {
+      const res = await apiFetch(`${API_BASE}/milestones/${milestoneId}/record`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ achievedDate, note }),
+      });
+      if (res.ok) {
+        showToast('已记录达成');
+        loadMilestones();
+      }
+    } catch (e) { console.error('mark milestone failed', e); }
+  };
+  const unmarkMilestone = async (recordId) => {
+    try {
+      const res = await apiFetch(`${API_BASE}/milestone-records/${recordId}`, { method: 'DELETE' });
+      if (res.ok) {
+        showToast('已撤销');
+        loadMilestones();
+      }
+    } catch (e) { console.error('unmark milestone failed', e); }
+  };
+
+  // 睡眠 SweetSpot 预测
+  const loadSleepStats = async () => {
+    try {
+      const res = await apiFetch(`${API_BASE}/sleep-stats`);
+      if (res.ok) setSleepStats(await res.json());
+    } catch (e) { console.error('fetch sleep-stats failed', e); }
   };
 
   // 新建清单草稿
@@ -1870,6 +1953,7 @@ export default function BabyAppFullStack() {
       setFeedForm({ time: nowHM(), amount: '', type: feedForm.type, note: '', foodGroups: [], kind: '', duration: 0, wakeTime: '' });
       setRecordTab(feedForm.type === 'diaper' ? 'diaper' : feedForm.type === 'sleep' ? 'sleep' : 'feed');
       showToast(editingId ? '已更新 ✓' : '已保存 ✓');
+      setRecordModalOpen(false);   // 添加/更新成功后自动关闭弹窗
       await fetchFeedData();
     } catch (e) { alert('操作失败：' + e.message); }
     setFeedLoading(false);
@@ -1888,6 +1972,7 @@ export default function BabyAppFullStack() {
       wakeTime: (r.type === 'sleep' && r.duration) ? addMinutesHM(r.time, r.duration) : '',
     });
     setRecordTab(r.type === 'diaper' ? 'diaper' : r.type === 'sleep' ? 'sleep' : 'feed');
+    setRecordModalOpen(true);   // 从时间轴点编辑时打开弹窗
   };
 
   const cancelEdit = () => {
@@ -2425,11 +2510,17 @@ export default function BabyAppFullStack() {
 
 
 
-        {/* 宝宝的一天 · 横向时间轴（置于今日记录上方） */}
+        {/* 宝宝的一天 · 横向时间轴 + 「添加记录」按钮 */}
         <Reveal className="section zone zone--daily" delay={0.05}>
           <div className="section__head">
             <span className="section__ico section__ico--violet"><Sparkles className="icon icon--sm" /></span>
             <h2 className="section__title">宝宝的一天</h2>
+            <button
+              className="btn btn--primary btn--sm section__head-btn"
+              onClick={() => setRecordModalOpen(true)}
+            >
+              <Plus className="icon icon--xs" /> 添加记录
+            </button>
           </div>
           <div className="daytime-canvas">
             <div className="daytime">
@@ -2518,235 +2609,253 @@ export default function BabyAppFullStack() {
           </div>
         </Reveal>
 
+        {/* 今日建议卡 · 四字段（建议奶量 + 建议间隔 + 下次喂养时间 + 睡眠提示）+ 喂养评估 */}
         <Reveal className="section zone zone--daily" delay={0.05}>
           <div className="section__head">
-            <span className="section__ico section__ico--honey"><Milk className="icon icon--sm" /></span>
-            <h2 className="section__title">今日记录</h2>
+            <span className="section__ico section__ico--teal"><Lightbulb className="icon icon--sm" /></span>
+            <h2 className="section__title">今日建议</h2>
+            <span className="section__hint">基于当前月龄与今日记录</span>
           </div>
-          <div className="feed">
-            {/* 喂养记录录入 */}
-            <div className="feed__log">
-              <div className="feed__log-form">
-                {/* 类型 tab：喂养 / 换尿布 / 睡觉，置于最上方 */}
-                <div className="feed__log-tabs">
-                  <button type="button" className={`feed__log-tab ${recordTab === 'feed' ? 'feed__log-tab--on' : ''}`} onClick={() => { setRecordTab('feed'); if (feedForm.type !== 'milk' && feedForm.type !== 'solids') setFeedForm({ ...feedForm, type: 'milk' }); }}>
-                    <Milk className="icon icon--xs" />喂养
-                  </button>
-                  <button type="button" className={`feed__log-tab ${recordTab === 'diaper' ? 'feed__log-tab--on' : ''}`} onClick={() => { setRecordTab('diaper'); setFeedForm({ ...feedForm, type: 'diaper' }); }}>
-                    <Baby className="icon icon--xs" />换尿布
-                  </button>
-                  <button type="button" className={`feed__log-tab ${recordTab === 'sleep' ? 'feed__log-tab--on' : ''}`} onClick={() => { setRecordTab('sleep'); setFeedForm({ ...feedForm, type: 'sleep' }); }}>
-                    <Moon className="icon icon--xs" />睡觉
-                  </button>
-                </div>
-                {feedForm.type !== 'sleep' && (
-                  <div className="feed__log-field">
-                    <label>时间</label>
-                    <TimePicker value={feedForm.time} onChange={(v) => setFeedForm({ ...feedForm, time: v })} />
-                  </div>
-                )}
-                {feedForm.type === 'sleep' && (
-                  <div className="feed__log-sleep">
-                    <div className="feed__log-field">
-                      <label>开始时间</label>
-                      <TimePicker value={feedForm.time} onChange={(v) => setFeedForm({ ...feedForm, time: v })} />
+          {(() => {
+            // 缺数据时优雅降级
+            if (!feedEval) {
+              return <div className="advice-card advice-card--empty">加载中…</div>;
+            }
+            const toMin = (hm) => { const [h, m] = hm.split(':').map(Number); return h * 60 + m; };
+            const now = new Date();
+            const nowHM = `${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`;
+
+            // 1) 建议奶量 + 建议间隔 + 单次奶量
+            const target = feedEval.effectiveTargetMilk || 0;
+            const recFeeds = feedEval.recommendFeeds || (months >= 6 ? 5 : 6);
+            const perFeed = feedEval.perFeedMl || (recFeeds > 0 ? target / recFeeds : 0);
+            const intervalMin = recFeeds > 0 ? Math.round((24 * 60) / recFeeds) : 0;
+            const fmtH = (m) => { const h = Math.floor(m/60), mm = m%60; return h > 0 ? `${h}h${String(mm).padStart(2,'0')}m` : `${mm}m`; };
+            const intervalText = intervalMin > 0 ? fmtH(intervalMin) : '—';
+
+            // 2) 下次喂养时间：今日最近一次喂养（milk/solids）+ 建议间隔；今日未喂则用当前时间
+            const fedToday = feedRecords
+              .filter(r => r.type === 'milk' || r.type === 'solids')
+              .sort((a, b) => a.time.localeCompare(b.time));
+            const lastFed = fedToday.length > 0 ? fedToday[fedToday.length - 1] : null;
+            const baseTime = lastFed ? lastFed.time : nowHM;
+            const nextFeedTime = intervalMin > 0 ? addMinutesHM(baseTime, intervalMin) : '—';
+            const nextFeedLabel = lastFed
+              ? `上次 ${lastFed.time} → 下次约 ${nextFeedTime}`
+              : `今日未记录 → 下次约 ${nextFeedTime}`;
+
+            // 3) 睡眠 SweetSpot：取今日 sleep 记录 + sleepStats（后端基于 7 天数据）算下次小睡窗口
+            const sleeps = feedRecords
+              .filter(r => r.type === 'sleep' && r.duration > 0)
+              .sort((a, b) => a.time.localeCompare(b.time));
+
+            // 实际平均清醒时长：优先用 sleepStats（样本≥3），否则用月龄标准
+            const ssStats = sleepStats || {};
+            const sampleCnt = ssStats.sampleCount || 0;
+            const avgWakeMin = (sampleCnt >= 3 && ssStats.avgWakeMin) ? ssStats.avgWakeMin : null;
+            // 月龄对应的标准清醒时长（兜底）
+            let stdWakeMin = 120;
+            if (months < 3) stdWakeMin = 60;
+            else if (months < 6) stdWakeMin = 90;
+            else if (months < 9) stdWakeMin = 150;
+            else if (months < 12) stdWakeMin = 180;
+            else if (months < 18) stdWakeMin = 210;
+            else if (months < 24) stdWakeMin = 240;
+            else stdWakeMin = 300;
+            // 用实际平均兜底，月龄标准备用
+            const wakeTargetMin = avgWakeMin || stdWakeMin;
+            const wakeSrc = avgWakeMin ? '基于最近 7 天' : '月龄标准值';
+            const recNaps = ssStats.recNaps || (months < 6 ? 4 : months < 9 ? 3 : months < 18 ? 2 : 1);
+            const sleepSignals = ssStats.sleepSignals || ['揉眼睛', '打哈欠'];
+
+            let sleepTip = '';
+            let sleepTipKind = 'info';
+            let nextSleepHM = '';
+            if (sleeps.length === 0) {
+              sleepTip = months < 6
+                ? `小月龄清醒约 ${fmtH(wakeTargetMin)}，留意犯困信号`
+                : `宝宝清醒约 ${fmtH(wakeTargetMin)} 后建议安排小睡`;
+            } else {
+              const last = sleeps[sleeps.length - 1];
+              const wakeAt = addMinutesHM(last.time, last.duration); // 最近一次醒来
+              const wakeMin = toMin(wakeAt);
+              const nowMin = toMin(nowHM);
+              let awakeMin = nowMin - wakeMin;
+              if (awakeMin < 0) awakeMin += 24 * 60; // 跨午夜
+              const nextSleepMin = wakeMin + wakeTargetMin;
+              nextSleepHM = nextSleepMin >= 24 * 60 ? addMinutesHM(wakeAt, wakeTargetMin) : `${String(Math.floor(nextSleepMin/60)).padStart(2,'0')}:${String(nextSleepMin%60).padStart(2,'0')}`;
+              if (awakeMin < 0) {
+                sleepTip = `宝宝睡眠中，约 ${wakeAt} 醒来`;
+                sleepTipKind = 'good';
+              } else if (awakeMin >= wakeTargetMin + 30) {
+                sleepTip = `已清醒 ${fmtH(awakeMin)}（${wakeSrc}建议 ${fmtH(wakeTargetMin)}），宝宝可能困了`;
+                sleepTipKind = 'warn';
+              } else if (awakeMin >= wakeTargetMin - 15) {
+                sleepTip = `已清醒 ${fmtH(awakeMin)}，接近犯困窗口，约 ${nextSleepHM} 可安排小睡`;
+                sleepTipKind = 'info';
+              } else {
+                sleepTip = `已清醒 ${fmtH(awakeMin)}，下次犯困窗口约 ${nextSleepHM}`;
+                sleepTipKind = 'good';
+              }
+            }
+
+            // SweetSpot 时间条：横向 24h 进度，已睡时段填充，当前时间指针，预测下次窗口
+            const toPct = (min) => (min / (24 * 60)) * 100;
+            const nowPct = toPct(toMin(nowHM));
+            const sleepSegs = sleeps.map(s => {
+              const sStart = toMin(s.time);
+              const sEnd = sStart + s.duration;
+              return { start: sStart, end: sEnd, startPct: toPct(sStart), endPct: toPct(Math.min(sEnd, 24*60)) };
+            });
+            const nextSleepPct = nextSleepHM ? toPct(toMin(nextSleepHM)) : null;
+            const todaySleepTotal = ssStats.todaySleepTotalMin || (sleeps.reduce((acc, s) => acc + s.duration, 0));
+            const todaySleepCnt = ssStats.todaySleepCount || sleeps.length;
+
+            return (
+              <>
+                <div className="advice-card">
+                  <div className="advice-card__row">
+                    <div className="advice-card__tile">
+                      <span className="advice-card__ico"><Milk className="icon icon--xs" /></span>
+                      <div className="advice-card__k">建议奶量</div>
+                      <div className="advice-card__v">{perFeed > 0 ? `每次约 ${perFeed.toFixed(0)}ml` : '—'}</div>
+                      <div className="advice-card__sub">{target > 0 ? `全天 ${target.toFixed(0)}ml · ${recFeeds} 次` : ''}</div>
                     </div>
-                    <div className="feed__log-field">
-                      <label>结束时间（可选）</label>
-                      <TimePicker value={feedForm.wakeTime || ''} onChange={(v) => setFeedForm({ ...feedForm, wakeTime: v })} />
+                    <div className="advice-card__tile">
+                      <span className="advice-card__ico"><Bell className="icon icon--xs" /></span>
+                      <div className="advice-card__k">下次喂养</div>
+                      <div className="advice-card__v">{nextFeedTime}</div>
+                      <div className="advice-card__sub">{nextFeedLabel}</div>
+                    </div>
+                    <div className="advice-card__tile">
+                      <span className="advice-card__ico"><Moon className="icon icon--xs" /></span>
+                      <div className="advice-card__k">建议睡眠量</div>
+                      <div className="advice-card__v">{ssStats.recSleepText || '—'}</div>
+                      <div className="advice-card__sub">
+                        {todaySleepTotal > 0 ? `今日已睡 ${fmtH(todaySleepTotal)}` : '含夜间 + 小睡'}
+                      </div>
+                    </div>
+                    <div className="advice-card__tile">
+                      <span className="advice-card__ico"><Moon className="icon icon--xs" /></span>
+                      <div className="advice-card__k">睡眠提示</div>
+                      <div className="advice-card__v advice-card__v--sm">{sleepTip}</div>
+                      <div className={`advice-card__sub advice-card__sub--${sleepTipKind}`}>{
+                        sleepTipKind === 'warn' ? '该小睡了' :
+                        sleepTipKind === 'good' ? '状态良好' : '犯困窗口'
+                      }</div>
                     </div>
                   </div>
-                )}
-                {(feedForm.type === 'milk' || feedForm.type === 'solids') && (
-                  <div className="feed__log-field">
-                    <label>喂养量({feedForm.type === 'milk' ? 'ml' : 'g'})</label>
-                    <input type="number" className="input input--sm" placeholder="0" value={feedForm.amount} onChange={(e) => setFeedForm({ ...feedForm, amount: e.target.value })} />
-                  </div>
-                )}
-                {/* 喂养 tab 内：奶 / 辅食 细分 */}
-                {recordTab === 'feed' && (
-                  <div className="feed__log-field">
-                    <label>喂养种类</label>
-                    <div className="feed__log-seg">
-                      <button type="button" className={`feed__log-seg-btn ${feedForm.type === 'milk' ? 'feed__log-seg-btn--on' : ''}`} onClick={() => setFeedForm({ ...feedForm, type: 'milk' })}>奶</button>
-                      <button type="button" className={`feed__log-seg-btn ${feedForm.type === 'solids' ? 'feed__log-seg-btn--on' : ''}`} onClick={() => setFeedForm({ ...feedForm, type: 'solids' })}>辅食</button>
+                  {/* SweetSpot 时间条 */}
+                  <div className="advice-card__sweetspot">
+                    <div className="sweetspot__legend">
+                      <span className="sweetspot__legend-item"><i className="sweetspot__dot sweetspot__dot--sleep"></i>今日睡眠 {fmtH(todaySleepTotal)} · {todaySleepCnt}/{recNaps} 次</span>
+                      <span className="sweetspot__legend-item"><i className="sweetspot__dot sweetspot__dot--win"></i>预测窗口 {nextSleepHM || '—'}</span>
                     </div>
-                  </div>
-                )}
-                {feedForm.type === 'solids' && (
-                  <div className="feed__log-field feed__log-field--note">
-                    <label>食物种类（按 WHO 标准评估营养多样性）</label>
-                    <div className="feed__foodgroups">
-                      {FOOD_GROUPS.map((g) => (
-                        <button
-                          key={g}
-                          type="button"
-                          className={`feed__chip ${feedForm.foodGroups.includes(g) ? 'feed__chip--on' : ''}`}
-                          onClick={() => toggleFoodGroup(g)}
-                        >
-                          {feedForm.foodGroups.includes(g) && <Check className="icon icon--xs" />}
-                          {g}
-                        </button>
+                    <div className="sweetspot__bar">
+                      {sleepSegs.map((seg, i) => (
+                        <div
+                          key={i}
+                          className="sweetspot__seg"
+                          style={{ left: `${seg.startPct}%`, width: `${seg.endPct - seg.startPct}%` }}
+                        />
                       ))}
-                    </div>
-                  </div>
-                )}
-                {feedForm.type === 'diaper' && (
-                  <div className="feed__log-field feed__log-field--note">
-                    <label>换的是</label>
-                    <div className="feed__chips">
-                      {[{ v: 'pee', l: '💧', t: '尿' }, { v: 'poop', l: '💩', t: '屎' }, { v: 'both', l: '💩💧', t: '都有' }].map((o) => (
-                        <button key={o.v} type="button" title={o.t}
-                          className={`feed__chip feed__chip--emoji ${feedForm.kind === o.v ? 'feed__chip--on' : ''}`}
-                          onClick={() => setFeedForm({ ...feedForm, kind: o.v })}>{o.l}</button>
-                      ))}
-                    </div>
-                  </div>
-                )}
-                <div className="feed__log-field feed__log-field--note">
-                  <label>备注</label>
-                  <input type="text" className="input input--sm" placeholder="如：晨奶" value={feedForm.note} onChange={(e) => setFeedForm({ ...feedForm, note: e.target.value })} />
-                </div>
-                {editingId ? (
-                  <>
-                    <button className="btn btn--primary btn--sm" onClick={addFeedRecord} disabled={feedLoading}>
-                      {feedLoading ? <Loader2 className="icon icon--xs animate-spin" /> : <Save className="icon icon--xs" />}
-                      更新
-                    </button>
-                    <button className="btn btn--ghost btn--sm" onClick={cancelEdit}>取消</button>
-                  </>
-                ) : (
-                  <button className="btn btn--primary btn--sm" onClick={addFeedRecord} disabled={feedLoading}>
-                    {feedLoading ? <Loader2 className="icon icon--xs animate-spin" /> : <Plus className="icon icon--xs" />}
-                    添加
-                  </button>
-                )}
-              </div>
-            </div>
-
-            {/* 喂养建议（仅选中「喂养」tab 时显示） */}
-            {recordTab === 'feed' && (
-              <div className="feed__advice">
-                <div className="feed__advice-title"><Sparkles className="icon icon--xs" /> 喂养建议</div>
-                <div className="feed__advice-card">
-                  {(f.stage || f.videoTip) && (
-                    <div className="feed__stage-row">
-                      {f.stage && (
-                        <div className="feed__block">
-                          <span className="feed__tile feed__tile--honey"><Sparkles className="icon" /></span>
-                          <div><div className="feed__k">所属阶段</div><div className="feed__v">{f.stage}</div></div>
-                        </div>
+                      {nextSleepPct !== null && (
+                        <div className="sweetspot__win" style={{ left: `${nextSleepPct}%` }} />
                       )}
-                      {f.videoTip && (
-                        <div className="feed__block">
-                          <span className="feed__tile feed__tile--honey"><Lightbulb className="icon" /></span>
-                          <div><div className="feed__k">提示</div><div className="feed__v">{f.videoTip}</div></div>
-                        </div>
-                      )}
-                    </div>
-                  )}
-                  <div className="feed__body">
-                    <div className="feed__block">
-                      <span className="feed__tile feed__tile--sky"><Milk className="icon" /></span>
-                      <div><div className="feed__k">奶量建议</div><div className="feed__v">{f.milk}</div></div>
-                    </div>
-                    <div className="feed__block">
-                      <span className="feed__tile feed__tile--green"><Utensils className="icon" /></span>
-                      <div>
-                        <div className="feed__k">辅食安排</div>
-                        <div className="feed__v">{f.solids === '不需要' ? '暂未开始添加辅食' : `每餐约 ${f.solidAmount}`}</div>
-                        {f.solids !== '不需要' && <div className="feed__chips">{f.types.map((t, i) => <span key={i}>{t}</span>)}</div>}
-                      </div>
-                    </div>
-                  </div>
-                  <div className="feed__interval">
-                    <Clock className="icon icon--sm" />
-                    <span className="feed__interval-text">{f.feedingInterval}</span>
-                  </div>
-                  <div className="feed__foot">
-                    <button className="btn btn--coral btn--block" onClick={() => setModal({ open: true, title: `喂养演示 · ${f.stage}`, src: f.videoUrl || '' })}><Video className="icon icon--xs" />查看本阶段喂养演示视频</button>
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {/* 喂养评估 */}
-            {feedEval && recordTab === 'feed' && (
-              <div className={`feed__eval feed__eval--${feedEval.status}`}>
-                <div className="feed__eval-body">
-                  <div className="feed__eval-title">喂养评估</div>
-                  <div className="feed__eval-msg">{feedEval.message}</div>
-                  <div className="feed__eval-stats">
-                    <span className={`feed__eval-stat feed__eval-stat--${feedEval.milkStatus}`}>
-                      <Milk className="icon icon--xs" />
-                      奶量 <b>{feedEval.totalMilk.toFixed(0)}ml</b>
-                      {feedEval.targetMilk > 0 && (
-                        <span className="feed__eval-target">
-                          / 建议 {feedEval.effectiveTargetMilk.toFixed(0)}ml
-                          {feedEval.milkDisplaced && '（已随辅食下调）'}
-                        </span>
-                      )}
-                    </span>
-                    {feedEval.totalSolids > 0 && (
-                      <span className={`feed__eval-stat feed__eval-stat--${feedEval.solidsStatus}`}>
-                        <Utensils className="icon icon--xs" />
-                        辅食 <b>{feedEval.totalSolids.toFixed(0)}g</b>
-                      </span>
-                    )}
-                    {feedEval.feedCount > 0 && (
-                      <span className="feed__eval-stat">
-                        <Clock className="icon icon--xs" />
-                        喂养 <b>{feedEval.feedCount}</b> 次
-                        {feedEval.avgInterval && <span className="feed__eval-target">/ 均隔 {feedEval.avgInterval}</span>}
-                      </span>
-                    )}
-                  </div>
-
-                  {/* 辅食三项评估（WHO 口径：餐次 + 种类 + 单餐量） */}
-                  {feedEval.solidsMealCount > 0 && (
-                    <div className="feed__eval-solids">
-                      <div className="feed__eval-solids-item">
-                        <span className="feed__eval-solids-label">餐次</span>
-                        <span className={`feed__eval-solids-val ${feedEval.solidsMealCount >= feedEval.targetSolidsMeals ? 'is-ok' : 'is-bad'}`}>
-                          {feedEval.solidsMealCount}/{feedEval.targetSolidsMeals}
-                        </span>
-                      </div>
-                      <div className="feed__eval-solids-item">
-                        <span className="feed__eval-solids-label">种类</span>
-                        <span className={`feed__eval-solids-val ${feedEval.solidsDiversity >= feedEval.targetDiversity ? 'is-ok' : (feedEval.solidsGroupsLogged ? 'is-bad' : '')}`}>
-                          {feedEval.solidsDiversity}/{feedEval.targetDiversity}
-                        </span>
-                      </div>
-                      <div className="feed__eval-solids-item">
-                        <span className="feed__eval-solids-label">单餐量</span>
-                        <span className="feed__eval-solids-val">{feedEval.solidsAmountPerMeal.toFixed(0)}g</span>
-                      </div>
-                    </div>
-                  )}
-                  {/* 今日喂养水平标记 */}
-                  <div className="feed__level">
-                    <span className={`feed__level-badge feed__level-badge--${feedEval.status}`}>
-                      {feedEval.status === 'good' ? '✅ 喂养量充足' : feedEval.status === 'low' ? '⚠️ 喂养量不足' : '📈 喂养量超出'}
-                    </span>
-                    <button className="btn btn--ghost btn--sm" onClick={openFeedingCalendar} style={{ marginLeft: 'auto' }}>
-                      <Calendar className="icon icon--xs" />喂养日历
-                    </button>
-                  </div>
-                  {feedEval.suggestions && feedEval.suggestions.length > 0 && (
-                    <div className="feed__eval-tips">
-                      <Sparkles className="icon icon--xs" />
-                      <div className="feed__eval-tips-list">
-                        {feedEval.suggestions.map((s, i) => (
-                          <div key={i} className="feed__eval-tip">{s}</div>
+                      <div className="sweetspot__now" style={{ left: `${nowPct}%` }} />
+                      <div className="sweetspot__ticks">
+                        {[0, 6, 12, 18, 24].map(h => (
+                          <span key={h} className="sweetspot__tick" style={{ left: `${(h/24)*100}%` }}>{String(h).padStart(2,'0')}</span>
                         ))}
                       </div>
                     </div>
-                  )}
+                    <div className="sweetspot__signals">
+                      <span className="sweetspot__signals-label">犯困信号</span>
+                      {sleepSignals.map((sig, i) => (
+                        <span key={i} className="sweetspot__sig-chip">{sig}</span>
+                      ))}
+                    </div>
+                  </div>
                 </div>
-              </div>
-            )}
 
-          </div>
+                {/* 喂养评估（从原「今日记录」section 迁移至此） */}
+                {feedEval && (
+                  <div className={`feed__eval feed__eval--${feedEval.status}`}>
+                    <div className="feed__eval-body">
+                      <div className="feed__eval-title">喂养评估</div>
+                      <div className="feed__eval-msg">{feedEval.message}</div>
+                      <div className="feed__eval-stats">
+                        <span className={`feed__eval-stat feed__eval-stat--${feedEval.milkStatus}`}>
+                          <Milk className="icon icon--xs" />
+                          奶量 <b>{feedEval.totalMilk.toFixed(0)}ml</b>
+                          {feedEval.targetMilk > 0 && (
+                            <span className="feed__eval-target">
+                              / 建议 {feedEval.effectiveTargetMilk.toFixed(0)}ml
+                              {feedEval.milkDisplaced && '（已随辅食下调）'}
+                            </span>
+                          )}
+                        </span>
+                        {feedEval.totalSolids > 0 && (
+                          <span className={`feed__eval-stat feed__eval-stat--${feedEval.solidsStatus}`}>
+                            <Utensils className="icon icon--xs" />
+                            辅食 <b>{feedEval.totalSolids.toFixed(0)}g</b>
+                          </span>
+                        )}
+                        {feedEval.feedCount > 0 && (
+                          <span className="feed__eval-stat">
+                            <Clock className="icon icon--xs" />
+                            喂养 <b>{feedEval.feedCount}</b> 次
+                            {feedEval.avgInterval && <span className="feed__eval-target">/ 均隔 {feedEval.avgInterval}</span>}
+                          </span>
+                        )}
+                      </div>
+
+                      {/* 辅食三项评估（WHO 口径：餐次 + 种类 + 单餐量） */}
+                      {feedEval.solidsMealCount > 0 && (
+                        <div className="feed__eval-solids">
+                          <div className="feed__eval-solids-item">
+                            <span className="feed__eval-solids-label">餐次</span>
+                            <span className={`feed__eval-solids-val ${feedEval.solidsMealCount >= feedEval.targetSolidsMeals ? 'is-ok' : 'is-bad'}`}>
+                              {feedEval.solidsMealCount}/{feedEval.targetSolidsMeals}
+                            </span>
+                          </div>
+                          <div className="feed__eval-solids-item">
+                            <span className="feed__eval-solids-label">种类</span>
+                            <span className={`feed__eval-solids-val ${feedEval.solidsDiversity >= feedEval.targetDiversity ? 'is-ok' : (feedEval.solidsGroupsLogged ? 'is-bad' : '')}`}>
+                              {feedEval.solidsDiversity}/{feedEval.targetDiversity}
+                            </span>
+                          </div>
+                          <div className="feed__eval-solids-item">
+                            <span className="feed__eval-solids-label">单餐量</span>
+                            <span className="feed__eval-solids-val">{feedEval.solidsAmountPerMeal.toFixed(0)}g</span>
+                          </div>
+                        </div>
+                      )}
+                      {/* 今日喂养水平标记 */}
+                      <div className="feed__level">
+                        <span className={`feed__level-badge feed__level-badge--${feedEval.status}`}>
+                          {feedEval.status === 'good' ? '✅ 喂养量充足' : feedEval.status === 'low' ? '⚠️ 喂养量不足' : '📈 喂养量超出'}
+                        </span>
+                        <button className="btn btn--ghost btn--sm" onClick={openFeedingCalendar} style={{ marginLeft: 'auto' }}>
+                          <Calendar className="icon icon--xs" />喂养日历
+                        </button>
+                      </div>
+                      {feedEval.suggestions && feedEval.suggestions.length > 0 && (
+                        <div className="feed__eval-tips">
+                          <Sparkles className="icon icon--xs" />
+                          <div className="feed__eval-tips-list">
+                            {feedEval.suggestions.map((s, i) => (
+                              <div key={i} className="feed__eval-tip">{s}</div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
+              </>
+            );
+          })()}
         </Reveal>
 
         {/* 每日照护清单 */}
@@ -3349,6 +3458,166 @@ export default function BabyAppFullStack() {
           <ActList items={activities} onPlay={(a) => setModal({ open: true, title: a.title, src: a.videoUrl || '' })} />
         </Reveal>
 
+        {/* 成长区 · 疫苗日历（国家免疫规划 + 自费推荐） */}
+        <Reveal className="section zone zone--growth" delay={0.08}>
+          <div className="section__head">
+            <span className="section__ico section__ico--coral"><Syringe className="icon icon--sm" /></span>
+            <h2 className="section__title">疫苗日历</h2>
+            <span className="section__hint">国家免疫规划 · {vaccines.filter(v => v.status === 'administered').length}/{vaccines.length} 已接种</span>
+          </div>
+          {vaccines.length === 0 ? (
+            <div className="section__sub">加载中...</div>
+          ) : (
+            <>
+              {/* 统计条 */}
+              {(() => {
+                const done = vaccines.filter(v => v.status === 'administered').length;
+                const overdue = vaccines.filter(v => v.status === 'overdue').length;
+                const upcoming = vaccines.filter(v => v.status === 'upcoming').length;
+                const pending = vaccines.filter(v => v.status === 'pending').length;
+                return (
+                  <div className="vax-summary">
+                    <span className="vax-summary__item vax-summary__item--done">已接种 {done}</span>
+                    <span className="vax-summary__item vax-summary__item--overdue">逾期 {overdue}</span>
+                    <span className="vax-summary__item vax-summary__item--pending">待打 {pending}</span>
+                    <span className="vax-summary__item vax-summary__item--upcoming">未到月龄 {upcoming}</span>
+                  </div>
+                );
+              })()}
+              {/* 疫苗列表：按月龄分组 */}
+              {(() => {
+                const groups = {};
+                vaccines.forEach(v => {
+                  const m = v.month;
+                  if (!groups[m]) groups[m] = [];
+                  groups[m].push(v);
+                });
+                const monthLabel = (m) => {
+                  if (m === 0) return '出生时';
+                  if (m < 12) return `${m} 月龄`;
+                  if (m === 12) return '1 岁';
+                  if (m < 24) return `${m} 月龄`;
+                  const y = Math.floor(m / 12);
+                  return m % 12 === 0 ? `${y} 岁` : `${y} 岁 ${m % 12} 月`;
+                };
+                return Object.keys(groups).sort((a, b) => Number(a) - Number(b)).map(m => (
+                  <div key={m} className="vax-group">
+                    <div className="vax-group__head">{monthLabel(Number(m))}</div>
+                    <div className="vax-group__list">
+                      {groups[m].map(v => (
+                        <div key={v.id} className={`vax-card vax-card--${v.status}`}>
+                          <div className="vax-card__main">
+                            <div className="vax-card__name">
+                              {v.name}
+                              <span className="vax-card__seq">第 {v.seq} 剂</span>
+                              {!v.isNip && <span className="vax-card__tag">自费</span>}
+                            </div>
+                            <div className="vax-card__prevent">预防：{v.prevent}</div>
+                            <div className="vax-card__note">{v.note}</div>
+                            {v.status === 'administered' && v.administeredDate && (
+                              <div className="vax-card__date">已接种 · {v.administeredDate}{v.note && ' · ' + v.note}</div>
+                            )}
+                          </div>
+                          <div className="vax-card__action">
+                            {v.status === 'administered' ? (
+                              <button className="vax-btn vax-btn--undo" onClick={() => unmarkVaccine(v.recordId)}>撤销</button>
+                            ) : (
+                              <button className="vax-btn vax-btn--mark" onClick={() => setVaccineModal({ vaccine: v, administeredDate: new Date().toISOString().slice(0, 10), note: '' })}>标记接种</button>
+                            )}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ));
+              })()}
+            </>
+          )}
+        </Reveal>
+
+        {/* 成长区 · 里程碑打卡（4 大领域发育追踪） */}
+        <Reveal className="section zone zone--growth" delay={0.11}>
+          <div className="section__head">
+            <span className="section__ico section__ico--teal"><Activity className="icon icon--sm" /></span>
+            <h2 className="section__title">里程碑打卡</h2>
+            <span className="section__hint">CDC 发育里程碑 · {milestones.filter(m => m.status === 'achieved').length}/{milestones.length} 已达成</span>
+          </div>
+          {milestones.length === 0 ? (
+            <div className="section__sub">加载中...</div>
+          ) : (
+            <>
+              {/* 统计条 */}
+              {(() => {
+                const achieved = milestones.filter(m => m.status === 'achieved').length;
+                const pending = milestones.filter(m => m.status === 'pending').length;
+                const upcoming = milestones.filter(m => m.status === 'upcoming').length;
+                const redFlagPending = milestones.filter(m => m.red_flag && m.status === 'pending').length;
+                return (
+                  <div className="ms-summary">
+                    <span className="ms-summary__item ms-summary__item--done">已达成 {achieved}</span>
+                    <span className="ms-summary__item ms-summary__item--pending">待打卡 {pending}</span>
+                    <span className="ms-summary__item ms-summary__item--upcoming">未到月龄 {upcoming}</span>
+                    {redFlagPending > 0 && <span className="ms-summary__item ms-summary__item--alert">⚠ 警惕 {redFlagPending}</span>}
+                  </div>
+                );
+              })()}
+              {/* 按领域分组 */}
+              {(() => {
+                const DOMAIN_META = {
+                  motor: { label: '粗大动作', icon: 'Footprints' },
+                  fine: { label: '精细动作', icon: 'Hand' },
+                  language: { label: '语言', icon: 'MessageCircle' },
+                  social: { label: '社交情感', icon: 'Smile' },
+                };
+                const domains = ['motor', 'fine', 'language', 'social'];
+                return domains.map(dom => {
+                  const items = milestones.filter(m => m.domain === dom).sort((a, b) => a.month - b.month);
+                  if (items.length === 0) return null;
+                  const meta = DOMAIN_META[dom];
+                  const IconCmp = { Footprints, Hand, MessageCircle, Smile }[meta.icon];
+                  const domDone = items.filter(m => m.status === 'achieved').length;
+                  return (
+                    <div key={dom} className="ms-domain">
+                      <div className="ms-domain__head">
+                        <IconCmp className="icon icon--sm" />
+                        <span className="ms-domain__label">{meta.label}</span>
+                        <span className="ms-domain__count">{domDone}/{items.length}</span>
+                      </div>
+                      <div className="ms-domain__list">
+                        {items.map(m => (
+                          <div key={m.id} className={`ms-card ms-card--${m.status}${m.red_flag ? ' ms-card--alert' : ''}`}>
+                            <div className="ms-card__main">
+                              <div className="ms-card__desc">
+                                {m.desc}
+                                {m.red_flag && <span className="ms-card__flag" title="该里程碑未达成需警惕，建议咨询儿科医生">⚠</span>}
+                              </div>
+                              <div className="ms-card__month">多数 {m.month} 月达成</div>
+                              {m.status === 'achieved' && m.achievedDate && (
+                                <div className="ms-card__date">已达成 · {m.achievedDate}{m.note && ' · ' + m.note}</div>
+                              )}
+                            </div>
+                            <div className="ms-card__action">
+                              {m.status === 'achieved' ? (
+                                <button className="ms-btn ms-btn--undo" onClick={() => unmarkMilestone(m.recordId)}>撤销</button>
+                              ) : (
+                                <button
+                                  className="ms-btn ms-btn--mark"
+                                  disabled={m.status === 'upcoming'}
+                                  onClick={() => setMilestoneModal({ milestone: m, achievedDate: new Date().toISOString().slice(0, 10), note: '' })}
+                                >{m.status === 'upcoming' ? '未到月龄' : '打卡'}</button>
+                              )}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  );
+                });
+              })()}
+            </>
+          )}
+        </Reveal>
+
         <Reveal className="section zone zone--daily" delay={0.08}>
           <div className="section__head">
             <span className="section__ico section__ico--violet"><Music className="icon icon--sm" /></span>
@@ -3641,6 +3910,216 @@ export default function BabyAppFullStack() {
       )}
 
       <VideoModal open={modal.open} title={modal.title} src={modal.src || ''} onClose={() => setModal({ open: false, title: '', src: '' })} />
+
+      {/* 添加记录弹窗（从原「今日记录」section 抽出，由「宝宝的一天」标题处按钮唤起） */}
+      {recordModalOpen && (
+        <div className="modal modal--record" onClick={(e) => { if (e.target === e.currentTarget) setRecordModalOpen(false); }}>
+          <div className="modal__card modal__card--record">
+            <div className="modal__head">
+              <h3 className="modal__title">{editingId ? '编辑记录' : '添加记录'}</h3>
+              <button className="modal__close" onClick={() => { setRecordModalOpen(false); cancelEdit(); }}><X className="icon icon--sm" /></button>
+            </div>
+            <div className="modal__body">
+              <div className="feed__log-form">
+                {/* 类型 tab：喂养 / 换尿布 / 睡觉，置于最上方 */}
+                <div className="feed__log-tabs">
+                  <button type="button" className={`feed__log-tab ${recordTab === 'feed' ? 'feed__log-tab--on' : ''}`} onClick={() => { setRecordTab('feed'); if (feedForm.type !== 'milk' && feedForm.type !== 'solids') setFeedForm({ ...feedForm, type: 'milk' }); }}>
+                    <Milk className="icon icon--xs" />喂养
+                  </button>
+                  <button type="button" className={`feed__log-tab ${recordTab === 'diaper' ? 'feed__log-tab--on' : ''}`} onClick={() => { setRecordTab('diaper'); setFeedForm({ ...feedForm, type: 'diaper' }); }}>
+                    <Baby className="icon icon--xs" />换尿布
+                  </button>
+                  <button type="button" className={`feed__log-tab ${recordTab === 'sleep' ? 'feed__log-tab--on' : ''}`} onClick={() => { setRecordTab('sleep'); setFeedForm({ ...feedForm, type: 'sleep' }); }}>
+                    <Moon className="icon icon--xs" />睡觉
+                  </button>
+                </div>
+                {feedForm.type !== 'sleep' && (
+                  <div className="feed__log-field">
+                    <label>时间</label>
+                    <TimePicker value={feedForm.time} onChange={(v) => setFeedForm({ ...feedForm, time: v })} />
+                  </div>
+                )}
+                {feedForm.type === 'sleep' && (
+                  <div className="feed__log-sleep">
+                    <div className="feed__log-field">
+                      <label>开始时间</label>
+                      <TimePicker value={feedForm.time} onChange={(v) => setFeedForm({ ...feedForm, time: v })} />
+                    </div>
+                    <div className="feed__log-field">
+                      <label>结束时间（可选）</label>
+                      <TimePicker value={feedForm.wakeTime || ''} onChange={(v) => setFeedForm({ ...feedForm, wakeTime: v })} />
+                    </div>
+                  </div>
+                )}
+                {(feedForm.type === 'milk' || feedForm.type === 'solids') && (
+                  <div className="feed__log-field">
+                    <label>喂养量({feedForm.type === 'milk' ? 'ml' : 'g'})</label>
+                    <input type="number" className="input input--sm" placeholder="0" value={feedForm.amount} onChange={(e) => setFeedForm({ ...feedForm, amount: e.target.value })} />
+                  </div>
+                )}
+                {/* 喂养 tab 内：奶 / 辅食 细分 */}
+                {recordTab === 'feed' && (
+                  <div className="feed__log-field feed__log-field--seg">
+                    <label>喂养种类</label>
+                    <div className="feed__log-seg">
+                      <button type="button" className={`feed__log-seg-btn ${feedForm.type === 'milk' ? 'feed__log-seg-btn--on' : ''}`} onClick={() => setFeedForm({ ...feedForm, type: 'milk' })}>奶</button>
+                      <button type="button" className={`feed__log-seg-btn ${feedForm.type === 'solids' ? 'feed__log-seg-btn--on' : ''}`} onClick={() => setFeedForm({ ...feedForm, type: 'solids' })}>辅食</button>
+                    </div>
+                  </div>
+                )}
+                {feedForm.type === 'solids' && (
+                  <div className="feed__log-field feed__log-field--note">
+                    <label>食物种类（按 WHO 标准评估营养多样性）</label>
+                    <div className="feed__foodgroups">
+                      {FOOD_GROUPS.map((g) => (
+                        <button
+                          key={g}
+                          type="button"
+                          className={`feed__chip ${feedForm.foodGroups.includes(g) ? 'feed__chip--on' : ''}`}
+                          onClick={() => toggleFoodGroup(g)}
+                        >
+                          {feedForm.foodGroups.includes(g) && <Check className="icon icon--xs" />}
+                          {g}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+                {feedForm.type === 'diaper' && (
+                  <div className="feed__log-field feed__log-field--note">
+                    <label>换的是</label>
+                    <div className="feed__chips">
+                      {[{ v: 'pee', l: '💧', t: '尿' }, { v: 'poop', l: '💩', t: '屎' }, { v: 'both', l: '💩💧', t: '都有' }].map((o) => (
+                        <button key={o.v} type="button" title={o.t}
+                          className={`feed__chip feed__chip--emoji ${feedForm.kind === o.v ? 'feed__chip--on' : ''}`}
+                          onClick={() => setFeedForm({ ...feedForm, kind: o.v })}>{o.l}</button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+                <div className="feed__log-field feed__log-field--note">
+                  <label>备注</label>
+                  <input type="text" className="input input--sm" placeholder="如：晨奶" value={feedForm.note} onChange={(e) => setFeedForm({ ...feedForm, note: e.target.value })} />
+                </div>
+                {editingId ? (
+                  <div className="record-modal__actions">
+                    <button className="btn btn--primary btn--sm" onClick={addFeedRecord} disabled={feedLoading}>
+                      {feedLoading ? <Loader2 className="icon icon--xs animate-spin" /> : <Save className="icon icon--xs" />}
+                      更新
+                    </button>
+                    <button className="btn btn--ghost btn--sm" onClick={() => { cancelEdit(); setRecordModalOpen(false); }}>取消</button>
+                  </div>
+                ) : (
+                  <div className="record-modal__actions">
+                    <button className="btn btn--primary btn--sm" onClick={addFeedRecord} disabled={feedLoading}>
+                      {feedLoading ? <Loader2 className="icon icon--xs animate-spin" /> : <Plus className="icon icon--xs" />}
+                      添加
+                    </button>
+                    <button className="btn btn--ghost btn--sm" onClick={() => setRecordModalOpen(false)}>关闭</button>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 疫苗标记弹窗 */}
+      {vaccineModal && (
+        <div className="modal modal--vax" onClick={(e) => { if (e.target === e.currentTarget) setVaccineModal(null); }}>
+          <div className="modal__card modal__card--fm">
+            <div className="modal__head">
+              <h3 className="modal__title">标记接种 · {vaccineModal.vaccine.name}（第 {vaccineModal.vaccine.seq} 剂）</h3>
+              <button className="modal__close" onClick={() => setVaccineModal(null)}><X className="icon icon--sm" /></button>
+            </div>
+            <div className="modal__body">
+              <div className="form-row">
+                <label className="form-label">接种日期</label>
+                <input
+                  type="date"
+                  className="input"
+                  value={vaccineModal.administeredDate}
+                  onChange={(e) => setVaccineModal({ ...vaccineModal, administeredDate: e.target.value })}
+                />
+              </div>
+              <div className="form-row">
+                <label className="form-label">备注（可选）</label>
+                <input
+                  type="text"
+                  className="input"
+                  placeholder="如：在社区卫生服务中心打"
+                  value={vaccineModal.note}
+                  onChange={(e) => setVaccineModal({ ...vaccineModal, note: e.target.value })}
+                />
+              </div>
+              <div className="vax-modal__hint">
+                预防：{vaccineModal.vaccine.prevent}<br />
+                {vaccineModal.vaccine.note}
+              </div>
+            </div>
+            <div className="modal__foot">
+              <button className="btn btn--ghost" onClick={() => setVaccineModal(null)}>取消</button>
+              <button
+                className="btn btn--primary"
+                disabled={!vaccineModal.administeredDate}
+                onClick={() => {
+                  markVaccine(vaccineModal.vaccine.id, vaccineModal.administeredDate, vaccineModal.note);
+                  setVaccineModal(null);
+                }}
+              >确认接种</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 里程碑打卡弹窗 */}
+      {milestoneModal && (
+        <div className="modal modal--ms" onClick={(e) => { if (e.target === e.currentTarget) setMilestoneModal(null); }}>
+          <div className="modal__card modal__card--fm">
+            <div className="modal__head">
+              <h3 className="modal__title">里程碑打卡</h3>
+              <button className="modal__close" onClick={() => setMilestoneModal(null)}><X className="icon icon--sm" /></button>
+            </div>
+            <div className="modal__body">
+              <div className="ms-modal__desc">{milestoneModal.milestone.desc}</div>
+              <div className="ms-modal__meta">多数宝宝 {milestoneModal.milestone.month} 月达成 · 该领域发育追踪</div>
+              {milestoneModal.milestone.red_flag && (
+                <div className="ms-modal__alert">⚠ 该里程碑未达成需警惕，建议咨询儿科医生</div>
+              )}
+              <div className="form-row">
+                <label className="form-label">首达日期</label>
+                <input
+                  type="date"
+                  className="input"
+                  value={milestoneModal.achievedDate}
+                  onChange={(e) => setMilestoneModal({ ...milestoneModal, achievedDate: e.target.value })}
+                />
+              </div>
+              <div className="form-row">
+                <label className="form-label">备注（可选）</label>
+                <input
+                  type="text"
+                  className="input"
+                  placeholder="如：第一次翻身"
+                  value={milestoneModal.note}
+                  onChange={(e) => setMilestoneModal({ ...milestoneModal, note: e.target.value })}
+                />
+              </div>
+            </div>
+            <div className="modal__foot">
+              <button className="btn btn--ghost" onClick={() => setMilestoneModal(null)}>取消</button>
+              <button
+                className="btn btn--primary"
+                disabled={!milestoneModal.achievedDate}
+                onClick={() => {
+                  markMilestone(milestoneModal.milestone.id, milestoneModal.achievedDate, milestoneModal.note);
+                  setMilestoneModal(null);
+                }}
+              >确认达成</button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* 地点详情弹窗（从地图点位点击打开） */}
       {spotModal && (() => {
