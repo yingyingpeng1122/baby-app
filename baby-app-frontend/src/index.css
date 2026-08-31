@@ -1156,12 +1156,14 @@ button:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
   position: relative; z-index: 1; width: min(420px, 92vw); max-height: 85vh; overflow-y: auto;
   background: #fff; border-radius: 20px; box-shadow: var(--sh-lg); padding: 20px;
 }
-.modal__close {
+/* 仅家庭管理弹窗（无 .modal__head flex 容器）的关闭按钮走绝对定位；
+   视频弹窗等用 .modal__head-actions flex 布局的关闭按钮走 L967 的 flex 定义，避免与全屏按钮重叠 */
+.modal__card--fm .modal__close {
   position: absolute; top: 14px; right: 14px; width: 30px; height: 30px;
   display: grid; place-items: center; border: none; background: var(--surface-2);
   border-radius: 50%; color: var(--muted); cursor: pointer; transition: all .15s;
 }
-.modal__close:hover { background: var(--coral-soft); color: var(--coral); }
+.modal__card--fm .modal__close:hover { background: var(--coral-soft); color: var(--coral); }
 .fm-head { display: flex; flex-direction: column; align-items: center; gap: 8px; padding: 8px 0 16px; border-bottom: 1px solid var(--line); }
 
 /* ---------- 二次确认弹窗（退出登录等） ---------- */
