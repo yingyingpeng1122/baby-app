@@ -1023,6 +1023,7 @@ export default function BabyAppFullStack() {
   const [error, setError] = useState(null);
   const [connError, setConnError] = useState(null); // 初始化连接失败（超时/网络不可达）
   const [data, setData] = useState(null);
+  const profile = data?.profile; // 提前解构，供 useMemo 引用（避免 TDZ：原解构在 2410 行，晚于 useMemo）
   const [modal, setModal] = useState({ open: false, title: '' });
   const [form, setForm] = useState({ name: '', gender: 'boy', birthday: '', height: '', weight: '', night_bedtime: '', night_wake_time: '' });
   // 账号系统
@@ -1119,18 +1120,6 @@ export default function BabyAppFullStack() {
     const upcoming = vaccines.filter(v => v.status === 'upcoming').length;
     return { administered, overdue, pending, upcoming };
   }, [vaccines]);
-
-  // 出行历史筛选 + 排序：travelRecords 或 filter/sort 变化时才重算
-  const historyRecords = useMemo(() => {
-    let list = travelRecords;
-    if (historyFilter.dest_type !== 'all') list = list.filter(r => r.dest_type === historyFilter.dest_type);
-    if (historyFilter.category !== 'all') list = list.filter(r => (r.category || '') === historyFilter.category);
-    const sorted = [...list];
-    if (historySort === 'date_asc') sorted.sort((a, b) => (a.travel_date || '').localeCompare(b.travel_date || ''));
-    else if (historySort === 'rating_desc') sorted.sort((a, b) => (b.rating || 0) - (a.rating || 0));
-    else sorted.sort((a, b) => (b.travel_date || '').localeCompare(a.travel_date || ''));
-    return sorted;
-  }, [travelRecords, historyFilter, historySort]);
 
   // 里程碑统计 + 按领域分组：milestones 变化时才重算
   const milestoneStats = useMemo(() => {
@@ -1232,6 +1221,17 @@ export default function BabyAppFullStack() {
   // 出行历史筛选 + 排序
   const [historyFilter, setHistoryFilter] = useState({ dest_type: 'all', category: 'all' }); // 'all' 或具体值
   const [historySort, setHistorySort] = useState('date_desc'); // 'date_desc' | 'date_asc' | 'rating_desc'
+  // 出行历史筛选 + 排序（须在 travelRecords/historyFilter/historySort 三个 state 声明之后，否则 TDZ）
+  const historyRecords = useMemo(() => {
+    let list = travelRecords;
+    if (historyFilter.dest_type !== 'all') list = list.filter(r => r.dest_type === historyFilter.dest_type);
+    if (historyFilter.category !== 'all') list = list.filter(r => (r.category || '') === historyFilter.category);
+    const sorted = [...list];
+    if (historySort === 'date_asc') sorted.sort((a, b) => (a.travel_date || '').localeCompare(b.travel_date || ''));
+    else if (historySort === 'rating_desc') sorted.sort((a, b) => (b.rating || 0) - (a.rating || 0));
+    else sorted.sort((a, b) => (b.travel_date || '').localeCompare(a.travel_date || ''));
+    return sorted;
+  }, [travelRecords, historyFilter, historySort]);
   // 目的地推荐：区筛选 + 星级筛选 + 已打卡状态来自 travelRecords（按 dest_name 匹配）
   const [recoDistrict, setRecoDistrict] = useState('all');   // 'all' | 区名
   const [recoStar, setRecoStar] = useState('all');           // 'all' | 1-5
@@ -2408,7 +2408,7 @@ export default function BabyAppFullStack() {
       </div>
     );
   }
-  const { profile, months, growthStandard: g, isWeightNormal, isHeightNormal, weightStatus: wStat, heightStatus: hStat, feedingAdvice: f, activities, music = [], stories = [], stageTip: st = {} } = data;
+  const { months, growthStandard: g, isWeightNormal, isHeightNormal, weightStatus: wStat, heightStatus: hStat, feedingAdvice: f, activities, music = [], stories = [], stageTip: st = {} } = data;
   const stFeatured = st.featured || null;
   const stCurrent = st.current || [];
   const stAfter = st.after || null;
