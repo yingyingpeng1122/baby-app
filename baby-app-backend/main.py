@@ -229,6 +229,11 @@ def init_db():
         db.execute("ALTER TABLE feeding_records_v2 ADD COLUMN kind TEXT DEFAULT ''")
     except Exception:
         pass
+    # 新增记录人列：哪位家庭成员记的（兼容旧库，列已存在则忽略）
+    try:
+        db.execute("ALTER TABLE feeding_records_v2 ADD COLUMN user_id TEXT DEFAULT ''")
+    except Exception:
+        pass
     # 新增成员昵称列（兼容旧库，列已存在则忽略）
     try:
         db.execute("ALTER TABLE family_members ADD COLUMN nickname TEXT DEFAULT ''")
@@ -258,11 +263,21 @@ def init_db():
         height REAL, weight REAL, note TEXT DEFAULT '',
         PRIMARY KEY (baby_id, date, id)
     )""")
+    # 新增记录人列：哪位家庭成员记的（兼容旧库，列已存在则忽略）
+    try:
+        db.execute("ALTER TABLE growth_records_v2 ADD COLUMN user_id TEXT DEFAULT ''")
+    except Exception:
+        pass
     # 生病模式：体温记录
     db.execute("""CREATE TABLE IF NOT EXISTS temperature_records (
         id TEXT PRIMARY KEY, baby_id TEXT NOT NULL,
         datetime TEXT, temp REAL, note TEXT DEFAULT ''
     )""")
+    # 新增记录人列：哪位家庭成员记的（兼容旧库，列已存在则忽略）
+    try:
+        db.execute("ALTER TABLE temperature_records ADD COLUMN user_id TEXT DEFAULT ''")
+    except Exception:
+        pass
     # 出行区：打包清单（生成记录 + 勾选状态）
     db.execute("""CREATE TABLE IF NOT EXISTS travel_lists (
         id TEXT, baby_id TEXT NOT NULL,
@@ -271,6 +286,11 @@ def init_db():
         created_at TEXT DEFAULT (datetime('now')),
         PRIMARY KEY (baby_id, id)
     )""")
+    # 新增记录人列：哪位家庭成员记的（兼容旧库，列已存在则忽略）
+    try:
+        db.execute("ALTER TABLE travel_lists ADD COLUMN user_id TEXT DEFAULT ''")
+    except Exception:
+        pass
     # 出行区：出行历史（独立轻量记录，不关联清单、不记带了什么）
     db.execute("""CREATE TABLE IF NOT EXISTS travel_records (
         id TEXT, baby_id TEXT NOT NULL,
@@ -280,6 +300,11 @@ def init_db():
         created_at TEXT DEFAULT (datetime('now')),
         PRIMARY KEY (baby_id, id)
     )""")
+    # 新增记录人列：哪位家庭成员记的（兼容旧库，列已存在则忽略）
+    try:
+        db.execute("ALTER TABLE travel_records ADD COLUMN user_id TEXT DEFAULT ''")
+    except Exception:
+        pass
     # travel_records 兼容旧库：补 category 列（地点类型 park/amusement/farm/mall/museum/beach/mountain/ancient/garden）
     try:
         db.execute("ALTER TABLE travel_records ADD COLUMN category TEXT DEFAULT ''")
@@ -294,6 +319,11 @@ def init_db():
         note TEXT DEFAULT '',
         created_at TEXT DEFAULT (datetime('now'))
     )""")
+    # 新增记录人列：哪位家庭成员记的（兼容旧库，列已存在则忽略）
+    try:
+        db.execute("ALTER TABLE vaccine_records ADD COLUMN user_id TEXT DEFAULT ''")
+    except Exception:
+        pass
     try:
         db.execute("CREATE INDEX IF NOT EXISTS idx_vaccine_baby ON vaccine_records(baby_id, vaccine_id)")
     except Exception:
@@ -307,6 +337,11 @@ def init_db():
         note TEXT DEFAULT '',
         created_at TEXT DEFAULT (datetime('now'))
     )""")
+    # 新增记录人列：哪位家庭成员记的（兼容旧库，列已存在则忽略）
+    try:
+        db.execute("ALTER TABLE milestone_records ADD COLUMN user_id TEXT DEFAULT ''")
+    except Exception:
+        pass
     try:
         db.execute("CREATE INDEX IF NOT EXISTS idx_milestone_baby ON milestone_records(baby_id, milestone_id)")
     except Exception:
@@ -420,6 +455,7 @@ class FeedingRecord(BaseModel):
     foodGroups: str = ''  # 逗号分隔的 WHO 食物组
     duration: int = 0     # 睡眠时长（分钟），仅 type=sleep 使用
     kind: str = ''        # 尿布类型：pee=尿 / poop=屎 / both=都有，仅 type=diaper 使用
+    recorderName: str = ''  # 记录人昵称（家庭成员昵称）
 
 class FeedingEvaluation(BaseModel):
     totalMilk: float
@@ -510,6 +546,23 @@ def get_family_id(request: Request) -> str:
     if not rs:
         raise HTTPException(status_code=403, detail="Not in any family. Please create or join one first.")
     return rs[0][0]
+
+# 记录人昵称缓存：同一请求内避免重复查询（user_id → 昵称）
+def _recorder_name(uid: str) -> str:
+    """把 user_id 翻译成家庭成员昵称；查不到返回空串"""
+    if not uid:
+        return ''
+    try:
+        rs = db.execute("SELECT nickname FROM family_members WHERE user_id = ?", [uid]).fetchall()
+        if rs:
+            return rs[0][0] or ''
+        # 退化路径：若未在 family_members 中，尝试 users.nickname
+        rs2 = db.execute("SELECT nickname FROM users WHERE user_id = ?", [uid]).fetchall()
+        if rs2:
+            return rs2[0][0] or ''
+    except Exception:
+        pass
+    return ''
 
 def _get_baby_profile(baby_id: str) -> Optional[dict]:
     """按 baby_id 获取宝宝档案（返回 dict，兼容旧代码）"""
@@ -1629,12 +1682,14 @@ async def save_profile(profile: BabyProfile, request: Request):
 @app.post("/feeding-records", response_model=FeedingRecord)
 async def add_feeding_record(record: FeedingRecord, request: Request):
     bid = get_baby_id(request)
+    uid = get_uid(request)
     today = date.today().isoformat()
     record.id = str(uuid.uuid4())[:8]
     db.execute(
-        "INSERT INTO feeding_records_v2 (id, baby_id, date, time, amount, type, note, food_groups, duration, kind) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-        [record.id, bid, today, record.time, record.amount, record.type, record.note, record.foodGroups, record.duration, record.kind])
+        "INSERT INTO feeding_records_v2 (id, baby_id, date, time, amount, type, note, food_groups, duration, kind, user_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+        [record.id, bid, today, record.time, record.amount, record.type, record.note, record.foodGroups, record.duration, record.kind, uid])
     db.sync()
+    record.recorderName = _recorder_name(uid)
     return record
 
 @app.get("/feeding-records", response_model=List[FeedingRecord])
@@ -1642,13 +1697,14 @@ async def get_feeding_records(request: Request, date_str: str = Query(default=No
     bid = get_baby_id(request)
     d = date_str or date.today().isoformat()
     rs = db.execute(
-        "SELECT id, time, amount, type, note, food_groups, duration, kind FROM feeding_records_v2 WHERE baby_id = ? AND date = ?",
+        "SELECT id, time, amount, type, note, food_groups, duration, kind, user_id FROM feeding_records_v2 WHERE baby_id = ? AND date = ?",
         [bid, d]).fetchall()
-    return [FeedingRecord(id=r[0], time=r[1], amount=r[2], type=_norm_feed_type(r[3]), note=r[4] or '', foodGroups=r[5] or '', duration=r[6] or 0, kind=r[7] or '') for r in rs]
+    return [FeedingRecord(id=r[0], time=r[1], amount=r[2], type=_norm_feed_type(r[3]), note=r[4] or '', foodGroups=r[5] or '', duration=r[6] or 0, kind=r[7] or '', recorderName=_recorder_name(r[8] or '')) for r in rs]
 
 @app.put("/feeding-records/{record_id}", response_model=FeedingRecord)
 async def update_feeding_record(record_id: str, record: FeedingRecord, request: Request):
     bid = get_baby_id(request)
+    uid = get_uid(request)
     today = date.today().isoformat()
     rs = db.execute(
         "SELECT id FROM feeding_records_v2 WHERE id = ? AND baby_id = ? AND date = ?",
@@ -1656,10 +1712,11 @@ async def update_feeding_record(record_id: str, record: FeedingRecord, request: 
     if not rs:
         raise HTTPException(status_code=404, detail="Record not found")
     db.execute(
-        "UPDATE feeding_records_v2 SET time=?, amount=?, type=?, note=?, food_groups=?, duration=?, kind=? WHERE id=? AND baby_id=? AND date=?",
-        [record.time, record.amount, record.type, record.note, record.foodGroups, record.duration, record.kind, record_id, bid, today])
+        "UPDATE feeding_records_v2 SET time=?, amount=?, type=?, note=?, food_groups=?, duration=?, kind=?, user_id=? WHERE id=? AND baby_id=? AND date=?",
+        [record.time, record.amount, record.type, record.note, record.foodGroups, record.duration, record.kind, uid, record_id, bid, today])
     db.sync()
     record.id = record_id
+    record.recorderName = _recorder_name(uid)
     return record
 
 @app.delete("/feeding-records/{record_id}")
@@ -1683,16 +1740,19 @@ class GrowthRecord(BaseModel):
     height: float = 0.0   # cm
     weight: float = 0.0   # kg
     note: str = ''
+    recorderName: str = ''  # 记录人昵称
 
 
 @app.post("/growth-records", response_model=GrowthRecord)
 async def add_growth_record(record: GrowthRecord, request: Request):
     bid = get_baby_id(request)
+    uid = get_uid(request)
     record.id = str(uuid.uuid4())[:8]
     db.execute(
-        "INSERT INTO growth_records_v2 (id, baby_id, date, height, weight, note) VALUES (?, ?, ?, ?, ?, ?)",
-        [record.id, bid, record.date, record.height, record.weight, record.note])
+        "INSERT INTO growth_records_v2 (id, baby_id, date, height, weight, note, user_id) VALUES (?, ?, ?, ?, ?, ?, ?)",
+        [record.id, bid, record.date, record.height, record.weight, record.note, uid])
     db.sync()
+    record.recorderName = _recorder_name(uid)
     return record
 
 
@@ -1700,9 +1760,9 @@ async def add_growth_record(record: GrowthRecord, request: Request):
 async def get_growth_records(request: Request):
     bid = get_baby_id(request)
     rs = db.execute(
-        "SELECT id, date, height, weight, note FROM growth_records_v2 WHERE baby_id = ? ORDER BY date ASC",
+        "SELECT id, date, height, weight, note, user_id FROM growth_records_v2 WHERE baby_id = ? ORDER BY date ASC",
         [bid]).fetchall()
-    return [GrowthRecord(id=r[0], date=r[1], height=r[2] or 0.0, weight=r[3] or 0.0, note=r[4] or '') for r in rs]
+    return [GrowthRecord(id=r[0], date=r[1], height=r[2] or 0.0, weight=r[3] or 0.0, note=r[4] or '', recorderName=_recorder_name(r[5] or '')) for r in rs]
 
 
 @app.delete("/growth-records/{record_id}")
@@ -1716,11 +1776,13 @@ async def delete_growth_record(record_id: str, request: Request):
 @app.put("/growth-records/{record_id}", response_model=GrowthRecord)
 async def update_growth_record(record_id: str, record: GrowthRecord, request: Request):
     bid = get_baby_id(request)
+    uid = get_uid(request)
     db.execute(
-        "UPDATE growth_records_v2 SET date=?, height=?, weight=?, note=? WHERE id=? AND baby_id=?",
-        [record.date, record.height, record.weight, record.note, record_id, bid])
+        "UPDATE growth_records_v2 SET date=?, height=?, weight=?, note=?, user_id=? WHERE id=? AND baby_id=?",
+        [record.date, record.height, record.weight, record.note, uid, record_id, bid])
     db.sync()
     record.id = record_id
+    record.recorderName = _recorder_name(uid)
     return record
 
 
@@ -1730,17 +1792,20 @@ class TemperatureRecord(BaseModel):
     datetime: str = ''
     temp: float
     note: str = ''
+    recorderName: str = ''  # 记录人昵称
 
 
 @app.post("/temperature-records", response_model=TemperatureRecord)
 async def add_temperature_record(record: TemperatureRecord, request: Request):
     bid = get_baby_id(request)
+    uid = get_uid(request)
     record.id = str(uuid.uuid4())[:8]
     record.datetime = record.datetime or datetime.now().strftime("%Y-%m-%d %H:%M")
     db.execute(
-        "INSERT INTO temperature_records (id, baby_id, datetime, temp, note) VALUES (?, ?, ?, ?, ?)",
-        [record.id, bid, record.datetime, record.temp, record.note])
+        "INSERT INTO temperature_records (id, baby_id, datetime, temp, note, user_id) VALUES (?, ?, ?, ?, ?, ?)",
+        [record.id, bid, record.datetime, record.temp, record.note, uid])
     db.sync()
+    record.recorderName = _recorder_name(uid)
     return record
 
 
@@ -1748,9 +1813,9 @@ async def add_temperature_record(record: TemperatureRecord, request: Request):
 async def get_temperature_records(request: Request):
     bid = get_baby_id(request)
     rs = db.execute(
-        "SELECT id, datetime, temp, note FROM temperature_records WHERE baby_id = ? ORDER BY datetime DESC",
+        "SELECT id, datetime, temp, note, user_id FROM temperature_records WHERE baby_id = ? ORDER BY datetime DESC",
         [bid]).fetchall()
-    return [TemperatureRecord(id=r[0], datetime=r[1], temp=r[2] or 0.0, note=r[3] or '') for r in rs]
+    return [TemperatureRecord(id=r[0], datetime=r[1], temp=r[2] or 0.0, note=r[3] or '', recorderName=_recorder_name(r[4] or '')) for r in rs]
 
 
 @app.delete("/temperature-records/{record_id}")
@@ -1764,10 +1829,13 @@ async def delete_temperature_record(record_id: str, request: Request):
 @app.put("/temperature-records/{record_id}")
 async def update_temperature_record(record_id: str, record: TemperatureRecord, request: Request):
     bid = get_baby_id(request)
+    uid = get_uid(request)
     db.execute(
-        "UPDATE temperature_records SET datetime = ?, temp = ?, note = ? WHERE id = ? AND baby_id = ?",
-        [record.datetime, record.temp, record.note, record_id, bid])
+        "UPDATE temperature_records SET datetime = ?, temp = ?, note = ?, user_id = ? WHERE id = ? AND baby_id = ?",
+        [record.datetime, record.temp, record.note, uid, record_id, bid])
     db.sync()
+    record.id = record_id
+    record.recorderName = _recorder_name(uid)
     return {"status": "updated", "id": record_id}
 
 
@@ -1777,9 +1845,9 @@ async def get_feeding_evaluation(request: Request, date_str: str = Query(default
     d = date_str or date.today().isoformat()
 
     rs = db.execute(
-        "SELECT id, time, amount, type, note, food_groups, duration, kind FROM feeding_records_v2 WHERE baby_id = ? AND date = ?",
+        "SELECT id, time, amount, type, note, food_groups, duration, kind, user_id FROM feeding_records_v2 WHERE baby_id = ? AND date = ?",
         [bid, d]).fetchall()
-    records = [FeedingRecord(id=r[0], time=r[1], amount=r[2], type=_norm_feed_type(r[3]), note=r[4] or '', foodGroups=r[5] or '', duration=r[6] or 0, kind=r[7] or '') for r in rs]
+    records = [FeedingRecord(id=r[0], time=r[1], amount=r[2], type=_norm_feed_type(r[3]), note=r[4] or '', foodGroups=r[5] or '', duration=r[6] or 0, kind=r[7] or '', recorderName=_recorder_name(r[8] or '')) for r in rs]
 
     milk_records = [r for r in records if r.type == 'milk']
     solids_records = [r for r in records if r.type == 'solids']
@@ -2573,6 +2641,7 @@ class TravelListItem(BaseModel):
     dest_type: str = ''          # short / long / abroad
     age_months: int = 0
     items: str = '[]'           # JSON: [{cat, name, checked, custom}]
+    recorderName: str = ''  # 记录人昵称
 
 class TravelRecord(BaseModel):
     id: str = ''
@@ -2583,37 +2652,42 @@ class TravelRecord(BaseModel):
     age_months: int = 0
     rating: int = 0              # 1-5
     note: str = ''
+    recorderName: str = ''  # 记录人昵称
 
 # 打包清单：GET 列表 / POST 新建 / PUT 更新 / DELETE 删除
 @app.get("/travel/lists", response_model=List[TravelListItem])
 async def get_travel_lists(request: Request):
     bid = get_baby_id(request)
     rs = db.execute(
-        "SELECT id, dest_type, age_months, items FROM travel_lists WHERE baby_id = ? ORDER BY created_at DESC",
+        "SELECT id, dest_type, age_months, items, user_id FROM travel_lists WHERE baby_id = ? ORDER BY created_at DESC",
         [bid]).fetchall()
-    return [TravelListItem(id=r[0], dest_type=r[1] or '', age_months=r[2] or 0, items=r[3] or '[]') for r in rs]
+    return [TravelListItem(id=r[0], dest_type=r[1] or '', age_months=r[2] or 0, items=r[3] or '[]', recorderName=_recorder_name(r[4] or '')) for r in rs]
 
 @app.post("/travel/lists", response_model=TravelListItem)
 async def save_travel_list(item: TravelListItem, request: Request):
     bid = get_baby_id(request)
+    uid = get_uid(request)
     item.id = str(uuid.uuid4())[:8]
     db.execute(
-        "INSERT INTO travel_lists (id, baby_id, dest_type, age_months, items) VALUES (?, ?, ?, ?, ?)",
-        [item.id, bid, item.dest_type, item.age_months, item.items])
+        "INSERT INTO travel_lists (id, baby_id, dest_type, age_months, items, user_id) VALUES (?, ?, ?, ?, ?, ?)",
+        [item.id, bid, item.dest_type, item.age_months, item.items, uid])
     db.sync()
+    item.recorderName = _recorder_name(uid)
     return item
 
 @app.put("/travel/lists/{list_id}", response_model=TravelListItem)
 async def update_travel_list(list_id: str, item: TravelListItem, request: Request):
     bid = get_baby_id(request)
+    uid = get_uid(request)
     rs = db.execute("SELECT id FROM travel_lists WHERE id = ? AND baby_id = ?", [list_id, bid]).fetchall()
     if not rs:
         raise HTTPException(status_code=404, detail="Travel list not found")
     db.execute(
-        "UPDATE travel_lists SET dest_type=?, age_months=?, items=? WHERE id=? AND baby_id=?",
-        [item.dest_type, item.age_months, item.items, list_id, bid])
+        "UPDATE travel_lists SET dest_type=?, age_months=?, items=?, user_id=? WHERE id=? AND baby_id=?",
+        [item.dest_type, item.age_months, item.items, uid, list_id, bid])
     db.sync()
     item.id = list_id
+    item.recorderName = _recorder_name(uid)
     return item
 
 @app.delete("/travel/lists/{list_id}")
@@ -2631,31 +2705,35 @@ async def delete_travel_list(list_id: str, request: Request):
 async def get_travel_records(request: Request):
     bid = get_baby_id(request)
     rs = db.execute(
-        "SELECT id, dest_name, dest_type, category, travel_date, age_months, rating, note FROM travel_records WHERE baby_id = ? ORDER BY travel_date DESC, created_at DESC",
+        "SELECT id, dest_name, dest_type, category, travel_date, age_months, rating, note, user_id FROM travel_records WHERE baby_id = ? ORDER BY travel_date DESC, created_at DESC",
         [bid]).fetchall()
-    return [TravelRecord(id=r[0], dest_name=r[1] or '', dest_type=r[2] or '', category=r[3] or '', travel_date=r[4] or '', age_months=r[5] or 0, rating=r[6] or 0, note=r[7] or '') for r in rs]
+    return [TravelRecord(id=r[0], dest_name=r[1] or '', dest_type=r[2] or '', category=r[3] or '', travel_date=r[4] or '', age_months=r[5] or 0, rating=r[6] or 0, note=r[7] or '', recorderName=_recorder_name(r[8] or '')) for r in rs]
 
 @app.post("/travel/records", response_model=TravelRecord)
 async def save_travel_record(item: TravelRecord, request: Request):
     bid = get_baby_id(request)
+    uid = get_uid(request)
     item.id = str(uuid.uuid4())[:8]
     db.execute(
-        "INSERT INTO travel_records (id, baby_id, dest_name, dest_type, category, travel_date, age_months, rating, note) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
-        [item.id, bid, item.dest_name, item.dest_type, item.category, item.travel_date, item.age_months, item.rating, item.note])
+        "INSERT INTO travel_records (id, baby_id, dest_name, dest_type, category, travel_date, age_months, rating, note, user_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+        [item.id, bid, item.dest_name, item.dest_type, item.category, item.travel_date, item.age_months, item.rating, item.note, uid])
     db.sync()
+    item.recorderName = _recorder_name(uid)
     return item
 
 @app.put("/travel/records/{record_id}", response_model=TravelRecord)
 async def update_travel_record(record_id: str, item: TravelRecord, request: Request):
     bid = get_baby_id(request)
+    uid = get_uid(request)
     rs = db.execute("SELECT id FROM travel_records WHERE id = ? AND baby_id = ?", [record_id, bid]).fetchall()
     if not rs:
         raise HTTPException(status_code=404, detail="Travel record not found")
     db.execute(
-        "UPDATE travel_records SET dest_name=?, dest_type=?, category=?, travel_date=?, age_months=?, rating=?, note=? WHERE id=? AND baby_id=?",
-        [item.dest_name, item.dest_type, item.category, item.travel_date, item.age_months, item.rating, item.note, record_id, bid])
+        "UPDATE travel_records SET dest_name=?, dest_type=?, category=?, travel_date=?, age_months=?, rating=?, note=?, user_id=? WHERE id=? AND baby_id=?",
+        [item.dest_name, item.dest_type, item.category, item.travel_date, item.age_months, item.rating, item.note, uid, record_id, bid])
     db.sync()
     item.id = record_id
+    item.recorderName = _recorder_name(uid)
     return item
 
 @app.delete("/travel/records/{record_id}")
@@ -2681,6 +2759,7 @@ class VaccineItem(BaseModel):
     status: str = 'pending'         # 'administered' | 'pending' | 'overdue'
     administeredDate: str = ''      # 实际接种日期（ISO），status=administered 时有值
     recordId: str = ''              # vaccine_records.id，用于撤销
+    recorderName: str = ''          # 记录人昵称（谁标记接种的）
 
 def _calc_vaccine_status(month: int, administered_date: str, age_months: int) -> str:
     """根据接种起始月龄 + 实际月龄判断状态：
@@ -2715,9 +2794,9 @@ async def get_vaccines(request: Request):
         age_months = 0
     # 查接种记录
     recs = db.execute(
-        "SELECT id, vaccine_id, administered_date, note FROM vaccine_records WHERE baby_id = ?",
+        "SELECT id, vaccine_id, administered_date, note, user_id FROM vaccine_records WHERE baby_id = ?",
         [bid]).fetchall()
-    rec_map = {r[1]: (r[0], r[2], r[3] or '') for r in recs}
+    rec_map = {r[1]: (r[0], r[2], r[3] or '', r[4] or '') for r in recs}
     # 组装返回
     result = []
     for v in VACCINE_LIBRARY:
@@ -2730,6 +2809,7 @@ async def get_vaccines(request: Request):
             note=v['note'], status=status,
             administeredDate=admin_date,
             recordId=rec[0] if rec else '',
+            recorderName=_recorder_name(rec[3]) if rec else '',
         ))
     return result
 
@@ -2740,6 +2820,7 @@ class VaccineRecordPayload(BaseModel):
 @app.post("/vaccines/{vaccine_id}/record", response_model=VaccineItem)
 async def mark_vaccine_administered(vaccine_id: int, payload: VaccineRecordPayload, request: Request):
     bid = get_baby_id(request)
+    uid = get_uid(request)
     # 校验 vaccine_id 合法
     v = next((x for x in VACCINE_LIBRARY if x['id'] == vaccine_id), None)
     if not v:
@@ -2753,13 +2834,13 @@ async def mark_vaccine_administered(vaccine_id: int, payload: VaccineRecordPaylo
     if existing:
         rec_id = existing[0][0]
         db.execute(
-            "UPDATE vaccine_records SET administered_date = ?, note = ? WHERE id = ?",
-            [payload.administeredDate, payload.note, rec_id])
+            "UPDATE vaccine_records SET administered_date = ?, note = ?, user_id = ? WHERE id = ?",
+            [payload.administeredDate, payload.note, uid, rec_id])
     else:
         rec_id = str(uuid.uuid4())[:8]
         db.execute(
-            "INSERT INTO vaccine_records (id, baby_id, vaccine_id, administered_date, note) VALUES (?, ?, ?, ?, ?)",
-            [rec_id, bid, vaccine_id, payload.administeredDate, payload.note])
+            "INSERT INTO vaccine_records (id, baby_id, vaccine_id, administered_date, note, user_id) VALUES (?, ?, ?, ?, ?, ?)",
+            [rec_id, bid, vaccine_id, payload.administeredDate, payload.note, uid])
     db.sync()
     # 重新计算状态返回
     baby = db.execute("SELECT birthday FROM babies WHERE baby_id = ?", [bid]).fetchall()
@@ -2777,6 +2858,7 @@ async def mark_vaccine_administered(vaccine_id: int, payload: VaccineRecordPaylo
         doses=v['doses'], isNip=v['is_nip'], prevent=v['prevent'],
         note=v['note'], status='administered',
         administeredDate=payload.administeredDate, recordId=rec_id,
+        recorderName=_recorder_name(uid),
     )
 
 @app.delete("/vaccine-records/{record_id}")
@@ -2801,6 +2883,7 @@ class MilestoneItem(BaseModel):
     status: str = 'pending'      # 'achieved' | 'pending' | 'upcoming'
     achievedDate: str = ''       # 首达日期（ISO）
     recordId: str = ''
+    recorderName: str = ''       # 记录人昵称（谁标记达成的）
 
 DOMAIN_LABELS = {
     'motor': '粗大动作',
@@ -2825,9 +2908,9 @@ async def get_milestones(request: Request):
     except Exception:
         age_months = 0
     recs = db.execute(
-        "SELECT id, milestone_id, achieved_date, note FROM milestone_records WHERE baby_id = ?",
+        "SELECT id, milestone_id, achieved_date, note, user_id FROM milestone_records WHERE baby_id = ?",
         [bid]).fetchall()
-    rec_map = {r[1]: (r[0], r[2], r[3] or '') for r in recs}
+    rec_map = {r[1]: (r[0], r[2], r[3] or '', r[4] or '') for r in recs}
     result = []
     for m in MILESTONE_LIBRARY:
         rec = rec_map.get(m['id'])
@@ -2842,6 +2925,7 @@ async def get_milestones(request: Request):
             id=m['id'], domain=m['domain'], month=m['month'],
             desc=m['desc'], red_flag=m['red_flag'], status=status,
             achievedDate=ach_date, recordId=rec[0] if rec else '',
+            recorderName=_recorder_name(rec[3]) if rec else '',
         ))
     return result
 
@@ -2852,6 +2936,7 @@ class MilestoneRecordPayload(BaseModel):
 @app.post("/milestones/{milestone_id}/record", response_model=MilestoneItem)
 async def mark_milestone_achieved(milestone_id: int, payload: MilestoneRecordPayload, request: Request):
     bid = get_baby_id(request)
+    uid = get_uid(request)
     m = next((x for x in MILESTONE_LIBRARY if x['id'] == milestone_id), None)
     if not m:
         raise HTTPException(status_code=404, detail="Milestone not found")
@@ -2863,18 +2948,19 @@ async def mark_milestone_achieved(milestone_id: int, payload: MilestoneRecordPay
     if existing:
         rec_id = existing[0][0]
         db.execute(
-            "UPDATE milestone_records SET achieved_date = ?, note = ? WHERE id = ?",
-            [payload.achievedDate, payload.note, rec_id])
+            "UPDATE milestone_records SET achieved_date = ?, note = ?, user_id = ? WHERE id = ?",
+            [payload.achievedDate, payload.note, uid, rec_id])
     else:
         rec_id = str(uuid.uuid4())[:8]
         db.execute(
-            "INSERT INTO milestone_records (id, baby_id, milestone_id, achieved_date, note) VALUES (?, ?, ?, ?, ?)",
-            [rec_id, bid, milestone_id, payload.achievedDate, payload.note])
+            "INSERT INTO milestone_records (id, baby_id, milestone_id, achieved_date, note, user_id) VALUES (?, ?, ?, ?, ?, ?)",
+            [rec_id, bid, milestone_id, payload.achievedDate, payload.note, uid])
     db.sync()
     return MilestoneItem(
         id=m['id'], domain=m['domain'], month=m['month'],
         desc=m['desc'], red_flag=m['red_flag'], status='achieved',
         achievedDate=payload.achievedDate, recordId=rec_id,
+        recorderName=_recorder_name(uid),
     )
 
 @app.delete("/milestone-records/{record_id}")

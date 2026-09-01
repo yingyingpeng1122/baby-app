@@ -16,27 +16,46 @@ const FOOD_GROUPS = ['谷物根茎', '豆坚果', '奶制品', '肉禽鱼', '蛋
 // ============ 身高体重参考曲线（中位数 P50，仅作趋势示意）============
 // 数据来源：WHO 儿童生长标准 2006（国际）；中国九市儿童体格发育调查（中国参考）。
 // 锚点按月，曲线内插。非精确百分位图，临床评估以医生 z 评分/百分位为准。
-const GROWTH_REF = {
+// WHO Child Growth Standards (0-24 月) 五百分位参考
+// 数据来源：WHO Multicentre Growth Reference Study (2006)
+// 每个锚点 [月龄, 值]，P3=第3百分位(下限参考)，P50=中位，P97=第97百分位(上限参考)
+const _WHO = {
   boy: {
-    intl: { // WHO 国际标准
-      w: [[0,3.3],[1,4.5],[2,5.6],[3,6.4],[4,7.0],[5,7.5],[6,7.9],[9,8.9],[12,9.6],[15,10.3],[18,10.9],[21,11.5],[24,12.2],[30,13.3],[36,14.3]],
-      h: [[0,49.9],[1,54.7],[2,58.4],[3,61.4],[4,63.9],[5,65.9],[6,67.6],[9,72.0],[12,75.7],[15,79.6],[18,82.6],[21,85.1],[24,87.1],[30,90.7],[36,96.1]],
+    w: {
+      p3:  [[0,2.5],[1,3.4],[2,4.3],[3,5.0],[4,5.6],[5,6.0],[6,6.4],[9,7.1],[12,7.7],[15,8.3],[18,8.8],[21,9.2],[24,9.7]],
+      p15: [[0,2.9],[1,3.9],[2,4.9],[3,5.7],[4,6.3],[5,6.8],[6,7.1],[9,8.0],[12,8.6],[15,9.2],[18,9.8],[21,10.3],[24,10.8]],
+      p50: [[0,3.3],[1,4.5],[2,5.6],[3,6.4],[4,7.0],[5,7.5],[6,7.9],[9,8.9],[12,9.6],[15,10.3],[18,10.9],[21,11.5],[24,12.2]],
+      p85: [[0,3.9],[1,5.2],[2,6.5],[3,7.3],[4,8.0],[5,8.5],[6,8.9],[9,10.0],[12,10.8],[15,11.5],[18,12.2],[21,12.9],[24,13.6]],
+      p97: [[0,4.4],[1,5.8],[2,7.2],[3,8.0],[4,8.7],[5,9.3],[6,9.8],[9,10.9],[12,11.8],[15,12.6],[18,13.4],[21,14.1],[24,15.0]],
     },
-    cn: { // 中国参考（城市，略高于 WHO）
-      w: [[0,3.3],[1,4.6],[2,5.7],[3,6.5],[4,7.1],[5,7.6],[6,8.0],[9,9.1],[12,9.8],[15,10.6],[18,11.2],[21,11.9],[24,12.6],[30,13.8],[36,14.8]],
-      h: [[0,50.0],[1,54.8],[2,58.6],[3,61.6],[4,64.2],[5,66.1],[6,67.9],[9,72.4],[12,76.2],[15,80.3],[18,83.4],[21,86.0],[24,88.1],[30,91.9],[36,97.3]],
+    h: {
+      p3:  [[0,46.1],[1,50.8],[2,54.4],[3,57.3],[4,59.7],[5,61.7],[6,63.4],[9,67.5],[12,71.4],[15,74.8],[18,77.6],[21,80.0],[24,81.7]],
+      p15: [[0,47.8],[1,52.6],[2,56.3],[3,59.3],[4,61.7],[5,63.8],[6,65.5],[9,69.8],[12,73.6],[15,77.1],[18,80.0],[21,82.5],[24,84.4]],
+      p50: [[0,49.9],[1,54.7],[2,58.4],[3,61.4],[4,63.9],[5,65.9],[6,67.6],[9,72.0],[12,75.7],[15,79.6],[18,82.6],[21,85.1],[24,87.1]],
+      p85: [[0,52.0],[1,56.9],[2,60.6],[3,63.5],[4,66.0],[5,68.0],[6,69.7],[9,74.1],[12,77.9],[15,82.1],[18,85.2],[21,87.8],[24,89.8]],
+      p97: [[0,53.7],[1,58.7],[2,62.5],[3,65.5],[4,68.0],[5,70.1],[6,71.8],[9,76.3],[12,80.0],[15,84.4],[18,87.6],[21,90.3],[24,92.5]],
     },
   },
   girl: {
-    intl: {
-      w: [[0,3.2],[1,4.2],[2,5.1],[3,5.8],[4,6.4],[5,6.9],[6,7.3],[9,8.2],[12,8.9],[15,9.6],[18,10.2],[21,10.8],[24,11.5],[30,12.7],[36,13.9]],
-      h: [[0,49.1],[1,53.7],[2,57.1],[3,59.8],[4,62.1],[5,64.0],[6,65.7],[9,70.1],[12,74.0],[15,77.5],[18,80.7],[21,83.4],[24,85.7],[30,89.9],[36,95.1]],
+    w: {
+      p3:  [[0,2.4],[1,3.2],[2,3.9],[3,4.5],[4,5.0],[5,5.4],[6,5.7],[9,6.3],[12,6.8],[15,7.2],[18,7.6],[21,8.0],[24,8.4]],
+      p15: [[0,2.8],[1,3.6],[2,4.5],[3,5.1],[4,5.6],[5,6.0],[6,6.4],[9,7.1],[12,7.6],[15,8.1],[18,8.6],[21,9.0],[24,9.6]],
+      p50: [[0,3.2],[1,4.2],[2,5.1],[3,5.8],[4,6.4],[5,6.9],[6,7.3],[9,8.2],[12,8.9],[15,9.6],[18,10.2],[21,10.8],[24,11.5]],
+      p85: [[0,3.7],[1,4.8],[2,5.8],[3,6.6],[4,7.2],[5,7.8],[6,8.2],[9,9.2],[12,10.0],[15,10.8],[18,11.5],[21,12.2],[24,13.0]],
+      p97: [[0,4.2],[1,5.5],[2,6.5],[3,7.4],[4,8.0],[5,8.6],[6,9.0],[9,10.2],[12,11.1],[15,12.0],[18,12.9],[21,13.6],[24,14.6]],
     },
-    cn: {
-      w: [[0,3.2],[1,4.3],[2,5.2],[3,5.9],[4,6.5],[5,7.0],[6,7.4],[9,8.4],[12,9.1],[15,9.9],[18,10.5],[21,11.2],[24,11.9],[30,13.1],[36,14.4]],
-      h: [[0,49.2],[1,53.8],[2,57.3],[3,60.0],[4,62.4],[5,64.3],[6,66.0],[9,70.6],[12,74.6],[15,78.2],[18,81.4],[21,84.2],[24,86.6],[30,90.8],[36,96.0]],
+    h: {
+      p3:  [[0,45.4],[1,49.8],[2,53.0],[3,55.6],[4,57.8],[5,59.6],[6,61.2],[9,65.2],[12,68.9],[15,72.0],[18,74.8],[21,77.1],[24,80.0]],
+      p15: [[0,47.1],[1,51.6],[2,54.9],[3,57.6],[4,59.8],[5,61.7],[6,63.3],[9,67.5],[12,71.3],[15,74.5],[18,77.5],[21,80.0],[24,83.0]],
+      p50: [[0,49.1],[1,53.7],[2,57.1],[3,59.8],[4,62.1],[5,64.0],[6,65.7],[9,70.1],[12,74.0],[15,77.5],[18,80.7],[21,83.4],[24,86.4]],
+      p85: [[0,51.1],[1,55.8],[2,59.2],[3,62.0],[4,64.3],[5,66.2],[6,68.0],[9,72.6],[12,76.7],[15,80.4],[18,83.9],[21,86.7],[24,89.9]],
+      p97: [[0,52.8],[1,57.6],[2,61.1],[3,63.9],[4,66.3],[5,68.3],[6,70.1],[9,74.8],[12,79.2],[15,83.0],[18,86.7],[21,89.6],[24,92.9]],
     },
   },
+};
+const GROWTH_REF = {
+  boy:  { who: _WHO.boy,  cn: { w: [[0,3.3],[1,4.6],[2,5.7],[3,6.5],[4,7.1],[5,7.6],[6,8.0],[9,9.1],[12,9.8],[15,10.6],[18,11.2],[21,11.9],[24,12.6]], h: [[0,50.0],[1,54.8],[2,58.6],[3,61.6],[4,64.2],[5,66.1],[6,67.9],[9,72.4],[12,76.2],[15,80.3],[18,83.4],[21,86.0],[24,88.1]] } },
+  girl: { who: _WHO.girl, cn: { w: [[0,3.2],[1,4.3],[2,5.2],[3,5.9],[4,6.5],[5,7.0],[6,7.4],[9,8.4],[12,9.1],[15,9.9],[18,10.5],[21,11.2],[24,11.9]], h: [[0,49.2],[1,53.8],[2,57.3],[3,60.0],[4,62.4],[5,64.3],[6,66.0],[9,70.6],[12,74.6],[15,78.2],[18,81.4],[21,84.2],[24,86.6]] } },
 };
 // 线性内插：给定锚点数组与月龄，返回参考值
 function refAt(anchors, age) {
@@ -104,26 +123,31 @@ function hoursSince(datetimeStr) {
 
 // ============ 身高体重曲线对比图（SVG）============
 function GrowthChart({ records, metric, gender, birthday }) {
-  const W = 680, H = 310;
+  const W = 680, H = 320;
   const padL = 48, padR = 16, padT = 16, padB = 46;
   const plotW = W - padL - padR, plotH = H - padT - padB;
   const key = metric === 'weight' ? 'w' : 'h';
   const ref = GROWTH_REF[gender] || GROWTH_REF.boy;
+  const who = ref.who[key];
   const cur = birthday ? monthsBetween(birthday, todayISO()) : 0;
-  const ageMax = Math.min(36, Math.max(12, Math.ceil(cur) + 2));
+  // 年龄上限：WHO 数据到 24 月，宝宝当前月龄超过 24 时给到 cur+2，但不超过 36
+  const ageMax = Math.min(36, Math.max(24, Math.ceil(cur) + 2));
 
   const pts = records
     .map(r => ({ age: monthsBetween(birthday, r.date), v: metric === 'weight' ? r.weight : r.height, date: r.date }))
     .filter(p => p.v > 0 && p.age <= ageMax + 0.5)
     .sort((a, b) => a.age - b.age);
 
-  const sampleN = 36;
-  const intlLine = [], cnLine = [];
+  // 采样五条 WHO 百分位 + 中国参考
+  const sampleN = Math.max(24, ageMax * 2);
+  const pKeys = ['p3', 'p15', 'p50', 'p85', 'p97'];
+  const pLines = {};
+  const cnLine = [];
   const vals = [...pts.map(p => p.v)];
   for (let i = 0; i <= sampleN; i++) {
     const a = (ageMax * i) / sampleN;
-    const iv = refAt(ref.intl[key], a), cv = refAt(ref.cn[key], a);
-    intlLine.push([a, iv]); cnLine.push([a, cv]); vals.push(iv, cv);
+    pKeys.forEach(k => { const v = refAt(who[k], a); pLines[k] = pLines[k] || []; pLines[k].push([a, v]); vals.push(v); });
+    cnLine.push([a, refAt(ref.cn[key], a)]);
   }
   if (vals.length === 0) vals.push(0, 1);
   const vMin = Math.max(0, Math.floor(Math.min(...vals) - 1));
@@ -131,6 +155,12 @@ function GrowthChart({ records, metric, gender, birthday }) {
   const xOf = a => padL + (a / ageMax) * plotW;
   const yOf = v => padT + plotH - ((v - vMin) / (vMax - vMin)) * plotH;
   const linePath = arr => arr.map((p, i) => `${i ? 'L' : 'M'}${xOf(p[0]).toFixed(1)},${yOf(p[1]).toFixed(1)}`).join(' ');
+  // 闭合多边形路径：上边线正向 + 下边线反向
+  const areaPath = (upper, lower) => {
+    const top = upper.map((p, i) => `${i ? 'L' : 'M'}${xOf(p[0]).toFixed(1)},${yOf(p[1]).toFixed(1)}`).join(' ');
+    const bot = [...lower].reverse().map(p => `L${xOf(p[0]).toFixed(1)},${yOf(p[1]).toFixed(1)}`).join(' ');
+    return top + bot + ' Z';
+  };
   const yTicks = [0, 0.25, 0.5, 0.75, 1].map(f => Math.round((vMin + (vMax - vMin) * f) * 10) / 10);
   const yTitle = metric === 'weight' ? '体重 (kg)' : '身高 (cm)';
   const cx = padL + plotW / 2;
@@ -152,9 +182,21 @@ function GrowthChart({ records, metric, gender, birthday }) {
       ))}
       {/* X 轴标题 */}
       <text x={cx} y={H - 6} textAnchor="middle" className="chart-axis-title">月龄</text>
-      {/* 参考曲线：国际(虚线灰) / 中国(虚线蓝) */}
-      <path d={linePath(intlLine)} fill="none" stroke="#9aa3b2" strokeWidth="2" strokeDasharray="5 4" />
-      <path d={linePath(cnLine)} fill="none" stroke="#3b82f6" strokeWidth="2" strokeDasharray="5 4" />
+      {/* WHO 百分位填充区间：P3-P15（浅红）/ P85-P97（浅黄） */}
+      <path d={areaPath(pLines.p15, pLines.p3)} fill="#fde2e1" opacity="0.55" />
+      <path d={areaPath(pLines.p97, pLines.p85)} fill="#fdf2cd" opacity="0.55" />
+      {/* WHO 百分位曲线：P3/P97 红/黄虚线，P15/P85 浅虚线，P50 实线 */}
+      <path d={linePath(pLines.p3)}  fill="none" stroke="#e8867d" strokeWidth="1.5" strokeDasharray="4 3" />
+      <path d={linePath(pLines.p15)} fill="none" stroke="#e8b4ad" strokeWidth="1.2" strokeDasharray="3 3" />
+      <path d={linePath(pLines.p50)} fill="none" stroke="#4a5568" strokeWidth="2" />
+      <path d={linePath(pLines.p85)} fill="none" stroke="#d4b876" strokeWidth="1.2" strokeDasharray="3 3" />
+      <path d={linePath(pLines.p97)} fill="none" stroke="#c79a3a" strokeWidth="1.5" strokeDasharray="4 3" />
+      {/* 中国参考（淡蓝点线，叠加） */}
+      <path d={linePath(cnLine)} fill="none" stroke="#7fb3ff" strokeWidth="1.5" strokeDasharray="2 4" opacity="0.8" />
+      {/* 百分位标签（右侧） */}
+      <text x={W - padR} y={yOf(refAt(who.p97, ageMax)) - 3} textAnchor="end" className="chart-thr chart-thr--warn">P97</text>
+      <text x={W - padR} y={yOf(refAt(who.p3,  ageMax)) + 11} textAnchor="end" className="chart-thr chart-thr--danger">P3</text>
+      <text x={W - padR} y={yOf(refAt(who.p50, ageMax)) + 3} textAnchor="end" className="chart-thr">P50</text>
       {/* 宝宝数据 */}
       {pts.length > 1 && (
         <path d={linePath(pts.map(p => [p.age, p.v]))} fill="none" stroke="var(--primary)" strokeWidth="2.5" />
@@ -2465,10 +2507,14 @@ export default function BabyAppFullStack() {
                 <GrowthChart records={growthRecords} metric={growthMetric} gender={profile.gender} birthday={profile.birthday} />
                 <div className="growth__legend">
                   <span className="growth__lg growth__lg--baby"><i />宝宝 {growthMetric === 'weight' ? '体重' : '身高'}</span>
-                  <span className="growth__lg growth__lg--intl"><i />国际参考 (WHO)</span>
+                  <span className="growth__lg growth__lg--p97"><i />P97</span>
+                  <span className="growth__lg growth__lg--p85"><i />P85</span>
+                  <span className="growth__lg growth__lg--p50"><i />P50 中位</span>
+                  <span className="growth__lg growth__lg--p15"><i />P15</span>
+                  <span className="growth__lg growth__lg--p3"><i />P3</span>
                   <span className="growth__lg growth__lg--cn"><i />中国参考</span>
                 </div>
-                <p className="growth__note">曲线为参考中位数（P50）趋势线，仅作直观对比；临床评估请以医生百分位 / z 评分结论为准。</p>
+                <p className="growth__note">WHO 百分位曲线（P3–P97）：浅黄区 P85–P97 偏高，浅红区 P3–P15 偏低；落在 P15–P85 区间为正常范围。仅作直观参考，临床评估请以医生 z 评分结论为准。</p>
               </>
             ) : (
               <div className="growth__empty">还没有身高体重记录，添加一条就能看到成长曲线啦～</div>
@@ -2490,6 +2536,7 @@ export default function BabyAppFullStack() {
                         <span className="growth__row-v">{r.height ? r.height + 'cm' : '—'}</span>
                         <span className="growth__row-v">{r.weight ? r.weight + 'kg' : '—'}</span>
                         {r.note && <span className="growth__row-note">{r.note}</span>}
+                        {r.recorderName && <span className="recorder-chip">{r.recorderName}</span>}
                         <button className="growth__row-edit" onClick={() => editGrowth(r)} aria-label="编辑"><Pencil className="icon icon--xs" /></button>
                         <button className="growth__row-del" onClick={() => delGrowth(r.id)} aria-label="删除"><Trash2 className="icon icon--xs" /></button>
                       </div>
@@ -2648,6 +2695,7 @@ export default function BabyAppFullStack() {
                               </div>
                             </div>
                             {sub && <div className="daytime__note">{sub}</div>}
+                            {r.recorderName && <div className="daytime__note"><span className="recorder-chip">{r.recorderName}</span></div>}
                             <div className="daytime__ops">
                               <button className="daytime__op" onClick={(e) => { e.stopPropagation(); startEdit(r); }} aria-label="编辑"><Pencil className="icon icon--xs" /></button>
                               <button className="daytime__op daytime__op--del" onClick={(e) => { e.stopPropagation(); deleteFeedRecord(r.id); }} aria-label="删除"><Trash2 className="icon icon--xs" /></button>
@@ -3105,6 +3153,7 @@ export default function BabyAppFullStack() {
                         <span className="growth__row-date">{r.datetime || '—'}</span>
                         <span className={`growth__row-temp ${r.temp >= 38 ? 'is-high' : ''}`}>{r.temp}°C</span>
                         {r.note && <span className="growth__row-note">{r.note}</span>}
+                        {r.recorderName && <span className="recorder-chip">{r.recorderName}</span>}
                         <span className="growth__row-actions">
                           <button className="growth__row-edit" onClick={() => editTemp(r)} aria-label="编辑"><Pencil className="icon icon--xs" /></button>
                           <button className="growth__row-del" onClick={() => delTemp(r.id)} aria-label="删除"><Trash2 className="icon icon--xs" /></button>
@@ -3619,7 +3668,7 @@ export default function BabyAppFullStack() {
                             <div className="vax-card__prevent">预防：{v.prevent}</div>
                             <div className="vax-card__note">{v.note}</div>
                             {v.status === 'administered' && v.administeredDate && (
-                              <div className="vax-card__date">已接种 · {v.administeredDate}{v.note && ' · ' + v.note}</div>
+                              <div className="vax-card__date">已接种 · {v.administeredDate}{v.note && ' · ' + v.note}{v.recorderName && <span className="recorder-chip">{v.recorderName}</span>}</div>
                             )}
                           </div>
                           <div className="vax-card__action">
@@ -3714,7 +3763,7 @@ export default function BabyAppFullStack() {
                               </div>
                               <div className="ms-card__month">多数 {m.month} 月达成</div>
                               {m.status === 'achieved' && m.achievedDate && (
-                                <div className="ms-card__date">已达成 · {m.achievedDate}{m.note && ' · ' + m.note}</div>
+                                <div className="ms-card__date">已达成 · {m.achievedDate}{m.note && ' · ' + m.note}{m.recorderName && <span className="recorder-chip">{m.recorderName}</span>}</div>
                               )}
                             </div>
                             <div className="ms-card__action">
@@ -3938,6 +3987,7 @@ export default function BabyAppFullStack() {
                                 <span className="travel-list-card__type">{typeLabel}</span>
                                 <span className="travel-list-card__age">{l.age_months || 0}月龄</span>
                                 <span className="travel-list-card__pct">{pct}%</span>
+                                {l.recorderName && <span className="recorder-chip">· {l.recorderName}</span>}
                               </div>
                               <div className="travel-list-card__bar"><div style={{ width: pct + '%' }} /></div>
                               <div className="travel-list-card__sum">{done}/{total} 已备齐</div>
@@ -4028,7 +4078,7 @@ export default function BabyAppFullStack() {
                             <div className="travel-rec-card__stars">{'★'.repeat(r.rating)}<span className="travel-rec-card__stars-dim">{'★'.repeat(5 - r.rating)}</span></div>
                           )}
                           {r.note && <div className="travel-rec-card__note">{r.note}</div>}
-                          <div className="travel-rec-card__meta">时 {r.age_months || 0} 月龄</div>
+                          <div className="travel-rec-card__meta">时 {r.age_months || 0} 月龄{r.recorderName && <span className="recorder-chip">{r.recorderName}</span>}</div>
                           <div className="travel-rec-card__actions">
                             <button className="btn btn--ghost btn--sm" onClick={() => editTravelRecord(r)}>编辑</button>
                             <button className="btn btn--ghost btn--sm" onClick={() => delTravelRecord(r.id)}>删除</button>
