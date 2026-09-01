@@ -255,17 +255,24 @@ const addMinutesHM = (hm, mins) => {
 };
 // 根据宝宝生日 + 建议月龄算建议日期（YYYY-MM-DD），用于疫苗/里程碑弹窗的日期默认值
 // 例：birthday='2026-01-08', months=6 → '2026-07-08'
-// 若算出的日期早于今天，返回今天（已逾期或正好到月龄的，用今天更合理）
+// 始终返回按生日+月龄算出的建议日期，即使已逾期（让用户看到具体哪天该打，而不是无脑用今天）
+// birthday 非法时 fallback 到今天
 const suggestDate = (birthday, months) => {
   try {
     const d = new Date(birthday + 'T00:00:00'); // 按本地时区解析
     if (isNaN(d.getTime())) return todayISO();
     d.setMonth(d.getMonth() + months);
-    const suggested = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-    return suggested < todayISO() ? todayISO() : suggested;
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
   } catch {
     return todayISO();
   }
+};
+// 把 'YYYY-MM-DD' 格式化为中文短日期 'M月D日'（用于 hint 文案）
+const fmtCNDate = (iso) => {
+  if (!iso || iso.length < 10) return '';
+  const m = parseInt(iso.slice(5, 7), 10);
+  const d = parseInt(iso.slice(8, 10), 10);
+  return `${m}月${d}日`;
 };
 // 分钟数转中文时长
 const fmtDur = (m) => {
@@ -4171,7 +4178,14 @@ export default function BabyAppFullStack() {
                   value={vaccineModal.administeredDate}
                   onChange={(e) => setVaccineModal({ ...vaccineModal, administeredDate: e.target.value })}
                 />
-                <div className="form-hint">默认为宝宝 {vaccineModal.vaccine.month} 月龄的建议日期，可按实际接种日修改</div>
+                <div className="form-hint">{(() => {
+                  const today = todayISO();
+                  const suggested = suggestDate(profile.birthday, vaccineModal.vaccine.month);
+                  const lbl = fmtCNDate(suggested);
+                  if (suggested < today) return `建议接种日 ${lbl} 已过，请按实际接种日修改`;
+                  if (suggested === today) return `今日为建议接种日（${vaccineModal.vaccine.month} 月龄），可按实际修改`;
+                  return `默认为宝宝 ${vaccineModal.vaccine.month} 月龄的建议日期 ${lbl}，可修改`;
+                })()}</div>
               </div>
               <div className="form-row">
                 <label className="form-label">备注（可选）</label>
@@ -4225,7 +4239,14 @@ export default function BabyAppFullStack() {
                   value={milestoneModal.achievedDate}
                   onChange={(e) => setMilestoneModal({ ...milestoneModal, achievedDate: e.target.value })}
                 />
-                <div className="form-hint">默认为宝宝 {milestoneModal.milestone.month} 月龄的建议日期，可按实际达成日修改</div>
+                <div className="form-hint">{(() => {
+                  const today = todayISO();
+                  const suggested = suggestDate(profile.birthday, milestoneModal.milestone.month);
+                  const lbl = fmtCNDate(suggested);
+                  if (suggested < today) return `建议达成日 ${lbl} 已过，请按实际首达日修改`;
+                  if (suggested === today) return `今日为建议达成日（${milestoneModal.milestone.month} 月龄），可按实际修改`;
+                  return `默认为宝宝 ${milestoneModal.milestone.month} 月龄的建议日期 ${lbl}，可修改`;
+                })()}</div>
               </div>
               <div className="form-row">
                 <label className="form-label">备注（可选）</label>
