@@ -139,6 +139,12 @@ export const SPOTS = [
   { id: 69, name: '南头古城', district: '南山', x: 240, y: 530, type: 'spot', category: 'ancient', ratings: [2,2,3,3,4,4,5], feel: '1700年古城+城门祠堂+创意市集+博物馆，3岁+能看历史能玩穿汉服，婴儿推车颠。', reason: '古城+免费+有博物馆,3岁+才有趣味,石板路推车不便' },
   { id: 70, name: '中洲湾 C Future City', district: '福田', x: 395, y: 520, type: 'spot', category: 'mall', ratings: [3,3,4,4,4,5,5], feel: '130万㎡未来主题商场，teamLab共创未来园(常设)+蔦屋书店，1岁+沉浸光影2岁+玩互动。', reason: '商场+teamLab光影+母婴室+室内推车+视觉刺激极强(光影艺术)' },
 
+  // —— 2026-09-01 扩充：填补龙岗东部（靠近坪山那片）空白 ——
+  { id: 71, name: '坪地零碳公园', district: '龙岗', x: 710, y: 195, type: 'spot', category: 'park', ratings: [3,3,4,4,5,5,5], feel: '央视点赞的低碳科普山体公园，赤脚森林乐园+戏水区+大草坪+零碳生活馆，1岁+能跑能玩水2岁+环保启蒙，雨天进馆。', reason: '科普公园+戏水+大草坪+室内生活馆(雨天)+推车友好+视觉(光伏/湿地)' },
+  { id: 72, name: '新桥世居', district: '龙岗', x: 750, y: 200, type: 'spot', category: 'ancient', ratings: [2,2,2,3,3,4,4], feel: '坪地百年客家方形围屋，门楼巷道古风，3岁+能看能拍照，婴儿推车颠。', reason: '客家围屋+古建筑,3岁+才有趣味,石板路推车不便' },
+  { id: 73, name: '宝龙大田木作馆', district: '龙岗', x: 680, y: 240, type: 'spot', category: 'museum', ratings: [2,2,3,3,4,4,5], feel: '围屋中堂里的木作展馆，以谚语为线索全感官互动，3岁+能体验传统工艺，需预约。', reason: '木作博物馆+围屋+互动体验,3岁+才适合,室内推车OK' },
+  { id: 74, name: '东江潮红色文化博物馆', district: '龙岗', x: 625, y: 232, type: 'spot', category: 'museum', ratings: [2,2,3,3,4,4,5], feel: '龙岗街道红色博物馆，发电报/穿草鞋互动体验+红色小讲解员培训，3岁+爱国启蒙。', reason: '红色博物馆+互动体验(发电报/草鞋),3岁+才有趣味,室内推车OK' },
+
   // 我的家（type='home'，不计入打卡，地图上特殊标记）
   { id: 101, name: '宝民花园', district: '宝安', x: 218, y: 502, type: 'home', address: '宝安区新安街道宝民花园', feel: '我们的家，工作日住所。', reason: '工作日过渡房，靠近宝安中心。' },
   { id: 102, name: '万象天成', district: '龙岗', x: 535, y: 280, type: 'home', address: '龙岗区万象天成', feel: '我们的家，周末团聚住所。', reason: '周末团聚住所，靠近龙岗中心城。' },
