@@ -1079,6 +1079,108 @@ export default function BabyAppFullStack() {
     if (toastTimer.current) clearTimeout(toastTimer.current);
     toastTimer.current = setTimeout(() => setToast(null), 2000);
   };
+
+  // ===== 性能：派生数据 useMemo 缓存，避免每次 render 重算 =====
+  // 今日活动时间轴布局：feedRecords 变化时才重算 placed/totalW
+  const daytimeLayout = useMemo(() => {
+    const items = [...feedRecords].sort((a, b) => a.time.localeCompare(b.time));
+    if (items.length === 0) return { empty: true, loading: feedEval === null, placed: [], totalW: 0 };
+    const toMin = (hm) => { const [h, m] = hm.split(':').map(Number); return h * 60 + m; };
+    const ITEM_W = 96;
+    const PX_PER_MIN = 0.7;
+    const MIN_GAP = ITEM_W + 8;
+    let cursor = 0;
+    const placed = items.map((r, i) => {
+      const t = toMin(r.time);
+      if (i === 0) { cursor = 0; }
+      else {
+        const prevT = toMin(items[i - 1].time);
+        let delta = t - prevT;
+        if (delta < 0) delta += 24 * 60;
+        const prev = items[i - 1];
+        const prevSleepBarW = (prev.type === 'sleep' && prev.duration > 0)
+          ? Math.max(36, Math.min(prev.duration * 1.2, 320)) : 0;
+        cursor += Math.max(MIN_GAP, delta * PX_PER_MIN, prevSleepBarW + 8);
+      }
+      return { r, left: cursor };
+    });
+    const last = placed[placed.length - 1];
+    const lastSleepBarW = (last.r.type === 'sleep' && last.r.duration > 0)
+      ? Math.max(36, Math.min(last.r.duration * 1.2, 320)) : 0;
+    const totalW = last.left + ITEM_W + lastSleepBarW + 20;
+    return { empty: false, loading: false, placed, totalW };
+  }, [feedRecords, feedEval]);
+
+  // 疫苗统计：vaccines 变化时才重算
+  const vaccineStats = useMemo(() => {
+    const administered = vaccines.filter(v => v.status === 'administered').length;
+    const overdue = vaccines.filter(v => v.status === 'overdue').length;
+    const pending = vaccines.filter(v => v.status === 'pending').length;
+    const upcoming = vaccines.filter(v => v.status === 'upcoming').length;
+    return { administered, overdue, pending, upcoming };
+  }, [vaccines]);
+
+  // 里程碑统计 + 按领域分组：milestones 变化时才重算
+  const milestoneStats = useMemo(() => {
+    const achieved = milestones.filter(m => m.status === 'achieved').length;
+    const pending = milestones.filter(m => m.status === 'pending').length;
+    const upcoming = milestones.filter(m => m.status === 'upcoming').length;
+    const alertCount = milestones.filter(m => m.red_flag && m.status !== 'achieved').length;
+    return { achieved, pending, upcoming, alertCount, total: milestones.length };
+  }, [milestones]);
+
+  // 里程碑按领域预聚合（done/total/pct + 按月龄排序的条目）：避免每次 render 8 次 filter
+  const milestoneDomainStats = useMemo(() => {
+    const domains = ['motor', 'fine', 'language', 'social'];
+    const stats = {};
+    for (const dom of domains) {
+      const items = milestones.filter(m => m.domain === dom).sort((a, b) => a.month - b.month);
+      const domDone = items.filter(m => m.status === 'achieved').length;
+      stats[dom] = {
+        items,
+        done: domDone,
+        total: items.length,
+        pct: items.length > 0 ? Math.round(domDone / items.length * 100) : 0,
+      };
+    }
+    return stats;
+  }, [milestones]);
+
+  // SweetSpot 睡眠段（napSegs + nightSegs + sleepSegs）：数据变化时才重算
+  // nowPct / nextSleepPct 依赖当前时间，不在此缓存（每次 render 轻量计算）
+  const sweetspotSegs = useMemo(() => {
+    if (!sleepStats) return { segs: [], nbTime: '', nwTime: '' };
+    const sleeps = feedRecords
+      .filter(r => r.type === 'sleep' && r.duration > 0)
+      .sort((a, b) => a.time.localeCompare(b.time));
+    const toMin = (hm) => { const [h, m] = hm.split(':').map(Number); return h * 60 + m; };
+    const toPct = (min) => (min / (24 * 60)) * 100;
+    const napSegs = sleeps.map(s => {
+      const sStart = toMin(s.time);
+      const sEnd = sStart + s.duration;
+      return { start: sStart, end: sEnd, startPct: toPct(sStart), endPct: toPct(Math.min(sEnd, 24*60)) };
+    });
+    const nbTime = sleepStats.nightBedtime || profile?.night_bedtime || '';
+    const nwTime = sleepStats.nightWakeTime || profile?.night_wake_time || '';
+    const nightSegs = [];
+    if (nbTime && nwTime) {
+      const nb = toMin(nbTime);
+      const nw = toMin(nwTime);
+      if (nb >= 0 && nb < 24 * 60 && nw >= 0 && nw < 24 * 60 && nb !== nw) {
+        if (nb < nw) {
+          nightSegs.push({ start: 0, end: nw, startPct: toPct(0), endPct: toPct(nw), isNight: true });
+          nightSegs.push({ start: nb, end: 24 * 60, startPct: toPct(nb), endPct: toPct(24 * 60), isNight: true });
+        } else {
+          nightSegs.push({ start: nb, end: 24 * 60, startPct: toPct(nb), endPct: toPct(24 * 60), isNight: true });
+          nightSegs.push({ start: 0, end: nw, startPct: toPct(0), endPct: toPct(nw), isNight: true });
+        }
+      }
+    }
+    return { segs: [...napSegs, ...nightSegs], nbTime, nwTime };
+  }, [feedRecords, sleepStats, profile]);
+
+
+
   // 录入表单类型 tab：feed / diaper / sleep
   const [recordTab, setRecordTab] = useState('feed');
   // 「添加记录」弹窗显隐（只控制开关，表单数据仍走 feedForm）
@@ -2628,45 +2730,11 @@ export default function BabyAppFullStack() {
           </div>
           <div className="daytime-canvas">
             <div className="daytime">
-              {(() => {
-                const items = [...feedRecords].sort((a, b) => a.time.localeCompare(b.time));
-                if (items.length === 0) {
-                  // 区分"加载中"和"真的没记录"：feedEval 还是 null 说明喂养数据尚未加载完
-                  const loading = feedEval === null;
-                  return <div className="daytime__empty">{loading ? '加载中…' : '今天还没有记录，添加一个喂养 / 换尿布 / 睡觉吧～'}</div>;
-                }
-                return (
-                  (() => {
-                    // 真实时间轴：按 HH:MM 算当天分钟数，相邻间距按真实时间差比例排布
-                    const toMin = (hm) => { const [h, m] = hm.split(':').map(Number); return h * 60 + m; };
-                    const ITEM_W = 96;          // 方格宽度（与 CSS 一致）
-                    const PX_PER_MIN = 0.7;      // 每分钟对应的像素，控制整体疏密
-                    const MIN_GAP = ITEM_W + 8;  // 相邻方格最小净间距（防重叠）
-                    let cursor = 0;             // 累计 left 偏移
-                    const placed = items.map((r, i) => {
-                      const t = toMin(r.time);
-                      if (i === 0) { cursor = 0; }
-                      else {
-                        const prevT = toMin(items[i - 1].time);
-                        let delta = t - prevT;
-                        if (delta < 0) delta += 24 * 60; // 跨午夜
-                        // 上一条若是睡觉且有 duration，其长条向右延伸 sleepBarW 像素，
-                        // 必须保证当前卡片 left 至少跳过「长条右端 + MIN_GAP」，否则长条会盖到本卡片
-                        const prev = items[i - 1];
-                        const prevSleepBarW = (prev.type === 'sleep' && prev.duration > 0)
-                          ? Math.max(36, Math.min(prev.duration * 1.2, 320)) : 0;
-                        cursor += Math.max(MIN_GAP, delta * PX_PER_MIN, prevSleepBarW + 8);
-                      }
-                      return { r, left: cursor };
-                    });
-                    // totalW 需把最后一条若为睡觉的长条右端算进去，否则长条会被容器裁掉
-                    const last = placed[placed.length - 1];
-                    const lastSleepBarW = (last.r.type === 'sleep' && last.r.duration > 0)
-                      ? Math.max(36, Math.min(last.r.duration * 1.2, 320)) : 0;
-                    const totalW = last.left + ITEM_W + lastSleepBarW + 20;
-                    return (
-                  <div className="daytime__inner" style={{ width: totalW }}>
-                    {placed.map(({ r, left }, i) => {
+              {daytimeLayout.empty
+                ? <div className="daytime__empty">{daytimeLayout.loading ? '加载中…' : '今天还没有记录，添加一个喂养 / 换尿布 / 睡觉吧～'}</div>
+                : (
+                  <div className="daytime__inner" style={{ width: daytimeLayout.totalW }}>
+                    {daytimeLayout.placed.map(({ r, left }, i) => {
                       const map = {
                         milk: { emoji: '🍼', cls: 'milk', typeLabel: '喝奶', amount: r.amount ? `${r.amount}ml` : '' },
                         solids: { emoji: '🥣', cls: 'solids', typeLabel: '辅食', amount: r.amount ? `${r.amount}g` : '' },
@@ -2706,10 +2774,8 @@ export default function BabyAppFullStack() {
                       );
                     })}
                   </div>
-                    );
-                  })()
-                );
-              })()}
+                )
+              }
             </div>
           </div>
         </Reveal>
@@ -2805,33 +2871,12 @@ export default function BabyAppFullStack() {
             }
 
             // SweetSpot 时间条：横向 24h 进度，已睡时段填充，当前时间指针，预测下次窗口
+            // sleepSegs / nbTime / nwTime 走 useMemo 缓存（sweetspotSegs），仅数据变化时重算
             const toPct = (min) => (min / (24 * 60)) * 100;
             const nowPct = toPct(toMin(nowHM));
-            const napSegs = sleeps.map(s => {
-              const sStart = toMin(s.time);
-              const sEnd = sStart + s.duration;
-              return { start: sStart, end: sEnd, startPct: toPct(sStart), endPct: toPct(Math.min(sEnd, 24*60)) };
-            });
-            // 夜间作息段（跨午夜拆成两段：入睡→24:00 和 00:00→起床）
-            const nightSegs = [];
-            const nbTime = ssStats.nightBedtime || profile.night_bedtime || '';
-            const nwTime = ssStats.nightWakeTime || profile.night_wake_time || '';
-            if (nbTime && nwTime) {
-              const nb = toMin(nbTime);
-              const nw = toMin(nwTime);
-              if (nb >= 0 && nb < 24 * 60 && nw >= 0 && nw < 24 * 60 && nb !== nw) {
-                // 入睡点在起床点之前 → 跨午夜：入睡→24:00 + 00:00→起床
-                // 入睡点在起床点之后 → 不跨午夜（如 13:00 入睡 15:00 起床，午睡作息）：入睡→起床
-                if (nb < nw) {
-                  nightSegs.push({ start: 0, end: nw, startPct: toPct(0), endPct: toPct(nw), isNight: true });
-                  nightSegs.push({ start: nb, end: 24 * 60, startPct: toPct(nb), endPct: toPct(24 * 60), isNight: true });
-                } else {
-                  nightSegs.push({ start: nb, end: 24 * 60, startPct: toPct(nb), endPct: toPct(24 * 60), isNight: true });
-                  nightSegs.push({ start: 0, end: nw, startPct: toPct(0), endPct: toPct(nw), isNight: true });
-                }
-              }
-            }
-            const sleepSegs = [...napSegs, ...nightSegs];
+            const sleepSegs = sweetspotSegs.segs;
+            const nbTime = sweetspotSegs.nbTime;
+            const nwTime = sweetspotSegs.nwTime;
             const nextSleepPct = nextSleepHM ? toPct(toMin(nextSleepHM)) : null;
             const todaySleepTotal = ssStats.todaySleepTotalMin || (sleeps.reduce((acc, s) => acc + s.duration, 0));
             const todaySleepCnt = ssStats.todaySleepCount || sleeps.length;
@@ -3598,7 +3643,7 @@ export default function BabyAppFullStack() {
           <div className="section__head">
             <span className="section__ico section__ico--coral"><Syringe className="icon icon--sm" /></span>
             <h2 className="section__title">疫苗日历</h2>
-            <span className="section__hint">国家免疫规划 · {vaccines.filter(v => v.status === 'administered').length}/{vaccines.length} 已接种</span>
+            <span className="section__hint">国家免疫规划 · {vaccineStats.administered}/{vaccines.length} 已接种</span>
           </div>
           {vaccines.length === 0 ? (
             <div className="section__sub">加载中...</div>
@@ -3606,10 +3651,10 @@ export default function BabyAppFullStack() {
             <>
               {/* 统计条 · 可点击切换显示 */}
               {(() => {
-                const done = vaccines.filter(v => v.status === 'administered').length;
-                const overdue = vaccines.filter(v => v.status === 'overdue').length;
-                const upcoming = vaccines.filter(v => v.status === 'upcoming').length;
-                const pending = vaccines.filter(v => v.status === 'pending').length;
+                const done = vaccineStats.administered;
+                const overdue = vaccineStats.overdue;
+                const upcoming = vaccineStats.upcoming;
+                const pending = vaccineStats.pending;
                 const action = overdue + pending;
                 const chip = (key, label, count, modifier) => (
                   <button
@@ -3702,7 +3747,7 @@ export default function BabyAppFullStack() {
           <div className="section__head">
             <span className="section__ico section__ico--teal"><Activity className="icon icon--sm" /></span>
             <h2 className="section__title">里程碑打卡</h2>
-            <span className="section__hint">CDC 发育里程碑 · {milestones.filter(m => m.status === 'achieved').length}/{milestones.length} 已达成</span>
+            <span className="section__hint">CDC 发育里程碑 · {milestoneStats.achieved}/{milestoneStats.total} 已达成</span>
           </div>
           {milestones.length === 0 ? (
             <div className="section__sub">加载中...</div>
@@ -3710,9 +3755,9 @@ export default function BabyAppFullStack() {
             <>
               {/* 统计条 · 可点击切换显示 */}
               {(() => {
-                const achieved = milestones.filter(m => m.status === 'achieved').length;
-                const pending = milestones.filter(m => m.status === 'pending').length;
-                const upcoming = milestones.filter(m => m.status === 'upcoming').length;
+                const achieved = milestoneStats.achieved;
+                const pending = milestoneStats.pending;
+                const upcoming = milestoneStats.upcoming;
                 const redFlagPending = milestones.filter(m => m.red_flag && m.status === 'pending').length;
                 const chip = (key, label, count, modifier) => (
                   <button
@@ -3744,18 +3789,20 @@ export default function BabyAppFullStack() {
                   social: { label: '社交情感', icon: 'Smile' },
                 };
                 const domains = ['motor', 'fine', 'language', 'social'];
-                const visible = milestones.filter(m => msFilter === 'all' ? true : m.status === msFilter);
+                // 用预聚合的领域统计，避免每次 render 8 次 filter
+                const visible = msFilter === 'all' ? milestones : milestones.filter(m => m.status === msFilter);
                 if (visible.length === 0) {
                   return <div className="ms-empty">当前筛选下没有里程碑</div>;
                 }
                 return domains.map(dom => {
-                  const items = visible.filter(m => m.domain === dom).sort((a, b) => a.month - b.month);
+                  const domStat = milestoneDomainStats[dom] || { items: [], done: 0, total: 0, pct: 0 };
+                  const items = msFilter === 'all' ? domStat.items : domStat.items.filter(m => m.status === msFilter);
                   if (items.length === 0) return null;
                   const meta = DOMAIN_META[dom];
                   const IconCmp = { Footprints, Hand, MessageCircle, Smile }[meta.icon];
-                  const domDone = milestones.filter(m => m.domain === dom && m.status === 'achieved').length;
-                  const domTotal = milestones.filter(m => m.domain === dom).length;
-                  const domPct = domTotal > 0 ? Math.round(domDone / domTotal * 100) : 0;
+                  const domDone = domStat.done;
+                  const domTotal = domStat.total;
+                  const domPct = domStat.pct;
                   return (
                     <div key={dom} className="ms-domain">
                       <div className="ms-domain__head">

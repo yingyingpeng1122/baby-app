@@ -547,9 +547,16 @@ def get_family_id(request: Request) -> str:
         raise HTTPException(status_code=403, detail="Not in any family. Please create or join one first.")
     return rs[0][0]
 
-# 记录人昵称缓存：同一请求内避免重复查询（user_id → 昵称）
-def _recorder_name(uid: str) -> str:
-    """把 user_id 翻译成家庭成员昵称；查不到返回空串"""
+# 记录人昵称缓存：进程内 LRU，避免 N+1 查询（疫苗 44 / 里程碑 50 / 各类列表每条都查一次）
+# 改昵称时通过 _invalidate_recorder_cache(uid) 主动失效
+import functools
+import threading
+
+_recorder_lock = threading.Lock()
+
+@functools.lru_cache(maxsize=512)
+def _recorder_name_cached(uid: str) -> str:
+    """把 user_id 翻译成家庭成员昵称；查不到返回空串。结果缓存进进程 LRU。"""
     if not uid:
         return ''
     try:
@@ -562,6 +569,19 @@ def _recorder_name(uid: str) -> str:
             return rs2[0][0] or ''
     except Exception:
         pass
+    return ''
+
+def _invalidate_recorder_cache(uid: str | None = None):
+    """改昵称后清缓存：传 uid 只清那一个；不传清全部"""
+    with _recorder_lock:
+        if uid is None:
+            _recorder_name_cached.cache_clear()
+        else:
+            _recorder_name_cached.cache_clear()  # lru_cache 不支持单条清除，整表清即可（量小）
+
+def _recorder_name(uid: str) -> str:
+    """对外接口保持不变，走缓存版"""
+    return _recorder_name_cached(uid)
     return ''
 
 def _get_baby_profile(baby_id: str) -> Optional[dict]:
@@ -1478,6 +1498,7 @@ async def auth_update_me(req: UpdateProfileRequest, request: Request):
         db.execute("UPDATE users SET nickname = ? WHERE user_id = ?", [nick, uid])
         # 同步更新 family_members 里的成员昵称（让家庭成员列表即时显示新昵称）
         db.execute("UPDATE family_members SET nickname = ? WHERE user_id = ?", [nick, uid])
+        _invalidate_recorder_cache(uid)
         updated["nickname"] = nick
     # 改密码：需验证旧密码
     if req.new_password is not None:
@@ -1596,6 +1617,7 @@ async def update_my_member(request: Request):
     if len(nickname) > 20:
         raise HTTPException(status_code=400, detail="昵称不能超过 20 个字符")
     db.execute("UPDATE family_members SET nickname = ? WHERE user_id = ?", [nickname, uid])
+    _invalidate_recorder_cache(uid)
     db.sync()
     return {"ok": True, "nickname": nickname}
 
