@@ -2638,6 +2638,8 @@ button:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
 .leap-card { position: relative; padding: 14px 14px 12px; border-radius: var(--r-mid); border: 1.5px solid var(--honey-soft); background: linear-gradient(180deg, #fffaef, #fff8f0); margin-bottom: 10px; }
 .leap-card--now { border-color: var(--coral-soft); background: linear-gradient(180deg, #fff0ed, #fff5f0); }
 .leap-card--next { border-color: var(--honey-soft); background: linear-gradient(180deg, #fffaf0, #fffdf5); }
+.leap-card--done { border-color: var(--teal-soft); background: linear-gradient(180deg, #f0fafb, #f5fdfd); }
+.leap-card--done .leap-card__tag { background: var(--teal-soft); color: var(--teal); }
 .leap-card__tag { display: inline-block; padding: 2px 10px; border-radius: var(--r-pill); font-size: 11px; font-weight: 800; background: var(--honey-soft); color: var(--honey); margin-bottom: 6px; }
 .leap-card--now .leap-card__tag { background: var(--coral-soft); color: var(--coral); }
 .leap-card--next .leap-card__tag { background: var(--honey-soft); color: var(--honey); }

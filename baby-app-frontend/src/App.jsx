@@ -1269,7 +1269,7 @@ export default function BabyAppFullStack() {
   // ============ 飞跃期日历 · 周龄 + 当前飞跃期状态（按宝宝生日算）============
   const [leapExpandedId, setLeapExpandedId] = useState(null);
   const leapStats = useMemo(() => {
-    const bday = profile?.birth_date || profile?.birthday;
+    const bday = profile?.birthday;
     if (!bday) return { ready: false, weeks: 0, past: [], current: null, next: null, pct: 0 };
     // 受孕日 ≈ 出生日 - 40 周；周龄从受孕日算
     const birthMs = new Date(bday).getTime();
@@ -1292,6 +1292,13 @@ export default function BabyAppFullStack() {
   const [actFilterDomain, setActFilterDomain] = useState('all');
   const [actFilterAge, setActFilterAge] = useState(() => ageBandFromMonths(profile?.months ?? 0));
   const [actExpandedId, setActExpandedId] = useState(null);
+
+  // 切换宝宝（月龄变化）时，活动库月龄段筛选自动同步到当前月龄
+  useEffect(() => {
+    if (profile?.months != null) {
+      setActFilterAge(ageBandFromMonths(profile.months));
+    }
+  }, [profile?.months]);
 
   // SweetSpot 睡眠段（napSegs + nightSegs + sleepSegs）：数据变化时才重算
   // nowPct / nextSleepPct 依赖当前时间，不在此缓存（每次 render 轻量计算）
@@ -4875,6 +4882,15 @@ export default function BabyAppFullStack() {
                     <div className="leap-card__advice"><Sparkles className="icon icon--xs" />{leapStats.next.advice}</div>
                   </div>
                 )}
+              </div>
+            )}
+
+            {/* 已度过所有 10 个飞跃期 */}
+            {!leapStats.current && !leapStats.next && (
+              <div className="leap-card leap-card--done">
+                <div className="leap-card__tag">飞跃期已全部度过</div>
+                <div className="leap-card__title">神经发育基础飞跃已完成</div>
+                <div className="leap-card__summary">宝宝已度过 Wonder Weeks 的 10 个飞跃期，神经发育的基础能力已建立。后续成长更多依赖环境刺激与学习，继续陪伴与引导。</div>
               </div>
             )}
 
