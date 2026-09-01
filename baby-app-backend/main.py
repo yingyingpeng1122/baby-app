@@ -999,7 +999,22 @@ VACCINE_LIBRARY = [
     {'id': 35, 'name': '流感疫苗',         'seq': 1, 'month': 6,  'doses': 2, 'is_nip': False, 'prevent': '流行性感冒',            'note': '自费推荐，6 月龄以上，每年接种'},
     {'id': 36, 'name': '水痘疫苗',         'seq': 1, 'month': 12, 'doses': 2, 'is_nip': False, 'prevent': '水痘',                 'note': '自费推荐，1-12 岁接种 2 剂'},
     {'id': 37, 'name': '23 价肺炎疫苗',     'seq': 1, 'month': 24, 'doses': 1, 'is_nip': False, 'prevent': '肺炎链球菌疾病',         'note': '自费推荐，2 岁以上高危儿童'},
+    # —— 五联疫苗 DTaP-IPV/Hib（自费，一针覆盖百白破+脊灰+Hib，可替代 NIP 对应剂次）——
+    {'id': 41, 'name': '五联疫苗', 'seq': 1, 'month': 3,  'doses': 4, 'is_nip': False, 'prevent': '百日咳/白喉/破伤风/脊灰/b型流感嗜血杆菌', 'note': 'DTaP-IPV/Hib，第 1 剂（替代百白破第1剂 + 脊灰第2剂 + Hib）'},
+    {'id': 42, 'name': '五联疫苗', 'seq': 2, 'month': 4,  'doses': 4, 'is_nip': False, 'prevent': '百日咳/白喉/破伤风/脊灰/b型流感嗜血杆菌', 'note': 'DTaP-IPV/Hib，第 2 剂（替代百白破第2剂 + 脊灰第3剂）'},
+    {'id': 43, 'name': '五联疫苗', 'seq': 3, 'month': 5,  'doses': 4, 'is_nip': False, 'prevent': '百日咳/白喉/破伤风/脊灰/b型流感嗜血杆菌', 'note': 'DTaP-IPV/Hib，第 3 剂（替代百白破第3剂 + Hib 加强）'},
+    {'id': 44, 'name': '五联疫苗', 'seq': 4, 'month': 18, 'doses': 4, 'is_nip': False, 'prevent': '百日咳/白喉/破伤风/脊灰/b型流感嗜血杆菌', 'note': 'DTaP-IPV/Hib，第 4 剂（替代百白破第4剂加强）'},
 ]
+
+# 五联疫苗剂次 → 其覆盖的 NIP 单苗剂次（用于联动：打了五联剂后自动覆盖对应 NIP 剂）
+# 映射键 = 五联 vaccine_id，值 = [被覆盖的 vaccine_id 列表]
+PENTAVALENT_COVERS = {
+    41: [6, 5],     # 五联1(3月) → 百白破第1剂(id=6) + bOPV第2剂(id=5)
+    42: [8, 7],     # 五联2(4月) → 百白破第2剂(id=8) + bOPV第3剂(id=7)
+    43: [9, 33],    # 五联3(5月) → 百白破第3剂(id=9) + Hib(id=33)
+    44: [15],       # 五联4(18月) → 百白破第4剂加强(id=15)
+}
+
 
 # ---------------- 成长区：里程碑打卡 ----------------
 # 依据美国 CDC「Learn the Signs. Act Early.」（2022 修订版）+ WHO 多中心研究 + 香港卫生署
@@ -2760,6 +2775,7 @@ class VaccineItem(BaseModel):
     administeredDate: str = ''      # 实际接种日期（ISO），status=administered 时有值
     recordId: str = ''              # vaccine_records.id，用于撤销
     recorderName: str = ''          # 记录人昵称（谁标记接种的）
+    coveredBy: str = ''             # 被五联覆盖的说明，如 '五联疫苗 第 1 剂'；非空时该剂次无需单独接种
 
 def _calc_vaccine_status(month: int, administered_date: str, age_months: int) -> str:
     """根据接种起始月龄 + 实际月龄判断状态：
@@ -2797,11 +2813,28 @@ async def get_vaccines(request: Request):
         "SELECT id, vaccine_id, administered_date, note, user_id FROM vaccine_records WHERE baby_id = ?",
         [bid]).fetchall()
     rec_map = {r[1]: (r[0], r[2], r[3] or '', r[4] or '') for r in recs}
+    # 联动覆盖：标记了五联某剂后，自动覆盖对应 NIP 单苗剂次（不催种、不可单独撤销）
+    # 反查：被覆盖剂次 → 五联剂次
+    covered_by_map = {}  # {被覆盖 vaccine_id: '五联疫苗 第 N 剂'}
+    for pv_id, covered_list in PENTAVALENT_COVERS.items():
+        if pv_id in rec_map:
+            pv_v = next((x for x in VACCINE_LIBRARY if x['id'] == pv_id), None)
+            if pv_v:
+                label = f"{pv_v['name']} 第 {pv_v['seq']} 剂"
+                for cid in covered_list:
+                    covered_by_map[cid] = label
     # 组装返回
     result = []
     for v in VACCINE_LIBRARY:
         rec = rec_map.get(v['id'])
         admin_date = rec[1] if rec else ''
+        cover_label = covered_by_map.get(v['id'], '')
+        # 被五联覆盖的剂次：视为已接种（administered），admin_date 同步成五联的接种日期
+        if cover_label and not admin_date and rec_map.get(next(
+            (k for k, vals in PENTAVALENT_COVERS.items() if v['id'] in vals), None), (None, ''))[1]:
+            pv_id = next((k for k, vals in PENTAVALENT_COVERS.items() if v['id'] in vals), None)
+            if pv_id and pv_id in rec_map:
+                admin_date = rec_map[pv_id][1]
         status = _calc_vaccine_status(v['month'], admin_date, age_months)
         result.append(VaccineItem(
             id=v['id'], name=v['name'], seq=v['seq'], month=v['month'],
@@ -2810,6 +2843,7 @@ async def get_vaccines(request: Request):
             administeredDate=admin_date,
             recordId=rec[0] if rec else '',
             recorderName=_recorder_name(rec[3]) if rec else '',
+            coveredBy=cover_label,
         ))
     return result
 

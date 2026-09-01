@@ -3668,12 +3668,20 @@ export default function BabyAppFullStack() {
                             <div className="vax-card__prevent">预防：{v.prevent}</div>
                             <div className="vax-card__note">{v.note}</div>
                             {v.status === 'administered' && v.administeredDate && (
-                              <div className="vax-card__date">已接种 · {v.administeredDate}{v.note && ' · ' + v.note}{v.recorderName && <span className="recorder-chip">{v.recorderName}</span>}</div>
+                              <div className="vax-card__date">
+                                {v.coveredBy ? `已由${v.coveredBy}覆盖 · ${v.administeredDate}` : `已接种 · ${v.administeredDate}`}
+                                {v.note && !v.coveredBy && ' · ' + v.note}
+                                {v.recorderName && <span className="recorder-chip">{v.recorderName}</span>}
+                              </div>
                             )}
                           </div>
                           <div className="vax-card__action">
                             {v.status === 'administered' ? (
-                              <button className="vax-btn vax-btn--undo" onClick={() => unmarkVaccine(v.recordId)}>撤销</button>
+                              v.coveredBy ? (
+                                <span className="vax-card__covered-hint" title={`该剂次已由${v.coveredBy}覆盖，如需修改请撤销对应五联记录`}>五联覆盖</span>
+                              ) : (
+                                <button className="vax-btn vax-btn--undo" onClick={() => unmarkVaccine(v.recordId)}>撤销</button>
+                              )
                             ) : (
                               <button className="vax-btn vax-btn--mark" onClick={() => setVaccineModal({ vaccine: v, administeredDate: suggestDate(profile.birthday, v.month), note: '' })}>标记接种</button>
                             )}

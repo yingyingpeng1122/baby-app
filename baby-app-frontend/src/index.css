@@ -2286,6 +2286,12 @@ button:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
 .vax-card__prevent { font-size: 12px; color: var(--ink-2); margin-top: 2px; }
 .vax-card__note { font-size: 11px; color: var(--ink-3); margin-top: 2px; }
 .vax-card__date { font-size: 11px; color: var(--green); margin-top: 4px; font-weight: 500; }
+.vax-card__covered-hint {
+  font-size: 10px; font-weight: 600; color: var(--primary-600, #5b6bdb);
+  padding: 3px 8px; border-radius: 6px;
+  background: var(--primary-50, #eef0ff); border: 1px solid var(--primary-100, #e0e3ff);
+  white-space: nowrap; cursor: help;
+}
 
 .vax-card__action { display: flex; align-items: center; }
 .vax-btn {
