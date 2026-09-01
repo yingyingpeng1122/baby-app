@@ -2375,6 +2375,16 @@ button:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
   font-size: 12px; font-weight: 500; color: var(--ink-2);
   padding: 2px 8px; border-radius: 999px; background: var(--surface);
 }
+.ms-domain__bar {
+  flex: 0 0 60px; height: 6px; border-radius: 999px;
+  background: var(--line); overflow: hidden; margin-left: auto;
+  align-self: center;
+}
+.ms-domain__bar > span {
+  display: block; height: 100%; border-radius: 999px;
+  background: linear-gradient(90deg, var(--green), var(--green-700, #2d8f5d));
+  transition: width 0.4s ease;
+}
 .ms-domain__list {
   display: grid; gap: 8px;
   grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
@@ -2392,7 +2402,13 @@ button:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
 .ms-card--achieved { border-left-color: var(--green); background: var(--green-soft); }
 .ms-card--pending { border-left-color: var(--primary-600); }
 .ms-card--upcoming { border-left-color: var(--line); opacity: 0.72; }
-.ms-card--alert { border-left-color: var(--coral) !important; }
+.ms-card--alert {
+  border-left-color: var(--coral) !important;
+  border-left-width: 4px !important;
+  background: var(--coral-soft) !important;
+  animation: ms-alert-pulse 2.4s ease-in-out infinite;
+}
+.ms-card--expanded { box-shadow: var(--sh-md); border-color: var(--primary-300, #c7cdf5); }
 
 .ms-card__main { flex: 1; min-width: 0; }
 .ms-card__desc {
@@ -2400,9 +2416,26 @@ button:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
   display: flex; align-items: center; gap: 6px; flex-wrap: wrap;
   line-height: 1.4;
 }
-.ms-card__flag { color: var(--coral); font-size: 13px; }
-.ms-card__month { font-size: 11px; color: var(--ink-3); margin-top: 3px; }
+.ms-card__flag {
+  color: var(--coral); font-size: 11px; font-weight: 600;
+  padding: 1px 6px; border-radius: 4px;
+  background: var(--coral-soft); border: 1px solid var(--coral-200, #f5c6c0);
+}
+.ms-card__month { font-size: 11px; color: var(--ink-3); margin-top: 3px; display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.ms-card__wait {
+  font-size: 10px; font-weight: 600; color: var(--ink-3);
+  padding: 1px 6px; border-radius: 999px; background: var(--bg);
+}
+.ms-card__wait--alert { color: var(--coral); background: var(--coral-soft); border: 1px solid var(--coral-200, #f5c6c0); }
 .ms-card__date { font-size: 11px; color: var(--green); margin-top: 4px; font-weight: 500; }
+.ms-card__detail {
+  margin-top: 8px; padding-top: 8px;
+  border-top: 1px dashed var(--line);
+  display: flex; flex-direction: column; gap: 6px;
+}
+.ms-card__detail-row { font-size: 11px; color: var(--ink-2); line-height: 1.6; }
+.ms-card__detail-row strong { color: var(--ink); font-weight: 600; }
+.ms-card__detail-row--alert { color: var(--coral); }
 
 .ms-card__action { display: flex; align-items: center; }
 .ms-btn {
@@ -2415,6 +2448,11 @@ button:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
 .ms-btn--mark:disabled { background: var(--line); color: var(--ink-3); cursor: not-allowed; }
 .ms-btn--undo { background: transparent; color: var(--ink-3); border-color: var(--line); }
 .ms-btn--undo:hover { color: var(--coral); border-color: var(--coral); }
+
+@keyframes ms-alert-pulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(239, 96, 96, 0.0); }
+  50% { box-shadow: 0 0 0 4px rgba(239, 96, 96, 0.10); }
+}
 
 .ms-modal__desc { font-size: 15px; font-weight: 600; color: var(--ink); margin-bottom: 6px; line-height: 1.5; }
 .ms-modal__meta { font-size: 12px; color: var(--ink-3); }

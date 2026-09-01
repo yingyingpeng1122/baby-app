@@ -1067,6 +1067,7 @@ export default function BabyAppFullStack() {
   const [milestones, setMilestones] = useState([]);
   const [milestoneModal, setMilestoneModal] = useState(null); // { milestone, achievedDate, note } 或 null
   const [msFilter, setMsFilter] = useState('pending'); // 'pending' 默认 | 'achieved' | 'upcoming' | 'all'
+  const [msExpandedId, setMsExpandedId] = useState(null); // 展开的里程碑 id（null 全收起）
   // 睡眠 SweetSpot 预测
   const [sleepStats, setSleepStats] = useState(null);
   // 提交成功反馈 toast
@@ -3754,39 +3755,77 @@ export default function BabyAppFullStack() {
                   const IconCmp = { Footprints, Hand, MessageCircle, Smile }[meta.icon];
                   const domDone = milestones.filter(m => m.domain === dom && m.status === 'achieved').length;
                   const domTotal = milestones.filter(m => m.domain === dom).length;
+                  const domPct = domTotal > 0 ? Math.round(domDone / domTotal * 100) : 0;
                   return (
                     <div key={dom} className="ms-domain">
                       <div className="ms-domain__head">
                         <IconCmp className="icon icon--sm" />
                         <span className="ms-domain__label">{meta.label}</span>
                         <span className="ms-domain__count">{domDone}/{domTotal}</span>
+                        <span className="ms-domain__bar"><span style={{ width: domPct + '%' }} /></span>
                       </div>
                       <div className="ms-domain__list">
-                        {items.map(m => (
-                          <div key={m.id} className={`ms-card ms-card--${m.status}${m.red_flag ? ' ms-card--alert' : ''}`}>
-                            <div className="ms-card__main">
-                              <div className="ms-card__desc">
-                                {m.desc}
-                                {m.red_flag && <span className="ms-card__flag" title="该里程碑未达成需警惕，建议咨询儿科医生">⚠</span>}
+                        {items.map(m => {
+                          const isExpanded = msExpandedId === m.id;
+                          const monthsToGo = m.month - months;
+                          return (
+                            <div
+                              key={m.id}
+                              className={`ms-card ms-card--${m.status}${m.red_flag ? ' ms-card--alert' : ''}${isExpanded ? ' ms-card--expanded' : ''}`}
+                            >
+                              <div className="ms-card__main" onClick={() => setMsExpandedId(isExpanded ? null : m.id)} style={{ cursor: 'pointer' }}>
+                                <div className="ms-card__desc">
+                                  {m.desc}
+                                  {m.red_flag && <span className="ms-card__flag" title="该里程碑未达成需警惕，建议咨询儿科医生">⚠ 警惕</span>}
+                                </div>
+                                <div className="ms-card__month">
+                                  多数 {m.month} 月达成
+                                  {m.status === 'upcoming' && monthsToGo > 0 && (
+                                    <span className="ms-card__wait">还有 {monthsToGo} 月</span>
+                                  )}
+                                  {m.status === 'pending' && m.red_flag && monthsToGo >= -2 && (
+                                    <span className="ms-card__wait ms-card__wait--alert">已到月龄 ±2 月窗口</span>
+                                  )}
+                                </div>
+                                {m.status === 'achieved' && m.achievedDate && (
+                                  <div className="ms-card__date">已达成 · {m.achievedDate}{m.note && ' · ' + m.note}{m.recorderName && <span className="recorder-chip">{m.recorderName}</span>}</div>
+                                )}
+                                {isExpanded && (
+                                  <div className="ms-card__detail">
+                                    <div className="ms-card__detail-row">
+                                      <strong>发育窗口：</strong>多数宝宝 {m.month} 月达成，±2 月内都属正常范围。
+                                    </div>
+                                    {m.red_flag && (
+                                      <div className="ms-card__detail-row ms-card__detail-row--alert">
+                                        <strong>警惕项：</strong>该里程碑为 CDC 标注的「红旗」指标，若逾期未达成，建议咨询儿科医生做进一步评估。
+                                      </div>
+                                    )}
+                                    <div className="ms-card__detail-row">
+                                      <strong>下一步：</strong>
+                                      {(() => {
+                                        const next = milestones.find(x => x.domain === dom && x.month > m.month && x.status !== 'achieved');
+                                        if (!next) return '已是该领域当前月龄最高的里程碑。';
+                                        const gap = next.month - m.month;
+                                        return `下一项「${next.desc}」约 ${next.month} 月达成（${gap > 0 ? `约 ${gap} 月后` : '已到月龄'}）。`;
+                                      })()}
+                                    </div>
+                                  </div>
+                                )}
                               </div>
-                              <div className="ms-card__month">多数 {m.month} 月达成</div>
-                              {m.status === 'achieved' && m.achievedDate && (
-                                <div className="ms-card__date">已达成 · {m.achievedDate}{m.note && ' · ' + m.note}{m.recorderName && <span className="recorder-chip">{m.recorderName}</span>}</div>
-                              )}
+                              <div className="ms-card__action">
+                                {m.status === 'achieved' ? (
+                                  <button className="ms-btn ms-btn--undo" onClick={() => unmarkMilestone(m.recordId)}>撤销</button>
+                                ) : (
+                                  <button
+                                    className="ms-btn ms-btn--mark"
+                                    disabled={m.status === 'upcoming'}
+                                    onClick={() => setMilestoneModal({ milestone: m, achievedDate: suggestDate(profile.birthday, m.month), note: '' })}
+                                  >{m.status === 'upcoming' ? '未到月龄' : '打卡'}</button>
+                                )}
+                              </div>
                             </div>
-                            <div className="ms-card__action">
-                              {m.status === 'achieved' ? (
-                                <button className="ms-btn ms-btn--undo" onClick={() => unmarkMilestone(m.recordId)}>撤销</button>
-                              ) : (
-                                <button
-                                  className="ms-btn ms-btn--mark"
-                                  disabled={m.status === 'upcoming'}
-                                  onClick={() => setMilestoneModal({ milestone: m, achievedDate: suggestDate(profile.birthday, m.month), note: '' })}
-                                >{m.status === 'upcoming' ? '未到月龄' : '打卡'}</button>
-                              )}
-                            </div>
-                          </div>
-                        ))}
+                          );
+                        })}
                       </div>
                     </div>
                   );
