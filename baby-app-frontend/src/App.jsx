@@ -1120,6 +1120,18 @@ export default function BabyAppFullStack() {
     return { administered, overdue, pending, upcoming };
   }, [vaccines]);
 
+  // 出行历史筛选 + 排序：travelRecords 或 filter/sort 变化时才重算
+  const historyRecords = useMemo(() => {
+    let list = travelRecords;
+    if (historyFilter.dest_type !== 'all') list = list.filter(r => r.dest_type === historyFilter.dest_type);
+    if (historyFilter.category !== 'all') list = list.filter(r => (r.category || '') === historyFilter.category);
+    const sorted = [...list];
+    if (historySort === 'date_asc') sorted.sort((a, b) => (a.travel_date || '').localeCompare(b.travel_date || ''));
+    else if (historySort === 'rating_desc') sorted.sort((a, b) => (b.rating || 0) - (a.rating || 0));
+    else sorted.sort((a, b) => (b.travel_date || '').localeCompare(a.travel_date || ''));
+    return sorted;
+  }, [travelRecords, historyFilter, historySort]);
+
   // 里程碑统计 + 按领域分组：milestones 变化时才重算
   const milestoneStats = useMemo(() => {
     const achieved = milestones.filter(m => m.status === 'achieved').length;
@@ -1217,6 +1229,9 @@ export default function BabyAppFullStack() {
   const [travelRecordDraft, setTravelRecordDraft] = useState({ dest_name: '', dest_type: 'short', category: '', travel_date: todayISO(), age_months: 0, rating: 0, note: '' });
   const [editingTravelRecordId, setEditingTravelRecordId] = useState(null);
   const [travelLoading, setTravelLoading] = useState(false);
+  // 出行历史筛选 + 排序
+  const [historyFilter, setHistoryFilter] = useState({ dest_type: 'all', category: 'all' }); // 'all' 或具体值
+  const [historySort, setHistorySort] = useState('date_desc'); // 'date_desc' | 'date_asc' | 'rating_desc'
   // 目的地推荐：区筛选 + 星级筛选 + 已打卡状态来自 travelRecords（按 dest_name 匹配）
   const [recoDistrict, setRecoDistrict] = useState('all');   // 'all' | 区名
   const [recoStar, setRecoStar] = useState('all');           // 'all' | 1-5
@@ -4157,30 +4172,67 @@ export default function BabyAppFullStack() {
                 {travelRecords.length === 0 ? (
                   <p className="travel-empty">还没有出行记录，记录宝宝第一次坐高铁、第一次看海吧～</p>
                 ) : (
-                  <div className="travel-rec-list">
-                    {[...travelRecords].sort((a,b) => (b.travel_date||'').localeCompare(a.travel_date||'')).map(r => {
-                      const typeLabel = { daily: '日常遛弯', short: '短途', long: '长途', abroad: '出境' }[r.dest_type] || '出行';
-                      return (
-                        <div key={r.id} className="travel-rec-card">
-                          <div className="travel-rec-card__head">
-                            <span className="travel-rec-card__name">{r.dest_name}</span>
-                            {r.category && <span className="travel-rec-card__cat">{categoryEmoji(r.category)} {categoryLabel(r.category)}</span>}
-                            <span className="travel-rec-card__type">{typeLabel}</span>
-                            <span className="travel-rec-card__date">{r.travel_date}</span>
-                          </div>
-                          {r.rating > 0 && (
-                            <div className="travel-rec-card__stars">{'★'.repeat(r.rating)}<span className="travel-rec-card__stars-dim">{'★'.repeat(5 - r.rating)}</span></div>
-                          )}
-                          {r.note && <div className="travel-rec-card__note">{r.note}</div>}
-                          <div className="travel-rec-card__meta">时 {r.age_months || 0} 月龄{r.recorderName && <span className="recorder-chip">{r.recorderName}</span>}</div>
-                          <div className="travel-rec-card__actions">
-                            <button className="btn btn--ghost btn--sm" onClick={() => editTravelRecord(r)}>编辑</button>
-                            <button className="btn btn--ghost btn--sm" onClick={() => delTravelRecord(r.id)}>删除</button>
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
+                  <>
+                    {/* 筛选 + 排序条 */}
+                    <div className="travel-rec-filter">
+                      <div className="travel-rec-filter__group">
+                        <span className="travel-rec-filter__label">类型</span>
+                        {['all', 'daily', 'short', 'long', 'abroad'].map(t => {
+                          const label = { all: '全部', daily: '日常', short: '短途', long: '长途', abroad: '出境' }[t];
+                          return (
+                            <button key={t} className={`chip ${historyFilter.dest_type === t ? 'is-on' : ''}`} onClick={() => setHistoryFilter(f => ({ ...f, dest_type: t }))}>{label}</button>
+                          );
+                        })}
+                      </div>
+                      <div className="travel-rec-filter__group">
+                        <span className="travel-rec-filter__label">地点</span>
+                        <button className={`chip ${historyFilter.category === 'all' ? 'is-on' : ''}`} onClick={() => setHistoryFilter(f => ({ ...f, category: 'all' }))}>全部</button>
+                        {CATEGORIES.map(c => (
+                          <button key={c.value} className={`chip ${historyFilter.category === c.value ? 'is-on' : ''}`} onClick={() => setHistoryFilter(f => ({ ...f, category: c.value }))}>{c.emoji}{c.label}</button>
+                        ))}
+                      </div>
+                      <div className="travel-rec-filter__group">
+                        <span className="travel-rec-filter__label">排序</span>
+                        {[
+                          { v: 'date_desc', l: '最新优先' },
+                          { v: 'date_asc', l: '最早优先' },
+                          { v: 'rating_desc', l: '评分高→低' },
+                        ].map(o => (
+                          <button key={o.v} className={`chip ${historySort === o.v ? 'is-on' : ''}`} onClick={() => setHistorySort(o.v)}>{o.l}</button>
+                        ))}
+                      </div>
+                      <div className="travel-rec-filter__count">{historyRecords.length} 条</div>
+                    </div>
+
+                    {historyRecords.length === 0 ? (
+                      <p className="travel-empty">当前筛选下没有记录，换个筛选看看～</p>
+                    ) : (
+                      <div className="travel-rec-list">
+                        {historyRecords.map(r => {
+                          const typeLabel = { daily: '日常遛弯', short: '短途', long: '长途', abroad: '出境' }[r.dest_type] || '出行';
+                          return (
+                            <div key={r.id} className="travel-rec-card">
+                              <div className="travel-rec-card__head">
+                                <span className="travel-rec-card__name">{r.dest_name}</span>
+                                {r.category && <span className="travel-rec-card__cat">{categoryEmoji(r.category)} {categoryLabel(r.category)}</span>}
+                                <span className="travel-rec-card__type">{typeLabel}</span>
+                                <span className="travel-rec-card__date">{r.travel_date}</span>
+                              </div>
+                              {r.rating > 0 && (
+                                <div className="travel-rec-card__stars">{'★'.repeat(r.rating)}<span className="travel-rec-card__stars-dim">{'★'.repeat(5 - r.rating)}</span></div>
+                              )}
+                              {r.note && <div className="travel-rec-card__note">{r.note}</div>}
+                              <div className="travel-rec-card__meta">时 {r.age_months || 0} 月龄{r.recorderName && <span className="recorder-chip">{r.recorderName}</span>}</div>
+                              <div className="travel-rec-card__actions">
+                                <button className="btn btn--ghost btn--sm" onClick={() => editTravelRecord(r)}>编辑</button>
+                                <button className="btn btn--ghost btn--sm" onClick={() => delTravelRecord(r.id)}>删除</button>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </>
                 )}
               </div>
             )}
