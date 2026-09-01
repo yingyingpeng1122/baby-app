@@ -1186,6 +1186,14 @@ export default function BabyAppFullStack() {
   const [recordTab, setRecordTab] = useState('feed');
   // 「添加记录」弹窗显隐（只控制开关，表单数据仍走 feedForm）
   const [recordModalOpen, setRecordModalOpen] = useState(false);
+  // 快速记录：换尿布 3 选 1 弹层（'pee' | 'poop' | 'both' | null）
+  const [quickDiaperPick, setQuickDiaperPick] = useState(null);
+  // 快速记录：喂奶调量弹层（{ amount: 默认量, open: true } | null）
+  const [quickFeedAdjust, setQuickFeedAdjust] = useState(null);
+  // 快速记录：小睡调时长弹层（{ duration: 默认分钟 } | null）
+  const [quickSleepAdjust, setQuickSleepAdjust] = useState(null);
+  // 快速记录：提交中状态（按 type 区分，禁用重复点击）
+  const [quickSaving, setQuickSaving] = useState('');
   // 每日照护清单
   const [checklist, setChecklist] = useState([]);
   // 照护日历
@@ -2128,6 +2136,69 @@ export default function BabyAppFullStack() {
     }
   }, [calendarOpen, calendarDate]);
 
+  // ===== 快速记录：默认值推断 + 一键提交 =====
+  // 从 feedRecords 里抽最近一条同类型记录作为默认值（amount/kind/duration）
+  const lastOfType = (type) => {
+    for (let i = feedRecords.length - 1; i >= 0; i--) {
+      if (feedRecords[i].type === type) return feedRecords[i];
+    }
+    return null;
+  };
+  // 默认奶量：上次 milk 的 amount，否则按月龄推断（<6月 120 / 6-12月 180 / >12月 200）
+  const defaultMilkAmount = () => {
+    const last = lastOfType('milk');
+    if (last && last.amount) return last.amount;
+    const m = data?.months || 0;
+    return m < 6 ? 120 : m < 12 ? 180 : 200;
+  };
+  // 默认小睡时长：上次 sleep 的 duration，否则 30 分钟
+  const defaultNapDuration = () => {
+    const last = lastOfType('sleep');
+    return last && last.duration ? Math.min(Math.max(last.duration, 15), 120) : 30;
+  };
+  // 快速提交：直接 POST 一条记录，不走 recordModal
+  const quickSubmit = async (type, overrides = {}) => {
+    if (quickSaving) return;
+    setQuickSaving(type);
+    try {
+      const now = new Date();
+      const hm = (d) => `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+      const addMin = (d, m) => { const n = new Date(d); n.setMinutes(n.getMinutes() + m); return n; };
+      const hmOf = (d) => `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+      const payload = { time: hm(now), type, note: '', foodGroups: '', kind: '', amount: 0, duration: 0, ...overrides };
+      // sleep 类型：默认开始 = now - duration, 结束 = now
+      if (type === 'sleep' && payload.duration > 0 && !payload.wakeTime) {
+        const start = addMin(now, -payload.duration);
+        payload.time = hmOf(start);
+      }
+      await apiFetch(`${API_BASE}/feeding-records`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+      // 反馈 toast 带调整入口
+      const label = type === 'milk' ? `喂奶 ${payload.amount}ml`
+        : type === 'diaper' ? ({ pee: '换尿布（尿）', poop: '换尿布（屎）', both: '换尿布（都有）' }[payload.kind] || '换尿布')
+        : type === 'sleep' ? `小睡 ${payload.duration} 分钟`
+        : type === 'solids' ? `辅食 ${payload.amount}g` : '记录';
+      showToast(`已记录 ${label} ✓`);
+      await fetchFeedData();
+    } catch (e) {
+      alert('快速记录失败：' + e.message);
+    }
+    setQuickSaving('');
+  };
+  // 删除最近一条记录（快速记录条误点时撤销用）
+  const undoLastRecord = async () => {
+    if (feedRecords.length === 0) return;
+    const last = feedRecords[feedRecords.length - 1];
+    try {
+      await apiFetch(`${API_BASE}/feeding-records/${last.id}`, { method: 'DELETE' });
+      showToast('已撤销最近一条 ✓');
+      await fetchFeedData();
+    } catch (e) { alert('撤销失败：' + e.message); }
+  };
+
   const addFeedRecord = async () => {
     if (!feedForm.time) return alert('请选择时间');
     if ((feedForm.type === 'milk' || feedForm.type === 'solids') && !feedForm.amount) return alert('请填写喂养量');
@@ -2729,7 +2800,166 @@ export default function BabyAppFullStack() {
           )}
         </Reveal>
 
+        {/* 快速记录条 · 一键记最常见的 3 件事（喂奶 / 换尿布 / 小睡） */}
+        <Reveal className="section zone zone--daily quick-bar-wrap" delay={0.04}>
+          <div className="quick-bar">
+            <div className="quick-bar__hint">一手抱娃一手点 · 短按一键记录，长按可调</div>
+            <div className="quick-bar__row">
+              {/* 喂奶 */}
+              <div className={`quick-btn quick-btn--split quick-btn--feed ${quickSaving === 'milk' ? 'is-saving' : ''}`}>
+                <button
+                  type="button"
+                  className="quick-btn__main"
+                  disabled={!!quickSaving}
+                  onClick={() => quickSubmit('milk', { amount: defaultMilkAmount() })}
+                >
+                  <span className="quick-btn__icon">🍼</span>
+                  <span className="quick-btn__label">喂奶</span>
+                  <span className="quick-btn__sub">{defaultMilkAmount()}ml · 默认</span>
+                </button>
+                <button
+                  type="button"
+                  className="quick-btn__adjust"
+                  disabled={!!quickSaving}
+                  onClick={() => setQuickFeedAdjust({ amount: defaultMilkAmount() })}
+                  aria-label="调整奶量"
+                >调</button>
+              </div>
+              {/* 换尿布 */}
+              <button
+                type="button"
+                className={`quick-btn quick-btn--diaper ${quickSaving === 'diaper' ? 'is-saving' : ''}`}
+                disabled={!!quickSaving}
+                onClick={() => setQuickDiaperPick('open')}
+              >
+                <span className="quick-btn__icon">💩</span>
+                <span className="quick-btn__label">换尿布</span>
+                <span className="quick-btn__sub">3 选 1</span>
+              </button>
+              {/* 小睡 */}
+              <div className={`quick-btn quick-btn--split quick-btn--sleep ${quickSaving === 'sleep' ? 'is-saving' : ''}`}>
+                <button
+                  type="button"
+                  className="quick-btn__main"
+                  disabled={!!quickSaving}
+                  onClick={() => quickSubmit('sleep', { duration: defaultNapDuration() })}
+                >
+                  <span className="quick-btn__icon">😴</span>
+                  <span className="quick-btn__label">小睡</span>
+                  <span className="quick-btn__sub">{defaultNapDuration()}分钟 · 默认</span>
+                </button>
+                <button
+                  type="button"
+                  className="quick-btn__adjust"
+                  disabled={!!quickSaving}
+                  onClick={() => setQuickSleepAdjust({ duration: defaultNapDuration() })}
+                  aria-label="调整小睡时长"
+                >调</button>
+              </div>
+            </div>
+            <div className="quick-bar__foot">
+              <button className="quick-bar__more" onClick={() => setRecordModalOpen(true)}>
+                + 详细记录（辅食 / 备注 / 编辑）
+              </button>
+              {feedRecords.length > 0 && (
+                <button className="quick-bar__undo" onClick={undoLastRecord} disabled={!!quickSaving}>
+                  ↶ 撤销最近一条
+                </button>
+              )}
+            </div>
+          </div>
+        </Reveal>
 
+        {/* 快速记录 · 换尿布 3 选 1 弹层 */}
+        {quickDiaperPick === 'open' && (
+          <div className="quick-pick" onClick={(e) => { if (e.target === e.currentTarget) setQuickDiaperPick(null); }}>
+            <div className="quick-pick__card">
+              <div className="quick-pick__head">
+                <span>换的是</span>
+                <button className="modal__close" onClick={() => setQuickDiaperPick(null)}><X className="icon icon--sm" /></button>
+              </div>
+              <div className="quick-pick__row">
+                {[
+                  { v: 'pee', emoji: '💧', t: '尿' },
+                  { v: 'poop', emoji: '💩', t: '屎' },
+                  { v: 'both', emoji: '💩💧', t: '都有' },
+                ].map((o) => (
+                  <button
+                    key={o.v}
+                    type="button"
+                    className={`quick-pick__opt ${quickSaving === 'diaper' ? 'is-saving' : ''}`}
+                    disabled={!!quickSaving}
+                    onClick={() => { quickSubmit('diaper', { kind: o.v }); setQuickDiaperPick(null); }}
+                  >
+                    <span className="quick-pick__emoji">{o.emoji}</span>
+                    <span className="quick-pick__t">{o.t}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* 快速记录 · 喂奶调量弹层 */}
+        {quickFeedAdjust && (
+          <div className="quick-pick" onClick={(e) => { if (e.target === e.currentTarget) setQuickFeedAdjust(null); }}>
+            <div className="quick-pick__card">
+              <div className="quick-pick__head">
+                <span>调整奶量</span>
+                <button className="modal__close" onClick={() => setQuickFeedAdjust(null)}><X className="icon icon--sm" /></button>
+              </div>
+              <div className="quick-pick__amount">
+                <button className="quick-pick__step" onClick={() => setQuickFeedAdjust({ ...quickFeedAdjust, amount: Math.max(0, (quickFeedAdjust.amount || 0) - 30) })}>−30</button>
+                <input
+                  type="number"
+                  className="input input--lg"
+                  value={quickFeedAdjust.amount}
+                  onChange={(e) => setQuickFeedAdjust({ ...quickFeedAdjust, amount: parseInt(e.target.value) || 0 })}
+                />
+                <span className="quick-pick__unit">ml</span>
+                <button className="quick-pick__step" onClick={() => setQuickFeedAdjust({ ...quickFeedAdjust, amount: (quickFeedAdjust.amount || 0) + 30 })}>+30</button>
+              </div>
+              <div className="quick-pick__presets">
+                {[60, 90, 120, 150, 180, 210, 240].map(v => (
+                  <button key={v} type="button" className="chip" onClick={() => setQuickFeedAdjust({ ...quickFeedAdjust, amount: v })}>{v}</button>
+                ))}
+              </div>
+              <button
+                type="button"
+                className="btn btn--primary btn--block"
+                disabled={!!quickSaving}
+                onClick={() => { quickSubmit('milk', { amount: quickFeedAdjust.amount || 0 }); setQuickFeedAdjust(null); }}
+              >
+                确认记录 {quickFeedAdjust.amount || 0}ml
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* 快速记录 · 小睡调时长弹层 */}
+        {quickSleepAdjust && (
+          <div className="quick-pick" onClick={(e) => { if (e.target === e.currentTarget) setQuickSleepAdjust(null); }}>
+            <div className="quick-pick__card">
+              <div className="quick-pick__head">
+                <span>调整小睡时长</span>
+                <button className="modal__close" onClick={() => setQuickSleepAdjust(null)}><X className="icon icon--sm" /></button>
+              </div>
+              <div className="quick-pick__presets">
+                {[15, 30, 45, 60, 75, 90, 120].map(v => (
+                  <button key={v} type="button" className="chip" onClick={() => setQuickSleepAdjust({ ...quickSleepAdjust, duration: v })}>{v}分钟</button>
+                ))}
+              </div>
+              <button
+                type="button"
+                className="btn btn--primary btn--block"
+                disabled={!!quickSaving}
+                onClick={() => { quickSubmit('sleep', { duration: quickSleepAdjust.duration || 30 }); setQuickSleepAdjust(null); }}
+              >
+                确认记录 {quickSleepAdjust.duration || 30} 分钟
+              </button>
+            </div>
+          </div>
+        )}
 
         {/* 宝宝的一天 · 横向时间轴 + 「添加记录」按钮 */}
         <Reveal className="section zone zone--daily" delay={0.05}>

@@ -2493,3 +2493,138 @@ button:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
 .growth__row .recorder-chip { margin-left: 6px; }
 .travel-rec-card__meta .recorder-chip { margin-left: 6px; }
 .vax-card__meta .recorder-chip, .ms-card__date .recorder-chip { margin-left: 4px; }
+
+/* ===== 快速记录条 ===== */
+/* 日常区顶部常驻 3 大按钮，一手抱娃一手点。
+   短按 = 默认值直接提交 + toast；右键（PC）/ 长按（移动）= 弹层调量。 */
+.quick-bar-wrap { padding: 0 !important; background: transparent !important; border: none !important; box-shadow: none !important; }
+.quick-bar {
+  background: linear-gradient(120deg, var(--primary-soft), #fff 75%);
+  border: 1px solid var(--primary-soft);
+  border-radius: var(--r-card);
+  padding: 14px 16px 12px;
+  box-shadow: var(--sh-sm);
+}
+.quick-bar__hint {
+  font-size: 11.5px; font-weight: 700; color: var(--primary-600);
+  letter-spacing: 0.02em; margin-bottom: 10px; opacity: 0.85;
+}
+.quick-bar__row { display: flex; gap: 10px; }
+.quick-btn {
+  flex: 1; position: relative; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px;
+  padding: 14px 6px 10px;
+  border: 1.5px solid transparent; border-radius: var(--r-mid);
+  background: #fff; cursor: pointer; transition: all 0.18s ease;
+  box-shadow: 0 1px 2px rgba(16,48,43,0.04);
+  min-height: 76px;
+}
+.quick-btn:hover { transform: translateY(-1px); box-shadow: 0 4px 12px rgba(16,48,43,0.08); }
+.quick-btn:active { transform: translateY(0) scale(0.98); }
+.quick-btn.is-saving, .quick-btn:disabled { opacity: 0.55; cursor: progress; }
+/* 容器版（feed/sleep）——卡片本身只管边框/背景，子按钮接管 padding */
+.quick-btn--split { padding: 0; }
+.quick-btn__main {
+  flex: 1; width: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px;
+  padding: 14px 6px 10px;
+  background: transparent; border: none; cursor: pointer;
+  border-radius: calc(var(--r-mid) - 1px);
+  transition: all 0.18s ease;
+}
+.quick-btn__main:hover { background: rgba(255,255,255,0.45); }
+.quick-btn__main:active { transform: scale(0.98); }
+.quick-btn__main:disabled { cursor: progress; opacity: 0.7; }
+.quick-btn__adjust {
+  position: absolute; right: 6px; bottom: 6px;
+  width: 24px; height: 24px; border-radius: 50%;
+  background: rgba(255,255,255,0.85); border: 1px solid rgba(16,48,43,0.12);
+  color: var(--ink-soft); font-size: 11px; font-weight: 800;
+  display: flex; align-items: center; justify-content: center;
+  cursor: pointer; transition: all 0.15s ease; padding: 0;
+}
+.quick-btn__adjust:hover { background: #fff; transform: scale(1.08); box-shadow: 0 1px 4px rgba(16,48,43,0.12); }
+.quick-btn__adjust:active { transform: scale(0.95); }
+.quick-btn__adjust:disabled { opacity: 0.4; cursor: not-allowed; }
+.quick-btn--feed { background: var(--sky-soft); border-color: var(--sky-soft); }
+.quick-btn--feed:hover { border-color: var(--sky); }
+.quick-btn--diaper { background: var(--honey-soft); border-color: var(--honey-soft); }
+.quick-btn--diaper:hover { border-color: var(--honey); }
+.quick-btn--sleep { background: var(--violet-soft); border-color: var(--violet-soft); }
+.quick-btn--sleep:hover { border-color: var(--violet); }
+.quick-btn__icon { font-size: 24px; line-height: 1; margin-bottom: 2px; }
+.quick-btn__label { font-size: 13.5px; font-weight: 800; color: var(--ink-soft); font-family: var(--font-display); }
+.quick-btn__sub { font-size: 10.5px; font-weight: 700; color: var(--muted); opacity: 0.85; }
+.quick-bar__foot {
+  display: flex; justify-content: space-between; align-items: center; gap: 8px; margin-top: 10px;
+  font-size: 11.5px;
+}
+.quick-bar__more {
+  border: none; background: transparent; cursor: pointer; padding: 4px 8px;
+  color: var(--primary-600); font-weight: 700; font-family: var(--font-body);
+  border-radius: var(--r-pill); transition: background 0.15s;
+}
+.quick-bar__more:hover { background: rgba(255,255,255,0.6); }
+.quick-bar__undo {
+  border: 1px dashed var(--line); background: rgba(255,255,255,0.5); cursor: pointer; padding: 4px 10px;
+  color: var(--muted); font-weight: 700; font-family: var(--font-body); font-size: 11px;
+  border-radius: var(--r-pill); transition: all 0.15s;
+}
+.quick-bar__undo:hover { color: var(--coral); border-color: var(--coral); }
+.quick-bar__undo:disabled { opacity: 0.4; cursor: not-allowed; }
+
+/* ===== 快速记录 · 弹层（换尿布 3 选 1 / 调奶量 / 调时长）===== */
+.quick-pick {
+  position: fixed; inset: 0; z-index: 1000;
+  display: flex; align-items: center; justify-content: center;
+  background: rgba(16,48,43,0.32); backdrop-filter: blur(2px);
+  padding: 16px;
+}
+.quick-pick__card {
+  background: #fff; border-radius: var(--r-card);
+  padding: 18px 20px 20px; width: 100%; max-width: 340px;
+  box-shadow: 0 12px 40px rgba(16,48,43,0.18);
+  animation: quick-pop 0.18s ease;
+}
+@keyframes quick-pop {
+  from { opacity: 0; transform: scale(0.96) translateY(8px); }
+  to { opacity: 1; transform: scale(1) translateY(0); }
+}
+.quick-pick__head {
+  display: flex; justify-content: space-between; align-items: center;
+  font-size: 14.5px; font-weight: 800; color: var(--ink-soft); margin-bottom: 14px;
+  font-family: var(--font-display);
+}
+.quick-pick__row { display: flex; gap: 8px; }
+.quick-pick__opt {
+  flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px;
+  padding: 18px 8px; border: 1.5px solid var(--honey-soft);
+  border-radius: var(--r-mid); background: var(--honey-soft); cursor: pointer;
+  transition: all 0.15s; min-height: 84px;
+}
+.quick-pick__opt:hover { border-color: var(--honey); transform: translateY(-1px); }
+.quick-pick__opt:active { transform: scale(0.97); }
+.quick-pick__opt.is-saving, .quick-pick__opt:disabled { opacity: 0.55; cursor: progress; }
+.quick-pick__emoji { font-size: 28px; line-height: 1; }
+.quick-pick__t { font-size: 13px; font-weight: 800; color: var(--ink-soft); font-family: var(--font-display); }
+.quick-pick__amount { display: flex; align-items: center; gap: 10px; margin-bottom: 14px; }
+.quick-pick__step {
+  width: 44px; height: 44px; border-radius: 50%; border: 1.5px solid var(--sky-soft);
+  background: var(--sky-soft); color: var(--sky); cursor: pointer;
+  font-size: 13px; font-weight: 800; font-family: var(--font-body);
+  display: grid; place-items: center; transition: all 0.15s; flex: none;
+}
+.quick-pick__step:hover { border-color: var(--sky); }
+.quick-pick__step:active { transform: scale(0.95); }
+.quick-pick__amount .input { text-align: center; font-size: 24px; font-weight: 800; padding: 10px 8px; }
+.quick-pick__unit { font-size: 14px; font-weight: 800; color: var(--muted); }
+.quick-pick__presets { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 16px; justify-content: center; }
+.quick-pick__presets .chip { cursor: pointer; transition: all 0.15s; }
+.quick-pick__presets .chip:hover { background: var(--sky-soft); color: var(--sky); border-color: var(--sky-soft); }
+
+@media (max-width: 480px) {
+  .quick-bar__row { gap: 8px; }
+  .quick-btn { padding: 12px 4px 8px; min-height: 70px; }
+  .quick-btn__icon { font-size: 22px; }
+  .quick-btn__label { font-size: 12.5px; }
+  .quick-btn__sub { font-size: 10px; }
+  .quick-bar__foot { font-size: 11px; }
+}
