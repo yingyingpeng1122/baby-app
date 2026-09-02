@@ -3291,9 +3291,9 @@ export default function BabyAppFullStack() {
                   </div>
                 </div>
 
-                {/* 喂养评估（从原「今日记录」section 迁移至此） */}
+                {/* 喂养评估（从原「今日记录」section 迁移至此） · 老年人模式隐藏 */}
                 {feedEval && (
-                  <div className={`feed__eval feed__eval--${feedEval.status}`}>
+                  <div className={`feed__eval feed__eval--${feedEval.status} is-elder-hide`}>
                     <div className="feed__eval-body">
                       <div className="feed__eval-title">喂养评估</div>
                       <div className="feed__eval-msg">{feedEval.message}</div>
