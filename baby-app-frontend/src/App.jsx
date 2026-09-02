@@ -2659,7 +2659,7 @@ export default function BabyAppFullStack() {
 
       <nav className="zone-tabs" aria-label="功能区域切换">
         <button
-          className={`zone-tabs__btn ${activeZone === 'daily' ? 'is-active' : ''}`}
+          className={`zone-tabs__btn is-elder-hide ${activeZone === 'daily' ? 'is-active' : ''}`}
           onClick={() => setActiveZone('daily')}
         >
           <span className="zone-tabs__ico"><Milk className="icon icon--sm" /></span>

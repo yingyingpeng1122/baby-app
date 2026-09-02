@@ -2669,6 +2669,8 @@ button:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
 
 /* 老年人模式：隐藏标记了 is-elder-hide 的 section / tab 按钮 / 睡眠预测条 */
 .app[data-mode="elder"] .is-elder-hide { display: none !important; }
+/* 老人模式下 3 个 tab 按钮全部 is-elder-hide，nav 容器也一并隐藏避免空占位 */
+.app[data-mode="elder"] .zone-tabs { display: none !important; }
 
 /* 老年人模式专属内容：默认隐藏，老人模式下显示 */
 .is-elder-only { display: none !important; }
