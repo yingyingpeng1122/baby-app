@@ -2740,9 +2740,10 @@ button:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
 .app[data-mode="elder"] .quick-bar__btn { font-size: calc(13px * var(--elder-zoom)); padding: 14px 12px; }
 .app[data-mode="elder"] .quick-bar__label { font-size: calc(12px * var(--elder-zoom)); }
 
-/* 快速记录条：放大间距让卡片更舒展 */
-.app[data-mode="elder"] .section { padding: 18px 18px; }
-.app[data-mode="elder"] .wrap { padding: 18px 16px 88px; }
+/* 快速记录条：收紧 section 间距，避免老人模式下区块间空白过大 */
+.app[data-mode="elder"] .section { padding: 12px 14px; margin-bottom: 14px; }
+.app[data-mode="elder"] .section__head { margin: 0 0 10px 2px; }
+.app[data-mode="elder"] .wrap { padding: 14px 14px 88px; }
 
 /* 出行推荐卡片：放大字号 */
 .app[data-mode="elder"] .reco-card__name { font-size: calc(15px * var(--elder-zoom)); }
@@ -2762,6 +2763,7 @@ button:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
 /* 移动端老年人模式：略微回调，避免单屏内容过少 */
 @media (max-width: 480px) {
   .app[data-mode="elder"] { --elder-zoom: 1.22; }
-  .app[data-mode="elder"] .wrap { padding: 16px 14px 88px; }
+  .app[data-mode="elder"] .wrap { padding: 12px 12px 88px; }
+  .app[data-mode="elder"] .section { padding: 10px 12px; margin-bottom: 12px; }
   .app[data-mode="elder"] .stat__value { font-size: calc(40px * var(--elder-zoom)); }
 }
