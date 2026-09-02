@@ -1320,6 +1320,15 @@ export default function BabyAppFullStack() {
   const [logoutConfirm, setLogoutConfirm] = useState(false);
   // 生病模式：体温记录（按宝宝同步到后端，跨设备一致）
   const [sickMode, setSickMode] = useState(false);
+  // 老年人模式：大字版 + 简化功能。localStorage 持久化（设备级，不按宝宝）
+  const [elderMode, setElderMode] = useState(() => {
+    try { return localStorage.getItem('babyapp_elder') === '1'; } catch { return false; }
+  });
+  const toggleElderMode = () => {
+    const next = !elderMode;
+    setElderMode(next);
+    try { localStorage.setItem('babyapp_elder', next ? '1' : '0'); } catch {}
+  };
   const [tempRecords, setTempRecords] = useState([]);
   const [tempDraft, setTempDraft] = useState({ temp: '', note: '', datetime: nowDateTime().replace(' ', 'T'), symptoms: [] });
   const [editingTempId, setEditingTempId] = useState(null); // 正在编辑的体温记录 id（null=新增）
@@ -2566,7 +2575,7 @@ export default function BabyAppFullStack() {
   };
 
   return (
-    <div className="app" data-zone={activeZone}>
+    <div className="app" data-zone={activeZone} data-mode={elderMode ? 'elder' : 'normal'}>
       <span className="blob blob--1" aria-hidden /><span className="blob blob--2" aria-hidden />
       {toast && (
         <div key={toast.key} className="toast" role="status" aria-live="polite">
@@ -2618,6 +2627,15 @@ export default function BabyAppFullStack() {
             </div>
           )}
           <div className="topbar__actions">
+            {/* 老年人模式开关（大字版 + 简化功能，localStorage 持久化） */}
+            <button
+              className={`topbar__icon-btn ${elderMode ? 'is-active-elder' : ''}`}
+              onClick={toggleElderMode}
+              title={elderMode ? '退出大字模式' : '大字模式（老人适用）'}
+              aria-label={elderMode ? '退出大字模式' : '大字模式'}
+            >
+              <span className="elder-btn__label">大字</span>
+            </button>
             {/* 家庭管理入口（家庭名/ID/成员/退出家庭/添加宝宝） */}
             {family && (
               <button className="topbar__icon-btn" onClick={() => setFamilyMgmtOpen(true)} title="家庭管理" aria-label="家庭管理">
@@ -2664,7 +2682,7 @@ export default function BabyAppFullStack() {
       </nav>
 
       <div className="wrap">
-        <Reveal className="section zone zone--growth" delay={0.05}>
+        <Reveal className="section zone zone--growth is-elder-hide" delay={0.05}>
           <div className="section__head">
             <span className="section__ico section__ico--teal"><Sparkles className="icon icon--sm" /></span>
             <h2 className="section__title">发育概况</h2>
@@ -2803,7 +2821,7 @@ export default function BabyAppFullStack() {
           })()}
         </Reveal>
 
-        <Reveal className="section zone zone--growth" delay={0.05}>
+        <Reveal className="section zone zone--growth is-elder-hide" delay={0.05}>
           <div className="section__head">
             <span className="section__ico section__ico--amber"><Sparkles className="icon icon--sm" /></span>
             <h2 className="section__title">成长阶段提醒</h2>
@@ -3394,7 +3412,7 @@ export default function BabyAppFullStack() {
         </Reveal>
 
         {/* 生病模式：体温记录 + 动态就医建议 */}
-        <Reveal className="section zone zone--daily" delay={0.05}>
+        <Reveal className="section zone zone--daily is-elder-hide" delay={0.05}>
           <div className="section__head">
             <span className="section__ico section__ico--rose"><Thermometer className="icon icon--sm" /></span>
             <h2 className="section__title">生病模式</h2>
@@ -3524,7 +3542,7 @@ export default function BabyAppFullStack() {
 
         {/* 宝宝生病护理指南：置于生病模式下方，仅生病模式开启时显示 */}
         {sickMode && (
-        <Reveal className="section zone zone--daily" delay={0.05}>
+        <Reveal className="section zone zone--daily is-elder-hide" delay={0.05}>
           <button
             type="button"
             className={`care-toggle ${careOpen ? 'is-open' : ''}`}
@@ -3948,7 +3966,7 @@ export default function BabyAppFullStack() {
         </Reveal>
 
         {/* 成长区 · 疫苗日历（国家免疫规划 + 自费推荐） */}
-        <Reveal className="section zone zone--growth" delay={0.08}>
+        <Reveal className="section zone zone--growth is-elder-hide" delay={0.08}>
           <div className="section__head">
             <span className="section__ico section__ico--coral"><Syringe className="icon icon--sm" /></span>
             <h2 className="section__title">疫苗日历</h2>
@@ -4052,7 +4070,7 @@ export default function BabyAppFullStack() {
         </Reveal>
 
         {/* 成长区 · 里程碑打卡（4 大领域发育追踪） */}
-        <Reveal className="section zone zone--growth" delay={0.11}>
+        <Reveal className="section zone zone--growth is-elder-hide" delay={0.11}>
           <div className="section__head">
             <span className="section__ico section__ico--teal"><Activity className="icon icon--sm" /></span>
             <h2 className="section__title">里程碑打卡</h2>

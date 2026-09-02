@@ -2656,3 +2656,99 @@ button:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
   .act-chip { font-size: 12px; padding: 5px 10px; }
 }
 
+
+/* ============ 老年人模式（大字版 + 简化功能） ============ */
+/* 入口按钮：与 topbar__icon-btn 风格统一，文字按钮替代图标 */
+.elder-btn__label { font-size: 12px; font-weight: 800; letter-spacing: .02em; }
+.topbar__icon-btn.is-active-elder {
+  background: linear-gradient(135deg, var(--primary), var(--primary-600));
+  color: #fff; border-color: var(--primary-600);
+  box-shadow: 0 4px 12px rgba(14,147,136,.32);
+}
+.topbar__icon-btn.is-active-elder:hover { color: #fff; background: var(--primary-600); }
+
+/* 老年人模式：隐藏标记了 is-elder-hide 的 section */
+.app[data-mode="elder"] .is-elder-hide { display: none !important; }
+
+/* 大字版：核心文字放大 30%（标题/数值/按钮/输入/标签/正文） */
+.app[data-mode="elder"] {
+  --elder-zoom: 1.3;
+}
+.app[data-mode="elder"] .brand__name { font-size: calc(19px * var(--elder-zoom)); }
+.app[data-mode="elder"] .brand__meta { font-size: calc(12px * var(--elder-zoom)); }
+.app[data-mode="elder"] .section__title { font-size: calc(19px * var(--elder-zoom)); }
+.app[data-mode="elder"] .section__hint { font-size: calc(12px * var(--elder-zoom)); }
+.app[data-mode="elder"] .section__status { font-size: calc(12px * var(--elder-zoom)); }
+.app[data-mode="elder"] .section__toggle { font-size: calc(12px * var(--elder-zoom)); }
+.app[data-mode="elder"] .stat__label { font-size: calc(13px * var(--elder-zoom)); }
+.app[data-mode="elder"] .stat__value { font-size: calc(40px * var(--elder-zoom)); }
+.app[data-mode="elder"] .stat__unit { font-size: calc(13px * var(--elder-zoom)); }
+.app[data-mode="elder"] .stat__sub { font-size: calc(12px * var(--elder-zoom)); }
+
+/* 按钮：放大字号 + 增大点击区域（老人手指操作） */
+.app[data-mode="elder"] .btn { font-size: calc(14px * var(--elder-zoom)); padding: 16px 22px; }
+.app[data-mode="elder"] .btn--primary { font-size: calc(15px * var(--elder-zoom)); padding: 17px 24px; }
+.app[data-mode="elder"] .btn--sm { font-size: calc(13px * var(--elder-zoom)); padding: 11px 16px; }
+.app[data-mode="elder"] .btn--ghost { font-size: calc(13px * var(--elder-zoom)); padding: 11px 16px; }
+
+/* zone-tabs 底部 tab：放大字号 + 增大点击区 */
+.app[data-mode="elder"] .zone-tabs__btn { font-size: calc(13px * var(--elder-zoom)); padding: 10px 12px; }
+.app[data-mode="elder"] .zone-tabs__label { font-size: calc(13px * var(--elder-zoom)); }
+
+/* 输入框 / 表单：放大字号 + 增高 */
+.app[data-mode="elder"] .input { font-size: calc(15px * var(--elder-zoom)); padding: 16px 18px; }
+.app[data-mode="elder"] .input--sm { font-size: calc(14px * var(--elder-zoom)); padding: 12px 14px; height: auto; }
+.app[data-mode="elder"] .field__label { font-size: calc(12px * var(--elder-zoom)); }
+.app[data-mode="elder"] .feed__log-field label { font-size: calc(11px * var(--elder-zoom)); }
+
+/* 今日建议 advice-card tile：放大数字 */
+.app[data-mode="elder"] .advice-card__k { font-size: calc(12px * var(--elder-zoom)); }
+.app[data-mode="elder"] .advice-card__v { font-size: calc(22px * var(--elder-zoom)); }
+.app[data-mode="elder"] .advice-card__sub { font-size: calc(11px * var(--elder-zoom)); }
+
+/* 喂养记录 / 今日记录 */
+.app[data-mode="elder"] .feed__stage { font-size: calc(16px * var(--elder-zoom)); }
+.app[data-mode="elder"] .feed__tip { font-size: calc(12.5px * var(--elder-zoom)); }
+.app[data-mode="elder"] .feed__k { font-size: calc(13px * var(--elder-zoom)); }
+.app[data-mode="elder"] .feed__v { font-size: calc(13.5px * var(--elder-zoom)); }
+.app[data-mode="elder"] .feed__chips span { font-size: calc(11.5px * var(--elder-zoom)); }
+.app[data-mode="elder"] .feed__interval { font-size: calc(13px * var(--elder-zoom)); }
+.app[data-mode="elder"] .feed__log-title { font-size: calc(13px * var(--elder-zoom)); }
+.app[data-mode="elder"] .feed__log-field .input--sm { height: auto; }
+
+/* chip 通用 */
+.app[data-mode="elder"] .chip { font-size: calc(12.5px * var(--elder-zoom)); padding: 9px 14px; }
+
+/* 今日照护清单 */
+.app[data-mode="elder"] .checklist-item__title { font-size: calc(14px * var(--elder-zoom)); }
+.app[data-mode="elder"] .checklist-item__time { font-size: calc(11px * var(--elder-zoom)); }
+
+/* 快速记录条 quick-bar */
+.app[data-mode="elder"] .quick-bar__btn { font-size: calc(13px * var(--elder-zoom)); padding: 14px 12px; }
+.app[data-mode="elder"] .quick-bar__label { font-size: calc(12px * var(--elder-zoom)); }
+
+/* 快速记录条：放大间距让卡片更舒展 */
+.app[data-mode="elder"] .section { padding: 18px 18px; }
+.app[data-mode="elder"] .wrap { padding: 18px 16px 88px; }
+
+/* 出行推荐卡片：放大字号 */
+.app[data-mode="elder"] .reco-card__name { font-size: calc(15px * var(--elder-zoom)); }
+.app[data-mode="elder"] .reco-card__dist,
+.app[data-mode="elder"] .reco-card__cat { font-size: calc(11px * var(--elder-zoom)); padding: 3px 10px; }
+.app[data-mode="elder"] .reco-card__stars { font-size: calc(12px * var(--elder-zoom)); }
+.app[data-mode="elder"] .reco-card__feel { font-size: calc(13px * var(--elder-zoom)); }
+.app[data-mode="elder"] .reco-card__reason { font-size: calc(12px * var(--elder-zoom)); }
+.app[data-mode="elder"] .reco-card__reason-label { font-size: calc(12px * var(--elder-zoom)); }
+
+/* tab 按钮通用（记录表单内 tab） */
+.app[data-mode="elder"] .tab-btn { font-size: calc(13px * var(--elder-zoom)); padding: 12px 16px; }
+
+/* toast 提示放大 */
+.app[data-mode="elder"] .toast { font-size: calc(14px * var(--elder-zoom)); padding: 14px 20px; }
+
+/* 移动端老年人模式：略微回调，避免单屏内容过少 */
+@media (max-width: 480px) {
+  .app[data-mode="elder"] { --elder-zoom: 1.22; }
+  .app[data-mode="elder"] .wrap { padding: 16px 14px 88px; }
+  .app[data-mode="elder"] .stat__value { font-size: calc(40px * var(--elder-zoom)); }
+}
