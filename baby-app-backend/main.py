@@ -364,6 +364,7 @@ def init_db():
         ("password_hash", "TEXT DEFAULT ''"),
         ("password_salt", "TEXT DEFAULT ''"),
         ("nickname", "TEXT DEFAULT ''"),
+        ("elder_mode", "INTEGER DEFAULT 0"),
     ]:
         try:
             db.execute(f"ALTER TABLE users ADD COLUMN {col} {decl}")
@@ -1469,17 +1470,17 @@ async def auth_me(request: Request):
     uid = _resolve_token(request)
     if not uid:
         raise HTTPException(401, "未登录或会话已过期")
-    rs = db.execute("SELECT phone, nickname FROM users WHERE user_id = ?", [uid]).fetchall()
+    rs = db.execute("SELECT phone, nickname, elder_mode FROM users WHERE user_id = ?", [uid]).fetchall()
     if not rs:
         raise HTTPException(401, "用户不存在")
-    phone, nickname = rs[0]
+    phone, nickname, elder_mode = rs[0]
     # 顺带返回家庭信息（若有）
     family = None
     fm = db.execute("SELECT family_id, role, nickname FROM family_members WHERE user_id = ?", [uid]).fetchall()
     if fm:
         fid, role, mnick = fm[0]
         family = {"family_id": fid, "role": role, "nickname": mnick or nickname or ""}
-    return {"user_id": uid, "phone": phone, "nickname": nickname or "", "family": family}
+    return {"user_id": uid, "phone": phone, "nickname": nickname or "", "elder_mode": bool(elder_mode), "family": family}
 
 @app.put("/auth/me")
 async def auth_update_me(req: UpdateProfileRequest, request: Request):
@@ -1516,6 +1517,27 @@ async def auth_update_me(req: UpdateProfileRequest, request: Request):
     if not updated:
         raise HTTPException(400, "没有需要更新的字段")
     return {"ok": True, "updated": updated, "phone": phone, "nickname": updated.get("nickname", cur_nick or "")}
+
+class PreferencesRequest(BaseModel):
+    elder_mode: Optional[bool] = None
+
+@app.put("/auth/preferences")
+async def auth_update_preferences(req: PreferencesRequest, request: Request):
+    """更新用户偏好（跨设备同步）。当前支持 elder_mode 大字模式开关。"""
+    uid = _resolve_token(request)
+    if not uid:
+        raise HTTPException(401, "未登录或会话已过期")
+    rs = db.execute("SELECT user_id FROM users WHERE user_id = ?", [uid]).fetchall()
+    if not rs:
+        raise HTTPException(401, "用户不存在")
+    updated = {}
+    if req.elder_mode is not None:
+        db.execute("UPDATE users SET elder_mode = ? WHERE user_id = ?", [1 if req.elder_mode else 0, uid])
+        updated["elder_mode"] = bool(req.elder_mode)
+    db.sync()
+    if not updated:
+        raise HTTPException(400, "没有需要更新的字段")
+    return {"ok": True, "updated": updated}
 
 # ---------------- 家庭系统 API ----------------
 class FamilyCreateRequest(BaseModel):

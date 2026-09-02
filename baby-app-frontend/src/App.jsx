@@ -1320,7 +1320,7 @@ export default function BabyAppFullStack() {
   const [logoutConfirm, setLogoutConfirm] = useState(false);
   // 生病模式：体温记录（按宝宝同步到后端，跨设备一致）
   const [sickMode, setSickMode] = useState(false);
-  // 老年人模式：大字版 + 简化功能。localStorage 持久化（设备级，不按宝宝）
+  // 老年人模式：大字版 + 简化功能。后端持久化（按账号，跨设备同步），localStorage 兜底未登录场景
   const [elderMode, setElderMode] = useState(() => {
     try { return localStorage.getItem('babyapp_elder') === '1'; } catch { return false; }
   });
@@ -1328,6 +1328,12 @@ export default function BabyAppFullStack() {
     const next = !elderMode;
     setElderMode(next);
     try { localStorage.setItem('babyapp_elder', next ? '1' : '0'); } catch {}
+    // 同步到后端，让其他设备登录同账号时也是大字模式
+    apiFetch(`${API_BASE}/auth/preferences`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ elder_mode: next }),
+    }).catch(() => {});
   };
   const [tempRecords, setTempRecords] = useState([]);
   const [tempDraft, setTempDraft] = useState({ temp: '', note: '', datetime: nowDateTime().replace(' ', 'T'), symptoms: [] });
@@ -1408,6 +1414,11 @@ export default function BabyAppFullStack() {
       }
       const me = await res.json();
       setCurrentUser(me);
+      // 同步后端的大字模式偏好（跨设备）：后端有值则覆盖本地
+      if (typeof me.elder_mode === 'boolean') {
+        setElderMode(me.elder_mode);
+        try { localStorage.setItem('babyapp_elder', me.elder_mode ? '1' : '0'); } catch {}
+      }
       initFamily();
     } catch (e) {
       // 网络问题，不清 token，回连接错误页
@@ -1420,6 +1431,11 @@ export default function BabyAppFullStack() {
   const onAuthSuccess = (me) => {
     setCurrentUser(me);
     setAuthView(null);
+    // 同步后端的大字模式偏好（跨设备）
+    if (typeof me.elder_mode === 'boolean') {
+      setElderMode(me.elder_mode);
+      try { localStorage.setItem('babyapp_elder', me.elder_mode ? '1' : '0'); } catch {}
+    }
     initFamily();
   };
 
