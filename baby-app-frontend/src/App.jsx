@@ -4300,13 +4300,15 @@ export default function BabyAppFullStack() {
                         <div key={s.id} className={`reco-card ${visited ? 'is-visited' : ''}`}>
                           <div className="reco-card__head">
                             <span className="reco-card__name" title={s.name}>{s.name}</span>
-                            {s.category && <span className="reco-card__cat">{categoryEmoji(s.category)} {categoryLabel(s.category)}</span>}
-                            <span className="reco-card__dist">{s.district}</span>
                             {stars > 0 && <span className="reco-card__stars">{'★'.repeat(stars)}<span className="reco-card__stars-dim">{'★'.repeat(5 - stars)}</span></span>}
                           </div>
                           {s.feel && <div className="reco-card__feel">{s.feel}</div>}
                           <div className="reco-card__reason"><span className="reco-card__reason-label">推荐理由</span>{reasonForAge(s, recoMonths)}</div>
                           <div className="reco-card__actions">
+                            <div className="reco-card__tags">
+                              {s.category && <span className="reco-card__cat">{categoryEmoji(s.category)} {categoryLabel(s.category)}</span>}
+                              <span className="reco-card__dist">{s.district}</span>
+                            </div>
                             {visited ? (
                               <span className="reco-card__visited">已出行 ✓</span>
                             ) : (
