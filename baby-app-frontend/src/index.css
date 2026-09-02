@@ -2667,8 +2667,16 @@ button:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
 }
 .topbar__icon-btn.is-active-elder:hover { color: #fff; background: var(--primary-600); }
 
-/* 老年人模式：隐藏标记了 is-elder-hide 的 section */
+/* 老年人模式：隐藏标记了 is-elder-hide 的 section / tab 按钮 / 睡眠预测条 */
 .app[data-mode="elder"] .is-elder-hide { display: none !important; }
+
+/* 老年人模式：强制只显示 daily zone（成长/出行 tab 已隐藏，需同时屏蔽其内容，
+   防止用户切到老人模式前 activeZone 残留 growth/travel 导致空白或暴露已隐藏的 section） */
+.app[data-mode="elder"][data-zone="growth"] .zone--growth,
+.app[data-mode="elder"][data-zone="travel"] .zone--travel { display: none !important; }
+.app[data-mode="elder"][data-zone="growth"] .zone--daily,
+.app[data-mode="elder"][data-zone="travel"] .zone--daily { display: revert !important; }
+.app[data-mode="elder"][data-zone="travel"] .zone-tabs + .wrap { display: revert !important; }
 
 /* 大字版：核心文字放大 30%（标题/数值/按钮/输入/标签/正文） */
 .app[data-mode="elder"] {

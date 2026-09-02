@@ -2666,14 +2666,14 @@ export default function BabyAppFullStack() {
           <span className="zone-tabs__label">日常</span>
         </button>
         <button
-          className={`zone-tabs__btn ${activeZone === 'growth' ? 'is-active' : ''}`}
+          className={`zone-tabs__btn is-elder-hide ${activeZone === 'growth' ? 'is-active' : ''}`}
           onClick={() => setActiveZone('growth')}
         >
           <span className="zone-tabs__ico"><Sparkles className="icon icon--sm" /></span>
           <span className="zone-tabs__label">成长</span>
         </button>
         <button
-          className={`zone-tabs__btn ${activeZone === 'travel' ? 'is-active' : ''}`}
+          className={`zone-tabs__btn is-elder-hide ${activeZone === 'travel' ? 'is-active' : ''}`}
           onClick={() => setActiveZone('travel')}
         >
           <span className="zone-tabs__ico"><MapPin className="icon icon--sm" /></span>
@@ -3234,7 +3234,7 @@ export default function BabyAppFullStack() {
                         {nightSleepText ? ` · ${nightSleepText}` : ''}
                       </div>
                     </div>
-                    <div className="advice-card__tile">
+                    <div className="advice-card__tile is-elder-hide">
                       <span className="advice-card__ico"><Moon className="icon icon--xs" /></span>
                       <div className="advice-card__k">睡眠提示</div>
                       <div className="advice-card__v advice-card__v--sm">{sleepTip}</div>
@@ -3244,8 +3244,8 @@ export default function BabyAppFullStack() {
                       }</div>
                     </div>
                   </div>
-                  {/* SweetSpot 时间条 */}
-                  <div className="advice-card__sweetspot">
+                  {/* SweetSpot 时间条（老年人模式隐藏） */}
+                  <div className="advice-card__sweetspot is-elder-hide">
                     <div className="sweetspot__legend">
                       <span className="sweetspot__legend-item"><i className="sweetspot__dot sweetspot__dot--sleep"></i>今日睡眠 {fmtH(todaySleepTotal)} · {todaySleepCnt}/{recNaps} 次{nightSleepText ? ` · ${nightSleepText}` : ''}</span>
                       <span className="sweetspot__legend-item"><i className="sweetspot__dot sweetspot__dot--win"></i>预测窗口 {nextSleepHM || '—'}</span>
