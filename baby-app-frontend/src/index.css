@@ -1289,7 +1289,8 @@ button:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
   .feed__interval { margin: 0 16px; }
   .feed__log { margin: 14px 16px 0; padding: 14px 16px; }
   .feed__records { margin: 14px 16px 0; }
-  .feed__eval { margin: 14px 16px 20px; }
+  /* 喂养评估卡已迁移到「今日建议」section，与 advice-card 同级，不再走内嵌卡片的左右缩进 */
+  .feed__eval { margin: 14px 0 20px; }
   .feed__advice { margin: 14px 16px 0; }
   .feed__foot { margin: 12px 16px 0; }
 
@@ -1344,7 +1345,7 @@ button:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
 
 /* ---------- 响应式：小屏手机 ---------- */
 @media (max-width: 480px) {
-  .wrap { padding: 16px 12px 72px; }
+  .wrap { padding: 16px 14px 72px; }
   .topbar__inner { padding: 12px 14px; padding-top: calc(12px + env(safe-area-inset-top)); }
   .brand__name { font-size: 15px; }
   .baby-switcher { max-width: 36vw; }
@@ -1356,7 +1357,7 @@ button:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
   .feed__interval { margin: 0 14px; }
   .feed__log { margin: 12px 14px 0; padding: 12px 14px; }
   .feed__records { margin: 12px 14px 0; }
-  .feed__eval { margin: 12px 14px 18px; }
+  .feed__eval { margin: 12px 0 18px; }
   .feed__advice { margin: 12px 14px 0; }
   .feed__foot { margin: 10px 14px 0; }
   /* 录入表单：窄屏单列（覆盖 720 的双列网格，避免两列拥挤/溢出） */
