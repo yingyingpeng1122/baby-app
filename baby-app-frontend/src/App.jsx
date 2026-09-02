@@ -3227,10 +3227,10 @@ export default function BabyAppFullStack() {
                     </div>
                     <div className="advice-card__tile">
                       <span className="advice-card__ico"><Moon className="icon icon--xs" /></span>
-                      <div className="advice-card__k">建议睡眠量</div>
-                      <div className="advice-card__v">{ssStats.recSleepText || '—'}</div>
+                      <div className="advice-card__k">建议白天睡眠量</div>
+                      <div className="advice-card__v">{ssStats.recNapText || '—'}</div>
                       <div className="advice-card__sub">
-                        {todaySleepTotal > 0 ? `今日已睡 ${fmtH(todaySleepTotal)}` : '含夜间 + 小睡'}
+                        {todaySleepTotal > 0 ? `今日已睡 ${fmtH(todaySleepTotal)}` : '建议小睡总量'}
                         {nightSleepText ? ` · ${nightSleepText}` : ''}
                       </div>
                     </div>

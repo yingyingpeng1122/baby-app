@@ -808,7 +808,7 @@ def get_feeding_advice(months: int) -> FeedingAdvice:
             feedingInterval="奶间隔 3-4 小时，辅食 1-2 次/天")
     elif months < 12:
         fa = FeedingAdvice(
-            stage="咀嚼吞咽期", milk="保持 600ml/天左右", solids="需要",
+            stage="咀嚼吞咽期", milk="保持 600-800ml/天", solids="需要",
             solidAmount="50-100g/餐", types=["肉泥", "稠粥", "蛋黄"], videoTip="尝试手指食物",
             feedingInterval="奶间隔 3-4 小时，辅食 2-3 次/天")
     else:
@@ -3160,6 +3160,21 @@ async def get_sleep_stats(request: Request):
     else:
         rec_sleep_min, rec_sleep_text = 690, "10-13h"
 
+    # 月龄建议白天小睡总时长（参考 NSF/AASM：总睡眠 - 夜间睡眠参考值）
+    # 夜间睡眠参考值（月龄分档）：<3月 8-9h、3-6月 9-10h、6-12月 10-11h、12-24月 11-12h、>24月 10-11h
+    if months < 3:
+        rec_nap_min, rec_nap_text = 360, "6h 左右"
+    elif months < 6:
+        rec_nap_min, rec_nap_text = 270, "4.5h 左右"
+    elif months < 12:
+        rec_nap_min, rec_nap_text = 180, "3h 左右"
+    elif months < 18:
+        rec_nap_min, rec_nap_text = 120, "2h 左右"
+    elif months < 24:
+        rec_nap_min, rec_nap_text = 60, "1h 左右"
+    else:
+        rec_nap_min, rec_nap_text = 0, "可不再小睡"
+
     return {
         "months": months,
         "avgWakeMin": round(avg_wake_min),
@@ -3173,6 +3188,8 @@ async def get_sleep_stats(request: Request):
         "recNaps": rec_naps,
         "recSleepMin": rec_sleep_min,
         "recSleepText": rec_sleep_text,
+        "recNapMin": rec_nap_min,
+        "recNapText": rec_nap_text,
         "sleepSignals": sleep_signals,
         "sampleCount": len(wake_intervals),
     }
