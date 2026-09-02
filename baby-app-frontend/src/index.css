@@ -1937,11 +1937,11 @@ button:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
 }
 .reco-card.is-visited { border-color: rgba(14,147,136,.30); background: linear-gradient(180deg, rgba(14,147,136,.04), #fff); }
 .reco-card__head { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
-.reco-card__name { font-size: 15px; font-weight: 700; color: var(--text, #1f2937); }
-.reco-card__dist { font-size: 11px; color: #d85a30; background: rgba(240,153,123,.12); padding: 1px 8px; border-radius: 999px; }
-.reco-card__cat { display: inline-flex; align-items: center; gap: 3px; font-size: 11px; color: #5a6cf0; background: rgba(124,140,248,.12); padding: 1px 8px; border-radius: 999px; }
+.reco-card__name { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 15px; font-weight: 700; color: var(--text, #1f2937); }
+.reco-card__dist { flex-shrink: 0; white-space: nowrap; font-size: 11px; color: #d85a30; background: rgba(240,153,123,.12); padding: 1px 8px; border-radius: 999px; }
+.reco-card__cat { display: inline-flex; align-items: center; gap: 3px; flex-shrink: 0; white-space: nowrap; font-size: 11px; color: #5a6cf0; background: rgba(124,140,248,.12); padding: 1px 8px; border-radius: 999px; }
 .reco-card__cat .cat-emoji { font-size: 12px; line-height: 1; }
-.reco-card__stars { margin-left: auto; font-size: 12px; color: #f5a623; letter-spacing: -1px; }
+.reco-card__stars { margin-left: auto; flex-shrink: 0; white-space: nowrap; font-size: 12px; color: #f5a623; letter-spacing: -1px; }
 .reco-card__stars-dim { color: #d1d5db; }
 .reco-card__feel { font-size: 13px; color: var(--text, #1f2937); line-height: 1.55; font-style: italic; border-left: 3px solid rgba(240,153,123,.30); padding-left: 10px; }
 .reco-card__reason { font-size: 12px; color: var(--muted, #6b7280); line-height: 1.5; }
