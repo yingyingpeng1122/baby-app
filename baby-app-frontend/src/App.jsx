@@ -3243,6 +3243,13 @@ export default function BabyAppFullStack() {
                         sleepTipKind === 'good' ? '状态良好' : '犯困窗口'
                       }</div>
                     </div>
+                    {/* AD 滴剂提醒（仅老年人模式显示，替补「睡眠提示」位置） */}
+                    <div className="advice-card__tile is-elder-only">
+                      <span className="advice-card__ico"><Pill className="icon icon--xs" /></span>
+                      <div className="advice-card__k">AD 滴剂</div>
+                      <div className="advice-card__v">每日 1 粒</div>
+                      <div className="advice-card__sub advice-card__sub--good">维生素 D 补充</div>
+                    </div>
                   </div>
                   {/* SweetSpot 时间条（老年人模式隐藏） */}
                   <div className="advice-card__sweetspot is-elder-hide">
@@ -3364,8 +3371,8 @@ export default function BabyAppFullStack() {
           })()}
         </Reveal>
 
-        {/* 每日照护清单 */}
-        <Reveal className="section zone zone--daily" delay={0.05}>
+        {/* 每日照护清单（老年人模式隐藏） */}
+        <Reveal className="section zone zone--daily is-elder-hide" delay={0.05}>
           <div className="section__head">
             <span className="section__ico section__ico--primary"><ListChecks className="icon icon--sm" /></span>
             <h2 className="section__title">今日照护清单</h2>
