@@ -59,6 +59,7 @@ baby-app-backend/backend.log
 baby-app-backend/uvicorn.log
 baby-app-backend/uvicicorn.err
 debug.log
+.backend*.log
 
 # 预览/调试页（mock 数据，不入仓）
 baby-app-frontend/preview-*.html
