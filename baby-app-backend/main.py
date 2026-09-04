@@ -1654,6 +1654,7 @@ async def list_babies(request: Request):
 async def add_baby(req: BabyCreateRequest, request: Request):
     """添加宝宝到家庭"""
     fid = get_family_id(request)
+    uid = get_uid(request)
     # 重名校验
     existing = db.execute("SELECT baby_id FROM babies WHERE family_id = ? AND name = ?", [fid, req.name]).fetchall()
     if existing:
@@ -1661,6 +1662,13 @@ async def add_baby(req: BabyCreateRequest, request: Request):
     bid = str(uuid.uuid4())[:8]
     db.execute("INSERT INTO babies (baby_id, family_id, name, gender, birthday, height, weight) VALUES (?, ?, ?, ?, ?, ?, ?)",
                [bid, fid, req.name, req.gender, req.birthday, req.height, req.weight])
+    # 初次登记：身高体重任一非零则自动写一条 growth record，作为首次记录
+    if req.height > 0 or req.weight > 0:
+        gid = str(uuid.uuid4())[:8]
+        today = date.today().isoformat()
+        db.execute(
+            "INSERT INTO growth_records_v2 (id, baby_id, date, height, weight, note, user_id) VALUES (?, ?, ?, ?, ?, ?, ?)",
+            [gid, bid, today, req.height, req.weight, "初次登记", uid])
     db.sync()
     return {"baby_id": bid, "name": req.name, "gender": req.gender, "birthday": req.birthday, "height": req.height, "weight": req.weight}
 
@@ -1819,7 +1827,7 @@ async def add_growth_record(record: GrowthRecord, request: Request):
 async def get_growth_records(request: Request):
     bid = get_baby_id(request)
     rs = db.execute(
-        "SELECT id, date, height, weight, note, user_id FROM growth_records_v2 WHERE baby_id = ? ORDER BY date ASC",
+        "SELECT id, date, height, weight, note, user_id FROM growth_records_v2 WHERE baby_id = ? ORDER BY date ASC, rowid ASC",
         [bid]).fetchall()
     return [GrowthRecord(id=r[0], date=r[1], height=r[2] or 0.0, weight=r[3] or 0.0, note=r[4] or '', recorderName=_recorder_name(r[5] or '')) for r in rs]
 
@@ -2670,14 +2678,24 @@ async def get_dashboard(request: Request):
     p = _get_baby_profile(bid)
     if not p:
         raise HTTPException(status_code=404, detail="Baby profile not found. Please create one first.")
-    profile = BabyProfile(name=p["name"], gender=p["gender"], birthday=p["birthday"], height=p["height"], weight=p["weight"])
+    # 评估用的身高体重：优先取 growth_records_v2 最新一条，无记录 fallback babies 表初始值
+    eval_height = p["height"]
+    eval_weight = p["weight"]
+    grs = db.execute(
+        "SELECT height, weight FROM growth_records_v2 WHERE baby_id = ? ORDER BY date DESC, rowid DESC LIMIT 1",
+        [bid]).fetchall()
+    if grs:
+        h, w = grs[0]
+        if h and h > 0: eval_height = h
+        if w and w > 0: eval_weight = w
+    profile = BabyProfile(name=p["name"], gender=p["gender"], birthday=p["birthday"], height=eval_height, weight=eval_weight)
 
     months = calculate_months(profile.birthday)
     std = get_growth_standard(profile.gender, months)
-    is_w_normal = std['minW'] <= profile.weight <= std['maxW']
-    is_h_normal = std['minH'] <= profile.height <= std['maxH']
-    weight_status = _weight_status(profile.weight, std.get('baseW'))
-    height_status = _height_status(profile.height, std.get('baseH'))
+    is_w_normal = std['minW'] <= eval_weight <= std['maxW']
+    is_h_normal = std['minH'] <= eval_height <= std['maxH']
+    weight_status = _weight_status(eval_weight, std.get('baseW'))
+    height_status = _height_status(eval_height, std.get('baseH'))
 
     return DashboardResponse(
         profile=profile,

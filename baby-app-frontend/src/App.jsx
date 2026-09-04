@@ -2489,8 +2489,8 @@ export default function BabyAppFullStack() {
             <input type="date" className="input" value={form.birthday} onChange={set('birthday')} />
           </div>
           <div className="field field__row">
-            <div><label className="field__label">身高 (cm)</label><input type="number" className="input" placeholder="0.0" value={form.height} onChange={set('height')} /></div>
-            <div><label className="field__label">体重 (kg)</label><input type="number" className="input" placeholder="0.0" value={form.weight} onChange={set('weight')} /></div>
+            <div><label className="field__label">初次身高 (cm)</label><input type="number" className="input" placeholder="0.0" value={form.height} onChange={set('height')} /></div>
+            <div><label className="field__label">初次体重 (kg)</label><input type="number" className="input" placeholder="0.0" value={form.weight} onChange={set('weight')} /></div>
           </div>
           <button className="btn btn--primary btn--block" onClick={addBaby}>
             <Save className="icon icon--sm" />{babies.length > 0 ? '添加宝宝' : '保存并开始记录'}
@@ -2513,10 +2513,12 @@ export default function BabyAppFullStack() {
       if (!form.name || !form.birthday) return alert('请填写昵称和出生日期');
       try {
         setError(null);
+        // 编辑只改基本信息，不传 height/weight（身高体重走 growth-records 端点）
+        const { height: _h, weight: _w, ...rest } = form;
         const res = await apiFetch(`${API_BASE}/family/babies/${currentBabyId}`, {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ ...form, height: parseFloat(form.height) || 0, weight: parseFloat(form.weight) || 0 }),
+          body: JSON.stringify(rest),
         });
         if (!res.ok) throw new Error(`更新失败 (${res.status})`);
         await fetchDashboard();
@@ -2548,9 +2550,8 @@ export default function BabyAppFullStack() {
             <label className="field__label">出生日期</label>
             <input type="date" className="input" value={form.birthday} onChange={set('birthday')} />
           </div>
-          <div className="field field__row">
-            <div><label className="field__label">身高 (cm)</label><input type="number" className="input" placeholder="0.0" value={form.height} onChange={set('height')} /></div>
-            <div><label className="field__label">体重 (kg)</label><input type="number" className="input" placeholder="0.0" value={form.weight} onChange={set('weight')} /></div>
+          <div className="field__hint">
+            <AlertCircle className="icon icon--xs" />身高体重请到「发育概况」区添加记录，这里只改基本信息。
           </div>
           <button className="btn btn--primary btn--block" onClick={handleEditBaby}><Save className="icon icon--sm" />保存修改</button>
           <button className="btn btn--ghost btn--block" onClick={() => { fetchDashboard(); }} style={{ marginTop: 8 }}>取消</button>
