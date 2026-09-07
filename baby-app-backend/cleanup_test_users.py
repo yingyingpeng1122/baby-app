@@ -96,9 +96,10 @@ def delete_user_chain(user_id: str, family_ids: list, baby_ids: list, confirm: b
     """级联删除一个用户的所有相关数据"""
     stats = {}
     # 1. 按 baby_id 删的业务表（checklist/growth 没 user_id 列，必须按 baby_id）
+    # 注意：没有 sleep_records_v2 这张表——睡眠记录存在 feeding_records_v2 (type='sleep')，随其级联删除
     baby_tables_by_baby = [
         "feeding_records_v2", "checklist_items_v2", "growth_records_v2",
-        "sleep_records_v2", "travel_records", "travel_lists",
+        "travel_records", "travel_lists",
         "temperature_records", "vaccine_records", "milestone_records",
     ]
     for table in baby_tables_by_baby:
@@ -107,11 +108,13 @@ def delete_user_chain(user_id: str, family_ids: list, baby_ids: list, confirm: b
             rs = db.execute(f"DELETE FROM {table} WHERE baby_id = ?", [bid])
             stats[table] = stats.get(table, 0) + 1
 
-    # 2. 按 user_id 删（兜底，针对有 user_id 列的表）
+    # 2. 按 user_id 删（兜底，针对有 user_id 列的表；checklist_items_v2 无 user_id 列，不在内）
     user_tables = [
-        "feeding_records_v2", "sleep_records_v2", "travel_records",
-        "travel_lists", "temperature_records", "vaccine_records",
-        "milestone_records", "growth_records_v2",
+        "feeding_records_v2",
+        "growth_records_v2",
+        "travel_records", "travel_lists",
+        "temperature_records", "vaccine_records",
+        "milestone_records",
     ]
     for table in user_tables:
         db.execute(f"DELETE FROM {table} WHERE user_id = ?", [user_id])
