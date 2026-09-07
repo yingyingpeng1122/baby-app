@@ -7,7 +7,7 @@ import {
   PlayCircle, Loader2, AlertCircle, Sparkles, Pencil, Check, Maximize2, Minimize2,
   Plus, Trash2, Clock, TrendingUp, ChevronDown, Sun, BookOpen, Heart, Moon, Pill, Smile, ListChecks, ChevronLeft, ChevronRight, Calendar, X, Thermometer, Stethoscope, Syringe, Activity,
   Eye, MessageCircle, Footprints, Hand, Brain, Bell, Lightbulb, Home, MoreHorizontal, MapPin,
-  User, LogOut
+  User, LogOut, Repeat, Repeat1, ListMusic, SkipForward
 } from 'lucide-react';
 
 // WHO 最低食物种类（MDD）的 7 个食物组
@@ -671,10 +671,14 @@ function EditProfileModal({ currentUser, onClose, onSave }) {
   );
 }
 
-function VideoModal({ open, title, src = '', onClose }) {
+function VideoModal({ open, title, src = '', onClose, playlist, onAdvance, startIndex = 0 }) {
   const cardRef = useRef(null);
   const [isFullscreen, setIsFullscreen] = useState(false); // 浏览器原生 Fullscreen API
   const [pseudoFullscreen, setPseudoFullscreen] = useState(false); // iOS 等不支持元素全屏时的伪全屏兜底
+  // 自动播放模式：'off' 默认关 | 'one' 单曲循环 | 'list' 列表循环（播完自动下一首）
+  const [autoMode, setAutoMode] = useState('off');
+  const videoRef = useRef(null);
+  const iframeRef = useRef(null);
 
   // 全屏状态变化监听：用户可能通过浏览器自带方式（Esc / 系统手势）退出全屏
   useEffect(() => {
@@ -716,12 +720,59 @@ function VideoModal({ open, title, src = '', onClose }) {
     setPseudoFullscreen((v) => !v);
   };
 
+  // === 单曲循环（HTML5 video）：监听 ended 事件，自动重播当前视频 ===
+  const handleVideoEnded = () => {
+    if (autoMode === 'one') {
+      // 单曲循环：重置到起点并播放
+      const v = videoRef.current;
+      if (v) {
+        v.currentTime = 0;
+        v.play().catch(() => {});
+      }
+    } else if (autoMode === 'list' && onAdvance) {
+      // 列表循环：通知父组件推进到下一首
+      onAdvance();
+    }
+  };
+
+  // === B 站 iframe 自动连播 ===
+  // B 站 player 参数没有官方文档支持的 autoplay，但有实测有效的几个参数：
+  //   autoplay=1    —— 自动开始播放
+  //   &loop=true    —— 循环（部分版本支持）
+  //   &repeats=1    —— 重复（社区流传参数，不一定都支持）
+  // 因 B 站 iframe 的事件 postMessage 协议未公开，无法可靠监听"播放结束"，
+  // 单曲循环/列表连播在 iframe 场景下靠参数 + 用户手动切下一首兜底。
+  // 真正可靠的单曲循环只在 <video> 标签（自有视频）场景实现。
+  const biliEmbedWithAuto = (url) => {
+    if (!url) return '';
+    let u = getBiliEmbedUrl(url);
+    if (!u) return '';
+    // 列表循环：尝试加 autoplay + loop 参数
+    if (autoMode !== 'off') {
+      const sep = u.includes('?') ? '&' : '?';
+      u = `${u}${sep}autoplay=1`;
+      if (autoMode === 'one') u = `${u}&loop=true`;
+    }
+    return u;
+  };
+
   if (!open) return null;
   // 没有配置视频（空串或占位符 '#'）时不再回退到同一个共享示例，避免“所有活动打开同一地址”
   const isEmpty = !src || src === '#';
   const videoSrc = isEmpty ? '' : src;
-  const biliEmbed = getBiliEmbedUrl(videoSrc);
+  const biliEmbed = biliEmbedWithAuto(videoSrc);
   const active = isFullscreen || pseudoFullscreen;
+  // 判断是否处于"带播放列表的音乐区"上下文
+  const hasPlaylist = Array.isArray(playlist) && playlist.length > 1;
+  const currentIndex = (hasPlaylist && typeof startIndex === 'number') ? startIndex : 0;
+  const isLast = hasPlaylist && currentIndex >= playlist.length - 1;
+
+  // 切换自动模式按钮（仅在带播放列表时显示"列表循环"；单曲循环两类都显示）
+  const cycleAutoMode = () => {
+    setAutoMode((m) => m === 'off' ? 'one' : (m === 'one' ? 'list' : 'off'));
+  };
+  const autoLabel = autoMode === 'off' ? '自动播放关' : (autoMode === 'one' ? '单曲循环' : '列表循环');
+
   return (
     <div className={`modal ${pseudoFullscreen ? 'modal--pseudo-fullscreen' : ''}`} role="dialog" aria-modal="true">
       <div
@@ -732,6 +783,27 @@ function VideoModal({ open, title, src = '', onClose }) {
         <div className="modal__head">
           <h3 className="modal__title">{title}</h3>
           <div className="modal__head-actions">
+            {/* 自动播放切换按钮：循环 off → one（单曲循环）→ list（列表循环）→ off */}
+            <button
+              className="modal__iconbtn"
+              onClick={cycleAutoMode}
+              aria-label={autoLabel}
+              title={autoLabel}
+              style={autoMode !== 'off' ? { color: 'var(--honey, #f5a623)' } : undefined}
+            >
+              {autoMode === 'one' ? <Repeat1 className="icon icon--sm" /> : <Repeat className="icon icon--sm" />}
+            </button>
+            {/* 下一首按钮：仅在列表循环模式 + 还有下一首时显示 */}
+            {hasPlaylist && autoMode === 'list' && !isLast && (
+              <button
+                className="modal__iconbtn"
+                onClick={onAdvance}
+                aria-label="下一首"
+                title="下一首"
+              >
+                <SkipForward className="icon icon--sm" />
+              </button>
+            )}
             <button
               className="modal__iconbtn"
               onClick={toggleFullscreen}
@@ -740,7 +812,7 @@ function VideoModal({ open, title, src = '', onClose }) {
             >
               {active ? <Minimize2 className="icon icon--sm" /> : <Maximize2 className="icon icon--sm" />}
             </button>
-            <button className="modal__close" onClick={() => { setPseudoFullscreen(false); onClose(); }} aria-label="关闭">✕</button>
+            <button className="modal__close" onClick={() => { setPseudoFullscreen(false); setAutoMode('off'); onClose(); }} aria-label="关闭">✕</button>
           </div>
         </div>
         <div className="modal__video">
@@ -751,6 +823,8 @@ function VideoModal({ open, title, src = '', onClose }) {
           ) : biliEmbed ? (
             // B 站官方可内嵌播放器：直接在弹窗内联播放，不再跳转到新标签页
             <iframe
+              key={biliEmbed}  // key 随 URL 变化，强制 React 重建 iframe，确保 src 切换时重新加载
+              ref={iframeRef}
               className="modal__iframe"
               title={title}
               src={biliEmbed}
@@ -766,11 +840,26 @@ function VideoModal({ open, title, src = '', onClose }) {
               <a className="btn btn--primary" href={videoSrc} target="_blank" rel="noreferrer">在新标签页打开 B 站播放</a>
             </div>
           ) : (
-            <video className="modal__player" controls autoPlay src={videoSrc}>
+            <video
+              ref={videoRef}
+              className="modal__player"
+              controls
+              autoPlay={autoMode !== 'off'}
+              loop={autoMode === 'one'}
+              onEnded={handleVideoEnded}
+              src={videoSrc}
+            >
               您的浏览器不支持 video 元素。
             </video>
           )}
         </div>
+        {/* 列表循环模式下的播放列表指示器 */}
+        {hasPlaylist && autoMode === 'list' && (
+          <div className="modal__playlist-hint">
+            <ListMusic className="icon icon--sm" style={{ marginRight: 6 }} />
+            <span>播放列表 {currentIndex + 1}/{playlist.length}</span>
+          </div>
+        )}
       </div>
     </div>
   );
@@ -1076,7 +1165,7 @@ export default function BabyAppFullStack() {
   const [connError, setConnError] = useState(null); // 初始化连接失败（超时/网络不可达）
   const [data, setData] = useState(null);
   const profile = data?.profile; // 提前解构，供 useMemo 引用（避免 TDZ：原解构在 2410 行，晚于 useMemo）
-  const [modal, setModal] = useState({ open: false, title: '' });
+  const [modal, setModal] = useState({ open: false, title: '', src: '', playlist: null, startIndex: 0 });
   const [form, setForm] = useState({ name: '', gender: 'boy', birthday: '', height: '', weight: '', night_bedtime: '', night_wake_time: '' });
   // 账号系统
   const [currentUser, setCurrentUser] = useState(null); // { user_id, phone, nickname }
@@ -4238,7 +4327,11 @@ export default function BabyAppFullStack() {
             <span className="section__ico section__ico--violet"><Music className="icon icon--sm" /></span>
             <h2 className="section__title">音乐区</h2>
           </div>
-          <ActList items={music} onPlay={(a) => setModal({ open: true, title: a.title, src: a.videoUrl || '' })} />
+          <ActList items={music} onPlay={(a) => {
+            // 音乐区：带播放列表上下文打开，开启列表循环时可自动连播下一首
+            const idx = music.findIndex(m => m.id === a.id);
+            setModal({ open: true, title: a.title, src: a.videoUrl || '', playlist: music, startIndex: idx >= 0 ? idx : 0 });
+          }} />
         </Reveal>
 
         {months >= 6 && stories.length > 0 && (
@@ -4580,7 +4673,23 @@ export default function BabyAppFullStack() {
         </div>
       )}
 
-      <VideoModal open={modal.open} title={modal.title} src={modal.src || ''} onClose={() => setModal({ open: false, title: '', src: '' })} />
+      <VideoModal
+        open={modal.open}
+        title={modal.title}
+        src={modal.src || ''}
+        playlist={modal.playlist}
+        startIndex={modal.startIndex}
+        onAdvance={() => {
+          // 列表循环：推进到下一首，末首回绕到第一首
+          if (!modal.playlist || modal.playlist.length === 0) return;
+          const next = (modal.startIndex + 1) % modal.playlist.length;
+          const nxt = modal.playlist[next];
+          if (nxt) {
+            setModal({ open: true, title: nxt.title, src: nxt.videoUrl || '', playlist: modal.playlist, startIndex: next });
+          }
+        }}
+        onClose={() => setModal({ open: false, title: '', src: '', playlist: null, startIndex: 0 })}
+      />
 
       {/* 添加记录弹窗（从原「今日记录」section 抽出，由「宝宝的一天」标题处按钮唤起） */}
       {recordModalOpen && (

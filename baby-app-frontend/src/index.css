@@ -1006,6 +1006,8 @@ button:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
 .modal__video:hover .modal__play { transform: scale(1.1); }
 .modal__cap { color: rgba(255,255,255,.6); font-size: 13px; font-weight: 700; margin: 0; }
 
+/* 播放列表指示器：列表循环模式下显示在视频下方 */
+.modal__playlist-hint { display: flex; align-items: center; padding: 8px 14px; font-size: 12px; color: var(--ink-soft); background: var(--surface-2); border-top: 1px solid var(--line); gap: 4px; }
 /* 全屏时：让弹窗卡片填满整个屏幕，视频也跟着铺满 */
 .modal__card:fullscreen,
 .modal__card:-webkit-full-screen {
