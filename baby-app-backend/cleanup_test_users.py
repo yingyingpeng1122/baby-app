@@ -71,7 +71,8 @@ def get_user_family_babies(user_id: str):
     fm = db.execute(
         "SELECT family_id, role FROM family_members WHERE user_id = ?", [user_id]
     ).fetchall()
-    families = [(r[0], r[1] if len(r) > 1 else "") for r in fm]
+    # TursoRow 不支持 len()，只支持整数下标；SELECT 固定取 family_id/role 两列，r[1] 必有效
+    families = [(r[0], r[1] if r[1] else "") for r in fm]
     babies = []
     for fid, _ in families:
         bs = db.execute(
