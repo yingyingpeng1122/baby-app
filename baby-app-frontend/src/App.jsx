@@ -783,27 +783,6 @@ function VideoModal({ open, title, src = '', onClose, playlist, onAdvance, start
         <div className="modal__head">
           <h3 className="modal__title">{title}</h3>
           <div className="modal__head-actions">
-            {/* 自动播放切换按钮：循环 off → one（单曲循环）→ list（列表循环）→ off */}
-            <button
-              className="modal__iconbtn"
-              onClick={cycleAutoMode}
-              aria-label={autoLabel}
-              title={autoLabel}
-              style={autoMode !== 'off' ? { color: 'var(--honey, #f5a623)' } : undefined}
-            >
-              {autoMode === 'one' ? <Repeat1 className="icon icon--sm" /> : <Repeat className="icon icon--sm" />}
-            </button>
-            {/* 下一首按钮：仅在列表循环模式 + 还有下一首时显示 */}
-            {hasPlaylist && autoMode === 'list' && !isLast && (
-              <button
-                className="modal__iconbtn"
-                onClick={onAdvance}
-                aria-label="下一首"
-                title="下一首"
-              >
-                <SkipForward className="icon icon--sm" />
-              </button>
-            )}
             <button
               className="modal__iconbtn"
               onClick={toggleFullscreen}
@@ -853,13 +832,35 @@ function VideoModal({ open, title, src = '', onClose, playlist, onAdvance, start
             </video>
           )}
         </div>
-        {/* 列表循环模式下的播放列表指示器 */}
-        {hasPlaylist && autoMode === 'list' && (
-          <div className="modal__playlist-hint">
-            <ListMusic className="icon icon--sm" style={{ marginRight: 6 }} />
-            <span>播放列表 {currentIndex + 1}/{playlist.length}</span>
-          </div>
-        )}
+        {/* 自动播放控制条：带文字 + 图标，比挤在标题栏的小图标更醒目 */}
+        <div className="modal__autoplay-bar">
+          <button
+            className={`modal__autoplay-btn ${autoMode !== 'off' ? 'is-active' : ''}`}
+            onClick={cycleAutoMode}
+            aria-label={autoLabel}
+            title={autoLabel}
+          >
+            {autoMode === 'one' ? <Repeat1 className="icon icon--sm" /> : <Repeat className="icon icon--sm" />}
+            <span>{autoLabel}</span>
+          </button>
+          {hasPlaylist && autoMode === 'list' && !isLast && (
+            <button
+              className="modal__autoplay-btn"
+              onClick={onAdvance}
+              aria-label="下一首"
+              title="下一首"
+            >
+              <SkipForward className="icon icon--sm" />
+              <span>下一首</span>
+            </button>
+          )}
+          {hasPlaylist && autoMode === 'list' && (
+            <span className="modal__playlist-count">
+              <ListMusic className="icon icon--sm" style={{ marginRight: 4, verticalAlign: 'middle' }} />
+              {currentIndex + 1}/{playlist.length}
+            </span>
+          )}
+        </div>
       </div>
     </div>
   );

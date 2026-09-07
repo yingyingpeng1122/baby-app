@@ -1006,8 +1006,12 @@ button:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
 .modal__video:hover .modal__play { transform: scale(1.1); }
 .modal__cap { color: rgba(255,255,255,.6); font-size: 13px; font-weight: 700; margin: 0; }
 
-/* 播放列表指示器：列表循环模式下显示在视频下方 */
-.modal__playlist-hint { display: flex; align-items: center; padding: 8px 14px; font-size: 12px; color: var(--ink-soft); background: var(--surface-2); border-top: 1px solid var(--line); gap: 4px; }
+/* 自动播放控制条：视频下方带文字+图标的醒目按钮 */
+.modal__autoplay-bar { display: flex; align-items: center; gap: 8px; padding: 10px 16px; background: var(--surface-2); border-top: 1px solid var(--line); flex-wrap: wrap; }
+.modal__autoplay-btn { display: inline-flex; align-items: center; gap: 6px; padding: 7px 14px; border: 1px solid var(--line); border-radius: 999px; background: #fff; color: var(--ink-soft); font-size: 13px; font-weight: 600; cursor: pointer; transition: all .2s ease; }
+.modal__autoplay-btn:hover { border-color: var(--honey, #f5a623); color: var(--ink); }
+.modal__autoplay-btn.is-active { background: var(--honey, #f5a623); border-color: var(--honey, #f5a623); color: #fff; box-shadow: 0 2px 8px rgba(245,166,35,.3); }
+.modal__playlist-count { font-size: 12px; color: var(--ink-soft); margin-left: auto; display: inline-flex; align-items: center; }
 /* 全屏时：让弹窗卡片填满整个屏幕，视频也跟着铺满 */
 .modal__card:fullscreen,
 .modal__card:-webkit-full-screen {
