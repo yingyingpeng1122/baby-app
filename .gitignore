@@ -69,3 +69,6 @@ baby-app-frontend/前端.txt
 baby-app-frontend/后端.txt
 db_backup_*.json
 *.bak
+
+# 检测脚本（本地开发工具，不入库）
+detect-final.cjs
