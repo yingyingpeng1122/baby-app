@@ -671,12 +671,12 @@ function EditProfileModal({ currentUser, onClose, onSave }) {
   );
 }
 
-function VideoModal({ open, title, src = '', onClose, playlist, onAdvance, startIndex = 0 }) {
+function VideoModal({ open, title, src = '', onClose, playlist, onAdvance, startIndex = 0, autoList = false }) {
   const cardRef = useRef(null);
   const [isFullscreen, setIsFullscreen] = useState(false); // 浏览器原生 Fullscreen API
   const [pseudoFullscreen, setPseudoFullscreen] = useState(false); // iOS 等不支持元素全屏时的伪全屏兜底
-  // 自动播放模式：'off' 默认关 | 'one' 单曲循环 | 'list' 列表循环（播完自动下一首）
-  const [autoMode, setAutoMode] = useState('off');
+  // 单曲循环开关（仅控制当前视频循环重播）；列表连播由父组件 autoList 控制
+  const [loopOne, setLoopOne] = useState(false);
   const videoRef = useRef(null);
   const iframeRef = useRef(null);
 
@@ -722,15 +722,15 @@ function VideoModal({ open, title, src = '', onClose, playlist, onAdvance, start
 
   // === 单曲循环（HTML5 video）：监听 ended 事件，自动重播当前视频 ===
   const handleVideoEnded = () => {
-    if (autoMode === 'one') {
+    if (loopOne) {
       // 单曲循环：重置到起点并播放
       const v = videoRef.current;
       if (v) {
         v.currentTime = 0;
         v.play().catch(() => {});
       }
-    } else if (autoMode === 'list' && onAdvance) {
-      // 列表循环：通知父组件推进到下一首
+    } else if (autoList && onAdvance) {
+      // 列表连播：由音乐区「自动播放」开关控制，播完自动推进到下一首
       onAdvance();
     }
   };
@@ -739,19 +739,17 @@ function VideoModal({ open, title, src = '', onClose, playlist, onAdvance, start
   // B 站 player 参数没有官方文档支持的 autoplay，但有实测有效的几个参数：
   //   autoplay=1    —— 自动开始播放
   //   &loop=true    —— 循环（部分版本支持）
-  //   &repeats=1    —— 重复（社区流传参数，不一定都支持）
   // 因 B 站 iframe 的事件 postMessage 协议未公开，无法可靠监听"播放结束"，
-  // 单曲循环/列表连播在 iframe 场景下靠参数 + 用户手动切下一首兜底。
+  // 单曲循环在 iframe 场景下靠 loop 参数兜底，列表连播靠用户手动点「下一首」按钮。
   // 真正可靠的单曲循环只在 <video> 标签（自有视频）场景实现。
   const biliEmbedWithAuto = (url) => {
     if (!url) return '';
     let u = getBiliEmbedUrl(url);
     if (!u) return '';
-    // 列表循环：尝试加 autoplay + loop 参数
-    if (autoMode !== 'off') {
+    // 单曲循环：加 loop 参数兜底
+    if (loopOne) {
       const sep = u.includes('?') ? '&' : '?';
-      u = `${u}${sep}autoplay=1`;
-      if (autoMode === 'one') u = `${u}&loop=true`;
+      u = `${u}${sep}autoplay=1&loop=true`;
     }
     return u;
   };
@@ -766,12 +764,6 @@ function VideoModal({ open, title, src = '', onClose, playlist, onAdvance, start
   const hasPlaylist = Array.isArray(playlist) && playlist.length > 1;
   const currentIndex = (hasPlaylist && typeof startIndex === 'number') ? startIndex : 0;
   const isLast = hasPlaylist && currentIndex >= playlist.length - 1;
-
-  // 切换自动模式按钮（仅在带播放列表时显示"列表循环"；单曲循环两类都显示）
-  const cycleAutoMode = () => {
-    setAutoMode((m) => m === 'off' ? 'one' : (m === 'one' ? 'list' : 'off'));
-  };
-  const autoLabel = autoMode === 'off' ? '自动播放关' : (autoMode === 'one' ? '单曲循环' : '列表循环');
 
   return (
     <div className={`modal ${pseudoFullscreen ? 'modal--pseudo-fullscreen' : ''}`} role="dialog" aria-modal="true">
@@ -791,7 +783,7 @@ function VideoModal({ open, title, src = '', onClose, playlist, onAdvance, start
             >
               {active ? <Minimize2 className="icon icon--sm" /> : <Maximize2 className="icon icon--sm" />}
             </button>
-            <button className="modal__close" onClick={() => { setPseudoFullscreen(false); setAutoMode('off'); onClose(); }} aria-label="关闭">✕</button>
+            <button className="modal__close" onClick={() => { setPseudoFullscreen(false); setLoopOne(false); onClose(); }} aria-label="关闭">✕</button>
           </div>
         </div>
         <div className="modal__video">
@@ -823,8 +815,7 @@ function VideoModal({ open, title, src = '', onClose, playlist, onAdvance, start
               ref={videoRef}
               className="modal__player"
               controls
-              autoPlay={autoMode !== 'off'}
-              loop={autoMode === 'one'}
+              loop={loopOne}
               onEnded={handleVideoEnded}
               src={videoSrc}
             >
@@ -832,18 +823,18 @@ function VideoModal({ open, title, src = '', onClose, playlist, onAdvance, start
             </video>
           )}
         </div>
-        {/* 自动播放控制条：带文字 + 图标，比挤在标题栏的小图标更醒目 */}
+        {/* 视频下方控制条：单曲循环 + 列表连播时的下一首/计数 */}
         <div className="modal__autoplay-bar">
           <button
-            className={`modal__autoplay-btn ${autoMode !== 'off' ? 'is-active' : ''}`}
-            onClick={cycleAutoMode}
-            aria-label={autoLabel}
-            title={autoLabel}
+            className={`modal__autoplay-btn ${loopOne ? 'is-active' : ''}`}
+            onClick={() => setLoopOne(v => !v)}
+            aria-label={loopOne ? '关闭单曲循环' : '单曲循环'}
+            title={loopOne ? '关闭单曲循环' : '单曲循环'}
           >
-            {autoMode === 'one' ? <Repeat1 className="icon icon--sm" /> : <Repeat className="icon icon--sm" />}
-            <span>{autoLabel}</span>
+            {loopOne ? <Repeat1 className="icon icon--sm" /> : <Repeat className="icon icon--sm" />}
+            <span>单曲循环</span>
           </button>
-          {hasPlaylist && autoMode === 'list' && !isLast && (
+          {hasPlaylist && autoList && !isLast && (
             <button
               className="modal__autoplay-btn"
               onClick={onAdvance}
@@ -854,7 +845,7 @@ function VideoModal({ open, title, src = '', onClose, playlist, onAdvance, start
               <span>下一首</span>
             </button>
           )}
-          {hasPlaylist && autoMode === 'list' && (
+          {hasPlaylist && autoList && (
             <span className="modal__playlist-count">
               <ListMusic className="icon icon--sm" style={{ marginRight: 4, verticalAlign: 'middle' }} />
               {currentIndex + 1}/{playlist.length}
@@ -1167,6 +1158,7 @@ export default function BabyAppFullStack() {
   const [data, setData] = useState(null);
   const profile = data?.profile; // 提前解构，供 useMemo 引用（避免 TDZ：原解构在 2410 行，晚于 useMemo）
   const [modal, setModal] = useState({ open: false, title: '', src: '', playlist: null, startIndex: 0 });
+  const [autoListMusic, setAutoListMusic] = useState(false); // 音乐区「自动播放」开关：开启后打开视频自动列表连播
   const [form, setForm] = useState({ name: '', gender: 'boy', birthday: '', height: '', weight: '', night_bedtime: '', night_wake_time: '' });
   // 账号系统
   const [currentUser, setCurrentUser] = useState(null); // { user_id, phone, nickname }
@@ -4327,9 +4319,18 @@ export default function BabyAppFullStack() {
           <div className="section__head">
             <span className="section__ico section__ico--violet"><Music className="icon icon--sm" /></span>
             <h2 className="section__title">音乐区</h2>
+            <button
+              className={`section__auto-toggle ${autoListMusic ? 'is-on' : ''}`}
+              onClick={() => setAutoListMusic(v => !v)}
+              aria-pressed={autoListMusic}
+              title={autoListMusic ? '自动播放已开启：打开视频后一首接一首播放' : '点击开启自动播放'}
+            >
+              <ListMusic className="icon icon--sm" />
+              <span>{autoListMusic ? '自动播放中' : '自动播放'}</span>
+            </button>
           </div>
           <ActList items={music} onPlay={(a) => {
-            // 音乐区：带播放列表上下文打开，开启列表循环时可自动连播下一首
+            // 音乐区：带播放列表上下文打开，autoListMusic 开启时自动连播下一首
             const idx = music.findIndex(m => m.id === a.id);
             setModal({ open: true, title: a.title, src: a.videoUrl || '', playlist: music, startIndex: idx >= 0 ? idx : 0 });
           }} />
@@ -4680,6 +4681,7 @@ export default function BabyAppFullStack() {
         src={modal.src || ''}
         playlist={modal.playlist}
         startIndex={modal.startIndex}
+        autoList={autoListMusic}
         onAdvance={() => {
           // 列表循环：推进到下一首，末首回绕到第一首
           if (!modal.playlist || modal.playlist.length === 0) return;

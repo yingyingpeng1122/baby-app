@@ -160,6 +160,10 @@ button:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
 .section__ico--amber { background: #ffedd5; color: #ea580c; }
 .section__ico--violet { background: var(--sky-soft); color: var(--sky); }
 .section__ico--rose { background: var(--rose-soft); color: var(--rose); }
+/* 音乐区「自动播放」开关：标题右侧胶囊按钮 */
+.section__auto-toggle { margin-left: auto; display: inline-flex; align-items: center; gap: 5px; font-size: 12px; font-weight: 700; color: var(--muted); background: var(--surface-2); border: 1px solid var(--line); padding: 6px 12px; border-radius: 999px; cursor: pointer; transition: all .2s ease; flex: none; }
+.section__auto-toggle:hover { border-color: var(--sky); color: var(--sky); }
+.section__auto-toggle.is-on { background: var(--sky-soft); border-color: var(--sky); color: var(--sky); box-shadow: 0 2px 8px rgba(56,189,248,.18); }
 .section__title { font-family: var(--font-display); font-weight: 600; font-size: 19px; color: var(--ink); margin: 0; }
 .section__status { display: inline-flex; align-items: center; gap: 5px; font-size: 13px; font-weight: 800; padding: 6px 13px; border-radius: 999px; flex: none; white-space: nowrap; }
 .section__status.is-ok { color: #0a8f6e; background: rgba(10,143,110,.12); }
@@ -2701,6 +2705,7 @@ button:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
 .app[data-mode="elder"] .section__hint { font-size: calc(12px * var(--elder-zoom)); }
 .app[data-mode="elder"] .section__status { font-size: calc(12px * var(--elder-zoom)); }
 .app[data-mode="elder"] .section__toggle { font-size: calc(12px * var(--elder-zoom)); }
+.app[data-mode="elder"] .section__auto-toggle { font-size: calc(12px * var(--elder-zoom)); }
 .app[data-mode="elder"] .stat__label { font-size: calc(13px * var(--elder-zoom)); }
 .app[data-mode="elder"] .stat__value { font-size: calc(40px * var(--elder-zoom)); }
 .app[data-mode="elder"] .stat__unit { font-size: calc(13px * var(--elder-zoom)); }
