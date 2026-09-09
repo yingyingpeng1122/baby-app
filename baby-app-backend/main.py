@@ -234,6 +234,11 @@ def init_db():
         db.execute("ALTER TABLE feeding_records_v2 ADD COLUMN user_id TEXT DEFAULT ''")
     except Exception:
         pass
+    # 新增记录入口列：quick=一键记录条 / modal=添加记录弹窗（兼容旧库，列已存在则忽略）
+    try:
+        db.execute("ALTER TABLE feeding_records_v2 ADD COLUMN entry_source TEXT DEFAULT ''")
+    except Exception:
+        pass
     # 新增成员昵称列（兼容旧库，列已存在则忽略）
     try:
         db.execute("ALTER TABLE family_members ADD COLUMN nickname TEXT DEFAULT ''")
@@ -457,6 +462,7 @@ class FeedingRecord(BaseModel):
     duration: int = 0     # 睡眠时长（分钟），仅 type=sleep 使用
     kind: str = ''        # 尿布类型：pee=尿 / poop=屎 / both=都有，仅 type=diaper 使用
     recorderName: str = ''  # 记录人昵称（家庭成员昵称）
+    entrySource: str = ''  # 记录入口：quick=一键记录条 / modal=添加记录弹窗
 
 class FeedingEvaluation(BaseModel):
     totalMilk: float
@@ -1753,8 +1759,8 @@ async def add_feeding_record(record: FeedingRecord, request: Request):
     today = date.today().isoformat()
     record.id = str(uuid.uuid4())[:8]
     db.execute(
-        "INSERT INTO feeding_records_v2 (id, baby_id, date, time, amount, type, note, food_groups, duration, kind, user_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-        [record.id, bid, today, record.time, record.amount, record.type, record.note, record.foodGroups, record.duration, record.kind, uid])
+        "INSERT INTO feeding_records_v2 (id, baby_id, date, time, amount, type, note, food_groups, duration, kind, user_id, entry_source) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+        [record.id, bid, today, record.time, record.amount, record.type, record.note, record.foodGroups, record.duration, record.kind, uid, record.entrySource])
     db.sync()
     record.recorderName = _recorder_name(uid)
     return record
@@ -1764,9 +1770,9 @@ async def get_feeding_records(request: Request, date_str: str = Query(default=No
     bid = get_baby_id(request)
     d = date_str or date.today().isoformat()
     rs = db.execute(
-        "SELECT id, time, amount, type, note, food_groups, duration, kind, user_id FROM feeding_records_v2 WHERE baby_id = ? AND date = ?",
+        "SELECT id, time, amount, type, note, food_groups, duration, kind, user_id, entry_source FROM feeding_records_v2 WHERE baby_id = ? AND date = ?",
         [bid, d]).fetchall()
-    return [FeedingRecord(id=r[0], time=r[1], amount=r[2], type=_norm_feed_type(r[3]), note=r[4] or '', foodGroups=r[5] or '', duration=r[6] or 0, kind=r[7] or '', recorderName=_recorder_name(r[8] or '')) for r in rs]
+    return [FeedingRecord(id=r[0], time=r[1], amount=r[2], type=_norm_feed_type(r[3]), note=r[4] or '', foodGroups=r[5] or '', duration=r[6] or 0, kind=r[7] or '', recorderName=_recorder_name(r[8] or ''), entrySource=r[9] or '') for r in rs]
 
 @app.put("/feeding-records/{record_id}", response_model=FeedingRecord)
 async def update_feeding_record(record_id: str, record: FeedingRecord, request: Request):

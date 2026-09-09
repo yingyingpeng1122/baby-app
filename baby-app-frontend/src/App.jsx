@@ -2336,7 +2336,7 @@ export default function BabyAppFullStack() {
       const hm = (d) => `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
       const addMin = (d, m) => { const n = new Date(d); n.setMinutes(n.getMinutes() + m); return n; };
       const hmOf = (d) => `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
-      const payload = { time: hm(now), type, note: '', foodGroups: '', kind: '', amount: 0, duration: 0, ...overrides };
+      const payload = { time: hm(now), type, note: '', foodGroups: '', kind: '', amount: 0, duration: 0, entrySource: 'quick', ...overrides };
       // sleep 类型：默认开始 = now - duration, 结束 = now
       if (type === 'sleep' && payload.duration > 0 && !payload.wakeTime) {
         const start = addMin(now, -payload.duration);
@@ -2405,6 +2405,7 @@ export default function BabyAppFullStack() {
             foodGroups: feedForm.foodGroups.join(','),
             duration: (feedForm.type === 'sleep' && feedForm.wakeTime) ? diffMinutes(feedForm.time, feedForm.wakeTime) : (feedForm.duration || 0),
             kind: feedForm.type === 'diaper' ? (feedForm.kind || '') : '',
+            entrySource: 'modal',
           }),
         });
       }
